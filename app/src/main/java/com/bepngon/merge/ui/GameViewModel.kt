@@ -24,6 +24,7 @@ data class GameUiState(
     val game: GameState,
     val loading: Boolean = true,
     val showRestartConfirm: Boolean = false,
+    val nowMs: Long = 0,
 )
 
 class GameViewModel(app: Application) : AndroidViewModel(app) {
@@ -56,7 +57,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             while (true) {
                 delay(ORDER_TICK_MS)
-                applyEngine { GameEngine.maybeSpawnOrder(it, nowMs()) }
+                applyEngine { GameEngine.tick(it, nowMs()) }
+                _ui.value = _ui.value.copy(nowMs = nowMs())
             }
         }
     }
@@ -72,7 +74,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun moveInInventory(from: Int, to: Int) =
         applyEngine { GameEngine.moveInInventory(it, from, to) }
 
-    fun tapGenerator(cellIndex: Int) = applyEngine { GameEngine.tapGenerator(it, cellIndex) }
+    fun tapGenerator(cellIndex: Int) = applyEngine { GameEngine.tapGenerator(it, cellIndex, nowMs()) }
 
     fun sell(cellIndex: Int) = applyEngine { GameEngine.sell(it, cellIndex) }
 

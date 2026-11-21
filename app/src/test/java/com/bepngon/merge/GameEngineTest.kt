@@ -24,10 +24,13 @@ private fun stateWith(
     xp: Int = 0,
     level: Int = 1,
     coins: Int = 0,
+    lockedCells: Set<Int> = emptySet(),
 ): GameState {
     val cells = MutableList<BoardItem?>(GameEngine.CELLS) { null }
     var uid = 1L
-    placements.forEach { (i, defId) -> cells[i] = BoardItem(uid++, defId) }
+    placements.forEach { (i, defId) ->
+        cells[i] = GameEngine.newItem(uid++, defId)
+    }
     val inv = MutableList<BoardItem?>(GameEngine.MAX_INVENTORY) { null }
     inventory.forEachIndexed { i, defId -> defId?.let { inv[i] = BoardItem(uid++, it) } }
     return GameState(
@@ -43,6 +46,7 @@ private fun stateWith(
         xp = xp,
         level = level,
         nextUid = uid,
+        lockedCells = lockedCells,
     )
 }
 
@@ -87,18 +91,44 @@ class GameEngineTest {
     }
 
     @Test
-    fun `generator tap consumes energy and spawns item`() {
+    fun `generator tap consumes energy, charge and spawns item`() {
         val s = stateWith(0 to "gen_fruit_1")
-        val (next, events) = GameEngine.tapGenerator(s, 0, Random(42))
+        val (next, events) = GameEngine.tapGenerator(s, 0, 1000, Random(42))
         assertEquals(9, next.energy)
+        assertEquals(7, next.cells[0]?.charges) // maxCharges 8 - 1
         assertEquals(1, next.cells.count { it != null && it.defId.startsWith("fruit_") })
         assertTrue(events.single() is GameEvent.Spawned)
     }
 
     @Test
+    fun `generator enters cooldown after last charge then recharges on tick`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        // drain all 8 charges
+        repeat(8) {
+            s = GameEngine.tapGenerator(s, 0, 1000).first
+            // free spawned items so board never fills
+            val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
+            s = s.copy(cells = cells)
+        }
+        val gen = s.cells[0]!!
+        assertEquals(0, gen.charges)
+        assertEquals(1000 + GameEngine.GEN_COOLDOWN_MS, gen.cooldownUntilMs)
+
+        // tap while cooling → GeneratorEmpty
+        val (_, ev1) = GameEngine.tapGenerator(s, 0, 2000)
+        assertEquals(listOf(GameEvent.GeneratorEmpty), ev1)
+
+        // tick after cooldown → recharged + event
+        val (recharged, ev2) = GameEngine.tick(s, 1000 + GameEngine.GEN_COOLDOWN_MS + 1)
+        assertEquals(8, recharged.cells[0]?.charges)
+        assertEquals(0L, recharged.cells[0]?.cooldownUntilMs)
+        assertTrue(ev2.any { it is GameEvent.GeneratorReady })
+    }
+
+    @Test
     fun `generator tap with no energy emits NoEnergy`() {
         val s = stateWith(0 to "gen_fruit_1", energy = 0)
-        val (_, events) = GameEngine.tapGenerator(s, 0)
+        val (_, events) = GameEngine.tapGenerator(s, 0, 1000)
         assertEquals(listOf(GameEvent.NoEnergy), events)
     }
 
@@ -107,7 +137,7 @@ class GameEngineTest {
         val s = stateWith(*Array(GameEngine.CELLS) { it to "fruit_1" }.also {
             it[0] = 0 to "gen_fruit_1"
         })
-        val (_, events) = GameEngine.tapGenerator(s, 0)
+        val (_, events) = GameEngine.tapGenerator(s, 0, 1000)
         assertEquals(listOf(GameEvent.BoardFull), events)
     }
 
@@ -257,6 +287,60 @@ class GameEngineTest {
         assertTrue(order.required.all { it.startsWith("fruit_") })
         assertTrue(events.single() is GameEvent.OrderSpawned)
         assertTrue(next.nextOrderAtMs > 100)
+    }
+
+    // ---------- locked cells ----------
+
+    @Test
+    fun `locked cells block drops and spawning`() {
+        val s = stateWith(0 to "fruit_1", 1 to "gen_fruit_1", lockedCells = setOf(5, 6))
+        val (moved, ev1) = GameEngine.moveOrMerge(s, 0, 5)
+        assertEquals("fruit_1", moved.cells[0]?.defId)
+        assertEquals(listOf(GameEvent.InvalidDrop), ev1)
+
+        // spawn never lands on locked cells
+        var cur = s
+        repeat(7) {
+            cur = GameEngine.tapGenerator(cur, 1, 1000, Random(3)).first
+        }
+        assertNull(cur.cells[5])
+        assertNull(cur.cells[6])
+    }
+
+    @Test
+    fun `level up unlocks locked cells`() {
+        val s = stateWith(
+            0 to "fruit_5",
+            orders = listOf(orderOf("fruit_5", "fruit_5")),
+            xp = 40, level = 2,
+            lockedCells = GameEngine.INITIAL_LOCKED.toSet(),
+        )
+        var cur = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0).first
+        val lockedBefore = cur.lockedCells.size
+        // force xp over level 3 threshold via another order
+        cur = cur.copy(
+            orders = listOf(orderOf("fruit_5").copy(id = 2)),
+            cells = cur.cells.toMutableList().also { it[0] = GameEngine.newItem(99, "fruit_5") },
+        )
+        val (next, events) = GameEngine.deliverToOrder(cur, 2, ItemSource.BOARD, 0)
+        assertTrue(next.level >= 3)
+        assertTrue(next.lockedCells.size < lockedBefore)
+        assertTrue(events.any { it is GameEvent.CellsUnlocked })
+    }
+
+    @Test
+    fun `merge resets generator charges`() {
+        // drain a gen to 3 charges, then merge with fresh one
+        var s = stateWith(0 to "gen_fruit_1", 1 to "gen_fruit_1")
+        repeat(5) {
+            s = GameEngine.tapGenerator(s, 0, 1000, Random(1)).first
+            val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
+            s = s.copy(cells = cells)
+        }
+        assertEquals(3, s.cells[0]?.charges)
+        val (merged, _) = GameEngine.moveOrMerge(s, 0, 1)
+        assertEquals("gen_fruit_2", merged.cells[1]?.defId)
+        assertEquals(16, merged.cells[1]?.charges) // fresh maxCharges for tier-2 gen
     }
 
     @Test

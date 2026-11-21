@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -145,6 +146,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var floaters by remember { mutableStateOf(listOf<Floater>()) }
     var floaterId by remember { mutableStateOf(0L) }
     var levelBanner by remember { mutableStateOf<String?>(null) }
+    var infoItem by remember { mutableStateOf<BoardItem?>(null) }
 
     fun pushFloater(text: String, pos: Offset, color: Color) {
         val f = Floater(floaterId++, text, pos, color)
@@ -248,6 +250,21 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         levelBanner = null
                     }
                 }
+                is GameEvent.CellsUnlocked -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    levelBanner = "🔓 Mở khóa ${e.count} ô mới!"
+                    scope.launch {
+                        kotlinx.coroutines.delay(2500)
+                        levelBanner = null
+                    }
+                }
+                is GameEvent.GeneratorReady -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    cellBounds[e.cellIndex]?.let { r ->
+                        pushFloater("⚡ xong!", r.center, MergeGreen)
+                    }
+                }
+                GameEvent.GeneratorEmpty,
                 GameEvent.DeliverRejected,
                 GameEvent.NoEnergy,
                 GameEvent.BoardFull,
@@ -293,6 +310,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
 
         BoardGrid(
             cells = ui.game.cells,
+            lockedCells = ui.game.lockedCells,
+            nowMs = ui.nowMs,
             drag = drag,
             hoverCell = hoverCell,
             cellBounds = cellBounds,
@@ -300,18 +319,21 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDrag = onDrag,
             onDragEnd = onDragEnd,
             onTapGenerator = vm::tapGenerator,
+            onTapInfo = { infoItem = it },
             modifier = Modifier.weight(1f),
         )
 
         InventoryBar(
             inventory = ui.game.inventory,
             cap = ui.game.inventoryCap,
+            nowMs = ui.nowMs,
             drag = drag,
             hoverInv = hoverInv,
             invBounds = invBounds,
             onDragStart = onDragStart,
             onDrag = onDrag,
             onDragEnd = onDragEnd,
+            onTapInfo = { infoItem = it },
         )
 
         SellZone(
@@ -331,6 +353,15 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     levelBanner?.let { text ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             LevelBanner(text)
+        }
+    }
+    infoItem?.let { item ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            ItemInfoCard(
+                item = item,
+                nowMs = ui.nowMs,
+                onDismiss = { infoItem = null },
+            )
         }
     }
 
@@ -367,6 +398,8 @@ private fun rewardText(r: LevelReward): String = buildList {
 @Composable
 private fun BoardGrid(
     cells: List<BoardItem?>,
+    lockedCells: Set<Int>,
+    nowMs: Long,
     drag: DragState?,
     hoverCell: Int?,
     cellBounds: MutableMap<Int, Rect>,
@@ -374,6 +407,7 @@ private fun BoardGrid(
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
+    onTapInfo: (BoardItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -393,6 +427,9 @@ private fun BoardGrid(
                     CellBox(
                         index = cell,
                         item = item,
+                        locked = cell in lockedCells,
+                        unlockLevel = GameEngine.unlockLevelForCell(cell),
+                        nowMs = nowMs,
                         hidden = drag?.source == ItemSource.BOARD && drag.index == cell,
                         hover = hoverCell == cell,
                         canDrop = if (drag != null && item != null && hoverCell == cell) {
@@ -408,6 +445,7 @@ private fun BoardGrid(
                         onDrag = onDrag,
                         onDragEnd = onDragEnd,
                         onTapGenerator = onTapGenerator,
+                        onTapInfo = onTapInfo,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -420,6 +458,9 @@ private fun BoardGrid(
 private fun CellBox(
     index: Int,
     item: BoardItem?,
+    locked: Boolean,
+    unlockLevel: Int?,
+    nowMs: Long,
     hidden: Boolean,
     hover: Boolean,
     canDrop: Boolean?,
@@ -428,10 +469,12 @@ private fun CellBox(
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
+    onTapInfo: (BoardItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val bg = when {
+        locked -> Color(0xFFD7CCC8)
         canDrop == true -> Color(0xFFA5D6A7)
         canDrop == false -> Color(0xFFEF9A9A)
         hover -> Color(0xFFFFF9C4)
@@ -449,10 +492,18 @@ private fun CellBox(
             .border(1.dp, Color(0x1A5D4037), RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center,
     ) {
-        if (item != null) {
+        if (locked) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🕸️", fontSize = 18.sp)
+                if (unlockLevel != null) {
+                    Text("Lv$unlockLevel", fontSize = 8.sp, color = Cocoa.copy(alpha = 0.7f))
+                }
+            }
+        } else if (item != null) {
             ItemTile(
                 index = index,
                 item = item,
+                nowMs = nowMs,
                 hidden = hidden,
                 cellBoundsInWindow = bounds,
                 source = ItemSource.BOARD,
@@ -460,6 +511,7 @@ private fun CellBox(
                 onDrag = onDrag,
                 onDragEnd = onDragEnd,
                 onTapGenerator = onTapGenerator,
+                onTapInfo = onTapInfo,
             )
         }
     }
@@ -469,12 +521,14 @@ private fun CellBox(
 private fun InventoryBar(
     inventory: List<BoardItem?>,
     cap: Int,
+    nowMs: Long,
     drag: DragState?,
     hoverInv: Int?,
     invBounds: MutableMap<Int, Rect>,
     onDragStart: (ItemSource, Int, Long, String, Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
+    onTapInfo: (BoardItem) -> Unit,
 ) {
     Row(
         Modifier
@@ -515,6 +569,7 @@ private fun InventoryBar(
                     ItemTile(
                         index = slot,
                         item = item,
+                        nowMs = nowMs,
                         hidden = drag?.source == ItemSource.INVENTORY && drag.index == slot,
                         cellBoundsInWindow = bounds,
                         source = ItemSource.INVENTORY,
@@ -522,6 +577,7 @@ private fun InventoryBar(
                         onDrag = onDrag,
                         onDragEnd = onDragEnd,
                         onTapGenerator = {},
+                        onTapInfo = onTapInfo,
                     )
                 }
             }
@@ -533,6 +589,7 @@ private fun InventoryBar(
 private fun ItemTile(
     index: Int,
     item: BoardItem,
+    nowMs: Long,
     hidden: Boolean,
     cellBoundsInWindow: Rect,
     source: ItemSource,
@@ -540,6 +597,7 @@ private fun ItemTile(
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
+    onTapInfo: (BoardItem) -> Unit,
 ) {
     val def = ItemCatalog[item.defId]
     val scope = rememberCoroutineScope()
@@ -550,6 +608,12 @@ private fun ItemTile(
     val currentOnDrag by androidx.compose.runtime.rememberUpdatedState(onDrag)
     val currentOnDragEnd by androidx.compose.runtime.rememberUpdatedState(onDragEnd)
     val currentBounds by androidx.compose.runtime.rememberUpdatedState(cellBoundsInWindow)
+    val currentOnTapInfo by androidx.compose.runtime.rememberUpdatedState(onTapInfo)
+    val currentItem by androidx.compose.runtime.rememberUpdatedState(item)
+    val currentNowMs by androidx.compose.runtime.rememberUpdatedState(nowMs)
+
+    val cooling = item.cooldownUntilMs > nowMs
+    val depleted = def.isGenerator && (cooling || item.charges == 0)
 
     LaunchedEffect(item.uid) {
         pop.snapTo(0f)
@@ -560,12 +624,16 @@ private fun ItemTile(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
-                alpha = if (hidden) 0.25f else 1f
+                alpha = if (hidden) 0.25f else if (cooling) 0.55f else 1f
             }
             .scale(scale.value * (0.6f + 0.4f * pop.value))
             .pointerInput(item.uid, source) {
                 detectTapGestures {
-                    if (def.isGenerator) {
+                    val it = currentItem
+                    val d = ItemCatalog[it.defId]
+                    val dep = d.isGenerator &&
+                        (it.cooldownUntilMs > currentNowMs || it.charges == 0)
+                    if (d.isGenerator && !dep) {
                         onTapGenerator(index)
                         scope.launch {
                             scale.animateTo(0.85f, tween(70))
@@ -574,6 +642,8 @@ private fun ItemTile(
                                 spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                             )
                         }
+                    } else {
+                        currentOnTapInfo(it)
                     }
                 }
             }
@@ -600,14 +670,38 @@ private fun ItemTile(
     ) {
         Text(def.emoji, fontSize = 28.sp)
         if (def.isGenerator) {
-            Text(
-                "tap",
-                fontSize = 8.sp,
-                color = Cocoa.copy(alpha = 0.6f),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 2.dp),
-            )
+            if (cooling) {
+                Text(
+                    "💤 ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Cocoa,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .background(Color(0xCCFFFFFF), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 3.dp),
+                )
+            } else {
+                Text(
+                    "x${item.charges}",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(1.dp)
+                        .background(MergeGreen, CircleShape)
+                        .padding(horizontal = 3.dp),
+                )
+                Text(
+                    "tap",
+                    fontSize = 8.sp,
+                    color = Cocoa.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 2.dp),
+                )
+            }
         }
     }
 }
@@ -649,5 +743,102 @@ private fun LevelBanner(text: String) {
             fontSize = 15.sp,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+@Composable
+private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
+    val def = ItemCatalog[item.defId]
+    LaunchedEffect(item.uid) {
+        kotlinx.coroutines.delay(6_000)
+        onDismiss()
+    }
+
+    Column(
+        Modifier
+            .padding(top = 150.dp, start = 24.dp, end = 24.dp)
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(16.dp))
+            .background(CellWhite, RoundedCornerShape(16.dp))
+            .border(2.dp, Color(0xFFE8D5B7), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .background(Color(def.family.tint), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(def.emoji, fontSize = 30.sp)
+            }
+            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                Text(def.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Cocoa)
+                Text(
+                    "Tier ${def.tier}  •  🪙 ${def.sellPrice}",
+                    fontSize = 12.sp,
+                    color = Cocoa.copy(alpha = 0.75f),
+                )
+            }
+            Text(
+                "✕",
+                fontSize = 18.sp,
+                color = Cocoa.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(6.dp),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        if (def.isGenerator) {
+            val cooling = item.cooldownUntilMs > nowMs
+            Text(
+                if (cooling) {
+                    "💤 Hết lượt — hồi sau ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s"
+                } else {
+                    "🔋 Lượt sinh: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}"
+                },
+                fontSize = 12.sp,
+                color = if (cooling) WarnRed else MergeGreen,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text("Sinh ra:", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.7f))
+            val total = def.spawnTable.sumOf { it.weight }
+            Row(
+                Modifier.padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                def.spawnTable.forEach { entry ->
+                    val spawnDef = ItemCatalog[entry.itemId]
+                    Text(
+                        "${spawnDef.emoji} ${entry.weight * 100 / total}%",
+                        fontSize = 12.sp,
+                        color = Cocoa,
+                    )
+                }
+            }
+        } else {
+            val next = def.mergeResult?.let { ItemCatalog[it] }
+            Text(
+                if (next != null) "➡️ Merge lên: ${next.emoji} ${next.name}" else "🏆 Đã max tier!",
+                fontSize = 12.sp,
+                color = Cocoa,
+            )
+            val gens = ItemCatalog.generatorsFor(item.defId)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (gens.isNotEmpty()) {
+                    "🧺 Sinh từ: " + gens.joinToString(" / ") { "${it.emoji} ${it.name}" }
+                } else {
+                    "🧺 Sinh từ: không có (item đặc biệt)"
+                },
+                fontSize = 12.sp,
+                color = Cocoa.copy(alpha = 0.8f),
+            )
+        }
     }
 }

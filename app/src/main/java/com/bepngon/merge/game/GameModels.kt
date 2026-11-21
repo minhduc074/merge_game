@@ -3,7 +3,11 @@ package com.bepngon.merge.game
 data class BoardItem(
     val uid: Long,
     val defId: String,
-)
+    val charges: Int = -1,
+    val cooldownUntilMs: Long = 0,
+) {
+    val isCoolingDown: Boolean get() = cooldownUntilMs > 0
+}
 
 data class Customer(val id: String, val name: String, val emoji: String)
 
@@ -47,14 +51,17 @@ data class GameState(
     val xp: Int,
     val level: Int,
     val nextUid: Long,
+    val lockedCells: Set<Int> = emptySet(),
 ) {
-    val boardFull: Boolean get() = cells.all { it != null }
+    val boardFull: Boolean
+        get() = cells.indices.all { cells[it] != null || it in lockedCells }
 }
 
 data class LevelReward(
     val coins: Int = 0,
     val generatorDefId: String? = null,
     val inventoryCapBonus: Int = 0,
+    val unlockCells: Int = 0,
 )
 
 enum class ItemSource { BOARD, INVENTORY }
@@ -67,6 +74,9 @@ sealed interface GameEvent {
     data class OrderDelivered(val orderId: Long) : GameEvent
     data class OrderCompleted(val order: Order, val coinsGained: Int, val xpGained: Int) : GameEvent
     data class LevelUp(val level: Int, val reward: LevelReward) : GameEvent
+    data class CellsUnlocked(val count: Int) : GameEvent
+    data class GeneratorReady(val cellIndex: Int) : GameEvent
+    data object GeneratorEmpty : GameEvent
     data object DeliverRejected : GameEvent
     data object InventoryFull : GameEvent
     data object NoEnergy : GameEvent

@@ -21,6 +21,7 @@ data class ItemDef(
     val score: Int,
     val isGenerator: Boolean = false,
     val spawnTable: List<SpawnEntry> = emptyList(),
+    val maxCharges: Int = 0,
 )
 
 object ItemCatalog {
@@ -53,6 +54,7 @@ object ItemCatalog {
                 tier = tier, mergeResult = next, sellPrice = sellPrice, score = 0,
                 isGenerator = true,
                 spawnTable = table.map { SpawnEntry(it.first, it.second) },
+                maxCharges = 8 * tier,
             )
         )
     }
@@ -131,6 +133,30 @@ object ItemCatalog {
             "gen_bakery_3", 3, "🏭", "Nhà máy bánh", null, 150,
             "bakery_2" to 40, "bakery_3" to 35, "bakery_4" to 20, "bakery_5" to 5,
         )
+        generator(
+            "gen_drink_1", 1, "🧃", "Máy pha chế", "gen_drink_2", 30,
+            "drink_1" to 70, "drink_2" to 25, "drink_3" to 5,
+        )
+        generator(
+            "gen_drink_2", 2, "🧊", "Tủ lạnh mini", "gen_drink_3", 70,
+            "drink_1" to 35, "drink_2" to 40, "drink_3" to 20, "drink_4" to 5,
+        )
+        generator(
+            "gen_drink_3", 3, "🍶", "Quầy bar", null, 160,
+            "drink_2" to 40, "drink_3" to 35, "drink_4" to 20, "drink_5" to 5,
+        )
+        generator(
+            "gen_viet_1", 1, "🍳", "Bếp nhỏ", "gen_viet_2", 40,
+            "viet_1" to 70, "viet_2" to 25, "viet_3" to 5,
+        )
+        generator(
+            "gen_viet_2", 2, "🔥", "Bếp lớn", "gen_viet_3", 90,
+            "viet_1" to 35, "viet_2" to 40, "viet_3" to 20, "viet_4" to 5,
+        )
+        generator(
+            "gen_viet_3", 3, "🏮", "Nhà hàng", null, 200,
+            "viet_2" to 40, "viet_3" to 35, "viet_4" to 20, "viet_5" to 5,
+        )
     }
 
     operator fun get(id: String): ItemDef =
@@ -141,4 +167,7 @@ object ItemCatalog {
 
     fun allInFamilies(families: Set<Family>): List<ItemDef> =
         defs.values.filter { it.family in families && !it.isGenerator }
+
+    fun generatorsFor(itemDefId: String): List<ItemDef> =
+        defs.values.filter { it.isGenerator && it.spawnTable.any { s -> s.itemId == itemDefId } }
 }
