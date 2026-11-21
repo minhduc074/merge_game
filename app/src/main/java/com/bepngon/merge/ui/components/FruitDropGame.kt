@@ -101,8 +101,8 @@ private const val REST_VEL = 160f     // px/s closing speed below which contacts
                                       // inelastic (restitution slop) → no rest jitter
 private const val SLOP = 0.6f         // px of overlap left uncorrected (penetration slop)
 private const val POS_PERCENT = 0.6f  // fraction of overlap corrected per pass
-private const val MAX_SEP = 5f        // px cap per pass — deep overlaps ooze out
-                                      // over frames instead of popping sky-high
+private const val MAX_SEP = 7f        // px cap per pass — covers one substep's
+                                      // max penetration so overlaps don't linger
 private const val RISE_V = 800f       // px/s upward-speed cap (impulse chains on a
                                       // packed pile can launch a fruit)
 private const val FRICTION = 0.35f    // tangential impulse cap (Coulomb μ)
@@ -114,9 +114,11 @@ private const val DROP_CD_MS = 600L
 private const val OVERLINE_MS = 1_800L
 private const val WALL_PAD = 10f      // fruit circles never touch the brown border
 private const val BALL_GAP = 2f       // and never overlap each other's circle
-private const val SOLVER_PASSES = 3   // relaxation iterations per frame
+private const val SOLVER_PASSES = 4   // relaxation iterations per substep
+private const val SUBSTEPS = 2        // physics substeps per fixed step — halved
+                                      // penetration so drops don't visibly sink in
 
-private fun radiusFor(tier: Int, unit: Float): Float = unit * (0.62f + 0.22f * tier)
+private fun radiusFor(tier: Int, unit: Float): Float = unit * (0.56f + 0.19f * tier)
 
 @Composable
 fun FruitDropGame(
@@ -358,7 +360,7 @@ fun FruitDropGame(
                                 acc += dt
                                 var steps = 0
                                 while (acc >= STEP && steps < MAX_STEPS) {
-                                    step(STEP)
+                                    repeat(SUBSTEPS) { step(STEP / SUBSTEPS) }
                                     acc -= STEP
                                     steps++
                                 }
