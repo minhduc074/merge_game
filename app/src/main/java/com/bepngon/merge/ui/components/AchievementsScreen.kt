@@ -79,13 +79,17 @@ fun AchievementsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                items(Achievements.ALL) { a ->
+                items(Achievements.CHAINS) { chain ->
+                    val current = chain.firstOrNull { it.id !in game.claimedAchievements }
+                        ?: chain.last()
+                    val tier = chain.indexOf(current) + 1
                     AchievementRow(
-                        a = a,
-                        progress = game.metricOf(a.metric),
-                        reached = a.id in game.reachedAchievements,
-                        claimed = a.id in game.claimedAchievements,
-                        onClaim = { onClaim(a.id) },
+                        a = current,
+                        tierLabel = if (chain.size > 1) "Bậc $tier/${chain.size}" else null,
+                        progress = game.metricOf(current.metric),
+                        reached = current.id in game.reachedAchievements,
+                        claimed = current.id in game.claimedAchievements,
+                        onClaim = { onClaim(current.id) },
                     )
                 }
             }
@@ -96,6 +100,7 @@ fun AchievementsScreen(
 @Composable
 private fun AchievementRow(
     a: Achievement,
+    tierLabel: String?,
     progress: Int,
     reached: Boolean,
     claimed: Boolean,
@@ -124,7 +129,21 @@ private fun AchievementRow(
             Text(a.emoji, fontSize = 24.sp)
         }
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text(a.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Cocoa)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(a.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Cocoa)
+                if (tierLabel != null) {
+                    Text(
+                        tierLabel,
+                        fontSize = 9.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Gold)
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
             Text(a.desc, fontSize = 11.sp, color = Cocoa.copy(alpha = 0.7f))
             val clamped = minOf(progress, a.goal)
             Row(

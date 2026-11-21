@@ -74,6 +74,15 @@ object Achievements {
     )
 
     fun byId(id: String): Achievement = ALL.first { it.id == id }
+
+    /** Tiered chains: claim tier N to reveal tier N+1 in the same row. */
+    val CHAINS = listOf(
+        listOf(byId("merge10"), byId("merge50"), byId("merge200")),
+        listOf(byId("order5"), byId("order20")),
+        listOf(byId("tier3"), byId("tier5")),
+        listOf(byId("lv3"), byId("lv5")),
+        listOf(byId("rich500")),
+    )
 }
 
 data class GameState(

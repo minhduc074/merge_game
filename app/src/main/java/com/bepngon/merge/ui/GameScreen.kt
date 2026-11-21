@@ -57,6 +57,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -202,6 +203,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var genListItem by remember { mutableStateOf<BoardItem?>(null) }
     var statInfo by remember { mutableStateOf<String?>(null) }
     var coinBounds by remember { mutableStateOf<Rect?>(null) }
+    var contentOrigin by remember { mutableStateOf(Offset.Zero) }
     var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
     var flyId by remember { mutableStateOf(0L) }
     var sparkles by remember { mutableStateOf(listOf<Offset>()) }
@@ -406,7 +408,11 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { contentOrigin = it.positionInWindow() },
+    ) {
         TopBar(
             score = ui.game.score,
             coins = ui.game.coins,
@@ -481,7 +487,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
 
     // Floaters + banners (window-coordinate space, same as drag overlay)
     floaters.forEach { f ->
-        key(f.id) { ScoreFloater(f) }
+        key(f.id) { ScoreFloater(f.copy(position = f.position - contentOrigin)) }
     }
     levelBanner?.let { text ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -544,8 +550,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             Modifier
                 .offset {
                     IntOffset(
-                        (d.position.x - tileSize.toPx() / 2).roundToInt(),
-                        (d.position.y - tileSize.toPx() / 2).roundToInt(),
+                        (d.position.x - contentOrigin.x - tileSize.toPx() / 2).roundToInt(),
+                        (d.position.y - contentOrigin.y - tileSize.toPx() / 2).roundToInt(),
                     )
                 }
                 .size(tileSize)
@@ -561,10 +567,14 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
 
     // Juice layer: sparkle bursts + flying items
     sparkles.forEachIndexed { i, center ->
-        key(i, center) { SparkleBurst(center) }
+        key(i, center) { SparkleBurst(center - contentOrigin) }
     }
     flies.forEach { f ->
-        key(f.id) { FlyingEmoji(f) }
+        key(f.id) {
+            FlyingEmoji(
+                f.copy(from = f.from - contentOrigin, to = f.to - contentOrigin),
+            )
+        }
     }
 }
 
