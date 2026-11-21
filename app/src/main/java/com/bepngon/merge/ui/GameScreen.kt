@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -483,6 +484,14 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     }
     infoItem?.let { item ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { infoItem = null },
+            )
             ItemInfoCard(
                 item = item,
                 nowMs = ui.nowMs,
@@ -1028,6 +1037,10 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
             .shadow(10.dp, RoundedCornerShape(16.dp))
             .background(CellWhite, RoundedCornerShape(16.dp))
             .border(2.dp, Color(0xFFE8D5B7), RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {}
             .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
