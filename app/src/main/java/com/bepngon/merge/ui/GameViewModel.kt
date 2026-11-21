@@ -3,6 +3,7 @@ package com.bepngon.merge.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.data.SaveManager
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
@@ -171,6 +172,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeMiniGame() {
         _ui.value = _ui.value.copy(showMiniGame = false)
+    }
+
+    /** Debug cheat — coin chip tapped 10×; no-op in release builds. */
+    fun debugMaxOut() {
+        if (BuildConfig.DEBUG) applyEngine { GameEngine.debugMaxOut(it) }
     }
 
     fun askRestart() {

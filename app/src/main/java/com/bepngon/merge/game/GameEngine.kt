@@ -989,6 +989,40 @@ object GameEngine {
         ) to listOf(GameEvent.MiniGameFinished(score, energy))
     }
 
+    // ---------- debug ----------
+
+    /** Debug cheat (tap coin chip 10×): jump to max level — every level reward
+     *  applies, so all cells unlock and reward generators get granted — plus a
+     *  fat wallet, full energy and max inventory for testing. */
+    const val DEBUG_LEVEL = 20
+    const val DEBUG_COINS = 99_999
+
+    fun debugMaxOut(state: GameState): Pair<GameState, List<GameEvent>> {
+        var next = state
+        var unlocked = 0
+        while (next.level < DEBUG_LEVEL) {
+            next = next.copy(level = next.level + 1)
+            val reward = rewardForLevel(next.level)
+            unlocked += minOf(reward.unlockCells, next.lockedCells.size)
+            next = applyLevelReward(next, reward)
+        }
+        next = next.copy(
+            xp = 0,
+            coins = next.coins + DEBUG_COINS,
+            energy = ENERGY_CAP,
+            inventoryCap = MAX_INVENTORY,
+            onboardingDone = true,
+            miniPlaysLeft = MINI_MAX_PLAYS,
+            miniRefillAtMs = 0L,
+            stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + DEBUG_COINS),
+        )
+        val events = mutableListOf<GameEvent>(
+            GameEvent.LevelUp(next.level, rewardForLevel(next.level)),
+        )
+        if (unlocked > 0) events += GameEvent.CellsUnlocked(unlocked)
+        return checkAchievements(next, events) to events
+    }
+
     // ---------- helpers ----------
 
     fun emptyCells(state: GameState): List<Int> =

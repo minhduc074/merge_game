@@ -30,7 +30,20 @@ proguard rules giữ kotlinx.serialization serializers.
 - adb shell path bị Git Bash convert (`/sdcard/x` -> `C:/Program Files/Git/...`) — thêm `MSYS_NO_PATHCONV=1` hoặc dùng `adb exec-out screencap -p > file.png` để chụp màn hình.
 - Emulator console screenshot: TCP `127.0.0.1:5554`, `auth <token>` trong `~/.emulator_console_auth_token`, lệnh `screenrecord screenshot <path>`.
 
-## Debug gameplay bằng adb
+## Debug gameplay
+
+- Cheat: bấm nút coin 🪙 trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv20, mở hết ô, +99,999🪙,
+  full energy/kho/onboarding, reset lượt thả trái về 3). Bản debug bấm coin không mở popup info mà
+  đếm + hiện floater "x/10" để bấm liên tục được. Chỉ hoạt động trong build DEBUG (`BuildConfig.DEBUG`).
+
+### Quy trình sau mỗi lần sửa (user yêu cầu)
+
+1. `./gradlew.bat :app:assembleDebug` → `adb install -r app/build/outputs/apk/debug/app-debug.apk`
+2. `adb shell monkey -p com.bepngon.merge -c android.intent.category.LAUNCHER 1` → `adb exec-out screencap -p > shot.png` để verify bằng mắt.
+3. Hiệu ứng khó trigger (combo x3, lên cấp...) → tạm patch điều kiện hiển thị, chụp màn hình, rồi revert + build lại bản sạch trước khi báo xong.
+4. Xoá file screenshot/preview tạm sau khi verify xong.
+
+### adb
 
 ```sh
 adb shell input tap <x> <y>              # tap generator

@@ -9,6 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +59,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -73,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
 import com.bepngon.merge.game.GameEngine
@@ -97,7 +102,12 @@ import com.bepngon.merge.ui.theme.CreamBg
 import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
 import com.bepngon.merge.ui.theme.WarnRed
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlinx.coroutines.launch
 
 @Composable
@@ -233,6 +243,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var infoItem by remember { mutableStateOf<BoardItem?>(null) }
     var genListItem by remember { mutableStateOf<BoardItem?>(null) }
     var statInfo by remember { mutableStateOf<String?>(null) }
+    var coinTaps by remember { mutableIntStateOf(0) }
     var coinBounds by remember { mutableStateOf<Rect?>(null) }
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
     var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
@@ -566,7 +577,25 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onGuide = vm::openGuide,
             onRoom = vm::openRoom,
             onCoinBounds = { coinBounds = it },
-            onStatTap = { statInfo = it },
+            onStatTap = { kind ->
+                // Debug cheat: 10 taps on the coin chip maxes level + coins.
+                // In debug builds coin taps count toward the cheat instead of
+                // opening the info card — the popup would block rapid tapping.
+                if (BuildConfig.DEBUG && kind == "coins") {
+                    coinTaps++
+                    if (coinTaps >= 10) {
+                        coinTaps = 0
+                        vm.debugMaxOut()
+                    } else {
+                        coinBounds?.center?.let {
+                            pushFloater("🪙 $coinTaps/10", it, Gold)
+                        }
+                    }
+                } else {
+                    coinTaps = 0
+                    statInfo = kind
+                }
+            },
         )
 
         OrderBar(
@@ -1600,45 +1629,107 @@ private fun QteBubble(
     }
 }
 
-/** Flickering flame ring around the board while an order combo is hot. */
+/** Wreath of interlocking flame licks ringing the board while a combo is hot —
+ *  layered red/orange/yellow licks leaning into a slow spin, fire-ring style. */
+private val LICK_W = 15.dp
+private val LICK_H = 27.dp
+private const val LICK_LEAN = -16f // swirl tilt off the radial normal
+private const val LICK_MAX = 128
+
+private val LICK_LAYERS = listOf(
+    1.22f to Color(0x59FB8C00), // soft orange haze haloing the red lick
+    1.00f to Color(0xFFE53935),
+    0.68f to Color(0xFFFB8C00),
+    0.40f to Color(0xFFFFD54F),
+)
+
+/** Flame-lick silhouette: base centered at (0,0), tip at -lh leaning right. */
+private fun lickPath(lw: Float, lh: Float): Path = Path().apply {
+    moveTo(0f, 0f)
+    cubicTo(-0.42f * lw, -0.05f * lh, -0.52f * lw, -0.34f * lh, -0.44f * lw, -0.58f * lh)
+    cubicTo(-0.36f * lw, -0.78f * lh, -0.08f * lw, -0.74f * lh, 0.16f * lw, -lh)
+    cubicTo(0.10f * lw, -0.78f * lh, 0.40f * lw, -0.66f * lh, 0.46f * lw, -0.44f * lh)
+    cubicTo(0.50f * lw, -0.22f * lh, 0.30f * lw, -0.04f * lh, 0f, 0f)
+    close()
+}
+
+/** Ramanujan perimeter estimate — used to space licks evenly along the ring. */
+private fun ellipsePerimeter(rx: Float, ry: Float): Float =
+    (Math.PI * (3f * (rx + ry) - sqrt((3f * rx + ry) * (rx + 3f * ry)))).toFloat()
+
+/** [count] spots evenly spaced by arc length along an ellipse, each paired with
+ *  its outward-normal angle (deg) so flames can point away from the center. */
+private fun flameRing(
+    cx: Float,
+    cy: Float,
+    rx: Float,
+    ry: Float,
+    count: Int,
+): List<Pair<Offset, Float>> {
+    val steps = 720
+    val xs = FloatArray(steps + 1)
+    val ys = FloatArray(steps + 1)
+    val arc = FloatArray(steps + 1)
+    for (i in 0..steps) {
+        val t = (2.0 * Math.PI * i / steps).toFloat()
+        xs[i] = cx + rx * cos(t)
+        ys[i] = cy + ry * sin(t)
+        if (i > 0) arc[i] = arc[i - 1] + hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1])
+    }
+    val total = arc[steps]
+    var seg = 0
+    return List(count) { k ->
+        val target = total * k / count
+        while (seg < steps && arc[seg + 1] < target) seg++
+        val f = (target - arc[seg]) / (arc[seg + 1] - arc[seg]).coerceAtLeast(1e-6f)
+        val x = xs[seg] + (xs[seg + 1] - xs[seg]) * f
+        val y = ys[seg] + (ys[seg + 1] - ys[seg]) * f
+        // ellipse outward normal ∝ (dx/rx², dy/ry²)
+        val deg = Math.toDegrees(
+            atan2((y - cy) / (ry * ry), (x - cx) / (rx * rx)).toDouble()
+        ).toFloat()
+        Offset(x, y) to deg
+    }
+}
+
 @Composable
 private fun ComboFlames(combo: Int) {
-    val phase by rememberInfiniteTransition(label = "fire").animateFloat(
+    val phase by rememberInfiniteTransition(label = "fireFlicker").animateFloat(
         initialValue = 0f,
         targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(950)),
+        animationSpec = infiniteRepeatable(tween(1200)),
         label = "phase",
     )
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
-        val spots = buildList {
-            for (i in 0 until 7) add(i * 0.9f to Offset(w * (i + 0.5f) / 7, 6f))
-            for (i in 0 until 7) add(i * 1.3f + 0.4f to Offset(w * (i + 0.5f) / 7, h - 34f))
-            for (j in 1 until 4) {
-                add(j * 1.1f + 0.2f to Offset(-14f, h * j / 4.5f))
-                add(j * 1.4f + 0.7f to Offset(w - 20f, h * j / 4.5f))
-            }
+        val rx = w / 2f - 10f
+        val ry = h / 2f - 10f
+        val density = LocalDensity.current
+        val spots = remember(w, h) {
+            val spacing = with(density) { LICK_W.toPx() } * 0.92f
+            val count = (ellipsePerimeter(rx, ry) / spacing).roundToInt()
+                .coerceIn(36, LICK_MAX)
+            flameRing(w / 2f, h / 2f, rx, ry, count)
         }
-        val frameCount = 6
-        spots.forEach { (seed, p) ->
-            val flicker = 0.8f + 0.35f * kotlin.math.sin(phase * 3 + seed)
-            val frame = (((phase / (2 * Math.PI)) * frameCount + seed).toInt())
-                .mod(frameCount)
-            GameArt(
-                name = "fx_flame_$frame",
-                emoji = "🔥",
-                size = 30.dp,
-                alpha = flicker.coerceAtMost(1f),
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            p.x.roundToInt(),
-                            (p.y - 5f * kotlin.math.sin(phase * 4 + seed)).roundToInt(),
-                        )
+        Canvas(Modifier.fillMaxSize()) {
+            val lick = lickPath(LICK_W.toPx(), LICK_H.toPx())
+            spots.forEachIndexed { i, (pos, deg) ->
+                val seed = i * 1.37f
+                val flick = 0.86f + 0.26f * sin(phase * 3f + seed)
+                val stretch = 0.92f + 0.2f * sin(phase * 5f + seed * 2f)
+                withTransform({
+                    translate(pos.x, pos.y)
+                    rotate(deg + 90f + LICK_LEAN, Offset.Zero)
+                    scale(flick, flick * stretch, Offset.Zero)
+                }) {
+                    LICK_LAYERS.forEach { (layerScale, color) ->
+                        withTransform({ scale(layerScale, layerScale, Offset.Zero) }) {
+                            drawPath(lick, color)
+                        }
                     }
-                    .scale(flicker),
-            )
+                }
+            }
         }
         Box(
             Modifier
