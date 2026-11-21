@@ -1552,11 +1552,16 @@ private fun ComboFlames(combo: Int) {
                 add(j * 1.4f + 0.7f to Offset(w - 20f, h * j / 4.5f))
             }
         }
+        val frameCount = 6
         spots.forEach { (seed, p) ->
             val flicker = 0.8f + 0.35f * kotlin.math.sin(phase * 3 + seed)
-            Text(
-                "🔥",
-                fontSize = 15.sp,
+            val frame = (((phase / (2 * Math.PI)) * frameCount + seed).toInt())
+                .mod(frameCount)
+            GameArt(
+                name = "fx_flame_$frame",
+                emoji = "🔥",
+                size = 30.dp,
+                alpha = flicker.coerceAtMost(1f),
                 modifier = Modifier
                     .offset {
                         IntOffset(
@@ -1564,8 +1569,7 @@ private fun ComboFlames(combo: Int) {
                             (p.y - 5f * kotlin.math.sin(phase * 4 + seed)).roundToInt(),
                         )
                     }
-                    .scale(flicker)
-                    .alpha(flicker.coerceAtMost(1f)),
+                    .scale(flicker),
             )
         }
         Box(
