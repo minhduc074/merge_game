@@ -49,6 +49,7 @@ fun TopBar(
     onDaily: () -> Unit,
     onGuide: () -> Unit,
     onCoinBounds: (Rect) -> Unit,
+    onStatTap: (String) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
@@ -56,18 +57,19 @@ fun TopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatChip("icon_star", "⭐", "$score", Modifier.weight(1f))
+            StatChip("icon_star", "⭐", "$score", Modifier.weight(1f)) { onStatTap("score") }
             StatChip(
                 "icon_coin", "🪙", "$coins",
                 Modifier
                     .weight(1f)
                     .onGloballyPositioned { onCoinBounds(it.boundsInWindow()) },
-            )
+            ) { onStatTap("coins") }
             Row(
                 Modifier
                     .weight(1.4f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(CellWhite)
+                    .clickable { onStatTap("energy") }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -148,11 +150,18 @@ fun TopBar(
 }
 
 @Composable
-private fun StatChip(resName: String, emoji: String, value: String, modifier: Modifier = Modifier) {
+private fun StatChip(
+    resName: String,
+    emoji: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
     Row(
         modifier
             .clip(RoundedCornerShape(12.dp))
             .background(CellWhite)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,

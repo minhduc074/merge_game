@@ -200,6 +200,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var levelBanner by remember { mutableStateOf<String?>(null) }
     var infoItem by remember { mutableStateOf<BoardItem?>(null) }
     var genListItem by remember { mutableStateOf<BoardItem?>(null) }
+    var statInfo by remember { mutableStateOf<String?>(null) }
     var coinBounds by remember { mutableStateOf<Rect?>(null) }
     var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
     var flyId by remember { mutableStateOf(0L) }
@@ -420,6 +421,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDaily = vm::openDaily,
             onGuide = vm::openGuide,
             onCoinBounds = { coinBounds = it },
+            onStatTap = { statInfo = it },
         )
 
         OrderBar(
@@ -518,6 +520,19 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 nowMs = ui.nowMs,
                 onDismiss = { genListItem = null },
             )
+        }
+    }
+    statInfo?.let { kind ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { statInfo = null },
+            )
+            StatInfoCard(kind = kind, onDismiss = { statInfo = null })
         }
     }
 
@@ -1256,5 +1271,85 @@ private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit
                 }
             }
         }
+    }
+}
+
+private data class StatInfo(
+    val resName: String,
+    val emoji: String,
+    val title: String,
+    val usage: String,
+    val earn: String,
+)
+
+@Composable
+private fun StatInfoCard(kind: String, onDismiss: () -> Unit) {
+    LaunchedEffect(kind) {
+        kotlinx.coroutines.delay(8_000)
+        onDismiss()
+    }
+    val info = when (kind) {
+        "score" -> StatInfo(
+            "icon_star", "⭐", "Điểm số",
+            "Thước đo tiến trình — điểm càng cao chứng tỏ bạn ghép đồ càng giỏi.",
+            "Ghép 2 item giống nhau để cộng điểm. Item tier càng cao cho điểm càng nhiều.",
+        )
+        "coins" -> StatInfo(
+            "icon_coin", "🪙", "Vàng",
+            "Mua thêm ô Kho đồ (bấm túi 🎒 dưới bàn chơi).",
+            "Hoàn thành đơn của khách, nhận thưởng Thành tựu 🏆, quà hằng ngày 🎁.",
+        )
+        else -> StatInfo(
+            "icon_energy", "⚡", "Năng lượng",
+            "Mỗi lần bấm generator tốn 1⚡ để sinh item mới.",
+            "Tự hồi +1⚡ mỗi 60 giây (tối đa ${GameEngine.ENERGY_CAP}). Quà hằng ngày +10⚡.",
+        )
+    }
+
+    Column(
+        Modifier
+            .padding(top = 150.dp, start = 24.dp, end = 24.dp)
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(16.dp))
+            .background(CellWhite, RoundedCornerShape(16.dp))
+            .border(2.dp, Color(0xFFE8D5B7), RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {}
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .background(Color(0xFFFFF3D9), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                GameArt(info.resName, info.emoji, 40.dp, emojiSize = 26.sp)
+            }
+            Text(
+                info.title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Cocoa,
+                modifier = Modifier.padding(start = 10.dp).weight(1f),
+            )
+            Text(
+                "✕",
+                fontSize = 18.sp,
+                color = Cocoa.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(6.dp),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("💡 Công dụng:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
+        Text(info.usage, fontSize = 13.sp, color = Cocoa)
+        Spacer(Modifier.height(8.dp))
+        Text("🎯 Cách kiếm:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
+        Text(info.earn, fontSize = 13.sp, color = Cocoa)
     }
 }
