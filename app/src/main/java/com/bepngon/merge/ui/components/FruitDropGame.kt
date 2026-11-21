@@ -239,23 +239,28 @@ fun FruitDropGame(
                                                 a.id = -a.id - 1
                                                 c.id = -c.id - 1
                                             } else {
+                                                // Mass-weighted resolution: mass ∝ r², so
+                                                // heavier tiers shove lighter ones aside.
                                                 val nx = dx / d
                                                 val ny = dy / d
-                                                val overlap = (minD - d) / 2f
-                                                a.x -= nx * overlap
-                                                a.y -= ny * overlap
-                                                c.x += nx * overlap
-                                                c.y += ny * overlap
+                                                val ma = a.r * a.r
+                                                val mc = c.r * c.r
+                                                val tot = ma + mc
+                                                val sep = minD - d
+                                                a.x -= nx * sep * (mc / tot)
+                                                a.y -= ny * sep * (mc / tot)
+                                                c.x += nx * sep * (ma / tot)
+                                                c.y += ny * sep * (ma / tot)
                                                 val relV = abs(a.vx - c.vx) + abs(a.vy - c.vy)
                                                 if (relV > 320f) {
                                                     a.squashX = 1.22f; a.squashY = 0.78f
                                                     c.squashX = 1.22f; c.squashY = 0.78f
                                                 }
                                                 val push = 40f
-                                                a.vx -= nx * push * dt
-                                                a.vy -= ny * push * dt
-                                                c.vx += nx * push * dt
-                                                c.vy += ny * push * dt
+                                                a.vx -= nx * push * (mc / tot) * dt
+                                                a.vy -= ny * push * (mc / tot) * dt
+                                                c.vx += nx * push * (ma / tot) * dt
+                                                c.vy += ny * push * (ma / tot) * dt
                                             }
                                         }
                                     }
