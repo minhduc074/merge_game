@@ -1,6 +1,7 @@
 package com.bepngon.merge.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -47,6 +48,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -69,7 +71,11 @@ import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.LevelReward
+import com.bepngon.merge.sound.SoundManager
+import com.bepngon.merge.ui.components.AchievementsScreen
 import com.bepngon.merge.ui.components.BagScreen
+import com.bepngon.merge.ui.components.DailyRewardDialog
+import com.bepngon.merge.ui.components.OnboardingScreen
 import com.bepngon.merge.ui.components.OrderBar
 import com.bepngon.merge.ui.components.SellZone
 import com.bepngon.merge.ui.components.TopBar
@@ -110,6 +116,29 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             )
         }
 
+        if (ui.showAchievements) {
+            AchievementsScreen(
+                game = ui.game,
+                onClaim = vm::claimAchievement,
+                onClose = vm::closeAchievements,
+            )
+        }
+
+        if (ui.showDaily) {
+            val now = System.currentTimeMillis()
+            DailyRewardDialog(
+                ready = GameEngine.dailyReady(ui.game, now),
+                msUntilReady = (GameEngine.DAILY_COOLDOWN_MS -
+                    (now - ui.game.lastDailyClaimEpochMs)).coerceAtLeast(0),
+                onClaim = vm::claimDaily,
+                onClose = vm::closeDaily,
+            )
+        }
+
+        if (ui.showOnboarding) {
+            OnboardingScreen(onDone = vm::finishOnboarding)
+        }
+
         if (ui.showRestartConfirm) {
             AlertDialog(
                 onDismissRequest = vm::dismissRestart,
@@ -141,6 +170,13 @@ private data class Floater(
     val color: Color,
 )
 
+private data class FlyAnim(
+    val id: Long,
+    val emoji: String,
+    val from: Offset,
+    val to: Offset,
+)
+
 @Composable
 private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     val scope = rememberCoroutineScope()
@@ -160,6 +196,19 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var floaterId by remember { mutableStateOf(0L) }
     var levelBanner by remember { mutableStateOf<String?>(null) }
     var infoItem by remember { mutableStateOf<BoardItem?>(null) }
+    var coinBounds by remember { mutableStateOf<Rect?>(null) }
+    var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
+    var flyId by remember { mutableStateOf(0L) }
+    var sparkles by remember { mutableStateOf(listOf<Offset>()) }
+
+    fun pushFly(emoji: String, from: Offset, to: Offset) {
+        val f = FlyAnim(flyId++, emoji, from, to)
+        flies = flies + f
+        scope.launch {
+            kotlinx.coroutines.delay(600)
+            flies = flies - f
+        }
+    }
 
     fun pushFloater(text: String, pos: Offset, color: Color) {
         val f = Floater(floaterId++, text, pos, color)
@@ -226,15 +275,23 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         vm.events.collect { e ->
             when (e) {
                 is GameEvent.Merged -> {
+                    SoundManager.play(SoundManager.Sfx.Merge)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     cellBounds[e.cellIndex]?.let { r ->
                         pushFloater("+${e.scoreGained}", r.center, MergeGreen)
+                        sparkles = sparkles + r.center
+                        scope.launch {
+                            kotlinx.coroutines.delay(650)
+                            sparkles = sparkles.drop(1)
+                        }
                     }
                 }
                 is GameEvent.Spawned -> {
+                    SoundManager.play(SoundManager.Sfx.Spawn)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
                 is GameEvent.Sold -> {
+                    SoundManager.play(SoundManager.Sfx.Sell)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val pos = if (e.cellIndex >= 0) {
                         cellBounds[e.cellIndex]?.center
@@ -244,18 +301,36 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     pos?.let { pushFloater("+${e.coinsGained}🪙", it, Gold) }
                 }
                 is GameEvent.OrderSpawned -> {
+                    SoundManager.play(SoundManager.Sfx.Tap)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
                 is GameEvent.OrderDelivered -> {
+                    SoundManager.play(SoundManager.Sfx.Deliver)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
                 is GameEvent.OrderCompleted -> {
+                    SoundManager.play(SoundManager.Sfx.Complete)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val pos = orderBounds[e.order.id]?.center
                         ?: Offset(300f, 200f)
                     pushFloater("🎉 +${e.coinsGained}🪙 +${e.xpGained}XP", pos, MergeGreen)
+                    coinBounds?.center?.let { wallet ->
+                        pushFly("🪙", pos, wallet)
+                    }
+                }
+                is GameEvent.AutoFulfillFly -> {
+                    val dest = orderBounds[e.orderId]?.center ?: Offset(300f, 200f)
+                    e.flown.forEach { (defId, fromIdx) ->
+                        val from = if (fromIdx >= 0) {
+                            cellBounds[fromIdx]?.center
+                        } else {
+                            invBounds[-1 - fromIdx]?.center
+                        } ?: return@forEach
+                        pushFly(ItemCatalog[defId].emoji, from, dest)
+                    }
                 }
                 is GameEvent.LevelUp -> {
+                    SoundManager.play(SoundManager.Sfx.LevelUp)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     levelBanner = "🎉 Lên cấp ${e.level}! ${rewardText(e.reward)}"
                     scope.launch {
@@ -264,6 +339,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     }
                 }
                 is GameEvent.CellsUnlocked -> {
+                    SoundManager.play(SoundManager.Sfx.Unlock)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     levelBanner = "🔓 Mở khóa ${e.count} ô mới!"
                     scope.launch {
@@ -272,16 +348,52 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     }
                 }
                 is GameEvent.GeneratorReady -> {
+                    SoundManager.play(SoundManager.Sfx.Tap)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     cellBounds[e.cellIndex]?.let { r ->
                         pushFloater("⚡ xong!", r.center, MergeGreen)
                     }
                 }
                 is GameEvent.SlotBought -> {
+                    SoundManager.play(SoundManager.Sfx.Coin)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     pushFloater("+1 ô kho! 🎒", Offset(300f, 1400f), MergeGreen)
                 }
+                is GameEvent.AchievementUnlocked -> {
+                    SoundManager.play(SoundManager.Sfx.Achieve)
+                    levelBanner = "${e.achievement.emoji} Thành tựu: ${e.achievement.title}!"
+                    scope.launch {
+                        kotlinx.coroutines.delay(2200)
+                        levelBanner = null
+                    }
+                }
+                is GameEvent.AchievementClaimed -> {
+                    SoundManager.play(SoundManager.Sfx.Achieve)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    pushFloater(
+                        "+${e.achievement.rewardCoins}🪙 +${e.achievement.rewardEnergy}⚡",
+                        Offset(540f, 300f),
+                        Gold,
+                    )
+                }
+                is GameEvent.DailyClaimed -> {
+                    SoundManager.play(SoundManager.Sfx.Daily)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    levelBanner = "🎁 +${e.coins}🪙 +${e.energy}⚡"
+                    scope.launch {
+                        kotlinx.coroutines.delay(1800)
+                        levelBanner = null
+                    }
+                    vm.closeDaily()
+                }
+                GameEvent.DailyNotReady -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
+                }
+                GameEvent.OnboardingFinished -> {
+                    SoundManager.play(SoundManager.Sfx.Complete)
+                }
                 GameEvent.NotEnoughCoins -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
                     pushFloater("Không đủ vàng! 🪙", Offset(300f, 1400f), WarnRed)
                 }
@@ -291,6 +403,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 GameEvent.BoardFull,
                 GameEvent.InventoryFull,
                 GameEvent.InvalidDrop -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
                 }
             }
@@ -306,7 +419,11 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             level = ui.game.level,
             xp = ui.game.xp,
             xpNeeded = GameEngine.xpNeededForLevel(ui.game.level),
+            dailyReady = vm.dailyReady(),
             onRestart = vm::askRestart,
+            onAchievements = vm::openAchievements,
+            onDaily = vm::openDaily,
+            onCoinBounds = { coinBounds = it },
         )
 
         OrderBar(
@@ -412,7 +529,17 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             Text(emoji, fontSize = 30.sp)
         }
     }
+
+    // Juice layer: sparkle bursts + flying items
+    sparkles.forEachIndexed { i, center ->
+        key(i, center) { SparkleBurst(center) }
+    }
+    flies.forEach { f ->
+        key(f.id) { FlyingEmoji(f) }
+    }
 }
+
+private fun Color.darken(f: Float): Color = Color(red * f, green * f, blue * f, alpha)
 
 private fun rewardText(r: LevelReward): String = buildList {
     if (r.coins > 0) add("+${r.coins}🪙")
@@ -719,7 +846,21 @@ private fun ItemTile(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(def.emoji, fontSize = 28.sp)
+        Box(
+            Modifier
+                .size(42.dp)
+                .shadow(1.dp, RoundedCornerShape(12.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFFFFFFFF), Color(def.family.tint)),
+                    ),
+                    RoundedCornerShape(12.dp),
+                )
+                .border(1.dp, Color(def.family.tint).darken(0.82f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(def.emoji, fontSize = 26.sp)
+        }
         if (def.isGenerator) {
             if (cooling) {
                 Text(
@@ -755,6 +896,64 @@ private fun ItemTile(
             }
         }
     }
+}
+
+@Composable
+private fun FlyingEmoji(f: FlyAnim) {
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(f.id) {
+        anim.animateTo(1f, tween(480, easing = FastOutSlowInEasing))
+    }
+    val t = anim.value
+    val x = f.from.x + (f.to.x - f.from.x) * t
+    // parabolic arc
+    val lift = kotlin.math.sin(t * Math.PI.toFloat()) * 110f
+    val y = f.from.y + (f.to.y - f.from.y) * t - lift
+    Text(
+        f.emoji,
+        fontSize = 28.sp,
+        modifier = Modifier
+            .offset { IntOffset((x - 24.dp.toPx()).roundToInt(), (y - 24.dp.toPx()).roundToInt()) }
+            .scale(1.3f - 0.5f * t)
+            .alpha(1f - t * 0.3f)
+            .zIndex(20f),
+    )
+}
+
+@Composable
+private fun SparkleBurst(center: Offset) {
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(center) {
+        anim.animateTo(1f, tween(550))
+    }
+    val dirs = remember(center) {
+        List(10) { i ->
+            val a = i * Math.PI * 2 / 10 + 0.3
+            Offset(kotlin.math.cos(a).toFloat(), kotlin.math.sin(a).toFloat())
+        }
+    }
+    val colors = listOf(Gold, MergeGreen, Color(0xFFFF8A65), Color(0xFFBA68C8))
+    val t = anim.value
+    dirs.forEachIndexed { i, dir ->
+        val dist = 14f + t * 95f
+        val p = center + dir * dist * 2.2f
+        Text(
+            if (i % 3 == 0) "⭐" else "✨",
+            fontSize = (13 - 6 * t).sp,
+            modifier = Modifier
+                .offset { IntOffset(p.x.roundToInt(), p.y.roundToInt()) }
+                .alpha(1f - t)
+                .scale(1f - t * 0.4f),
+        )
+    }
+    Box(
+        Modifier
+            .offset {
+                IntOffset(center.x.roundToInt() - (30 * (1 + t)).roundToInt(), center.y.roundToInt() - (30 * (1 + t)).roundToInt())
+            }
+            .size((60 * (1 + t * 1.4f)).dp)
+            .border(3.dp, colors[0].copy(alpha = 0.6f * (1f - t)), CircleShape),
+    )
 }
 
 @Composable

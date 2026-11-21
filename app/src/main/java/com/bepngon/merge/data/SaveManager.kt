@@ -10,6 +10,7 @@ import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.Order
+import com.bepngon.merge.game.Stats
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -32,6 +33,15 @@ private data class CellData(
 )
 
 @Serializable
+private data class StatsData(
+    val merges: Int = 0,
+    val ordersDone: Int = 0,
+    val sold: Int = 0,
+    val coinsEarned: Int = 0,
+    val maxTier: Int = 0,
+)
+
+@Serializable
 private data class SaveData(
     val cells: List<CellData?>,
     val inventory: List<String?>,
@@ -46,6 +56,11 @@ private data class SaveData(
     val level: Int,
     val nextUid: Long,
     val lockedCells: List<Int>,
+    val stats: StatsData = StatsData(),
+    val reachedAchievements: List<String> = emptyList(),
+    val claimedAchievements: List<String> = emptyList(),
+    val lastDailyClaimEpochMs: Long = 0,
+    val onboardingDone: Boolean = false,
 )
 
 @Serializable
@@ -95,6 +110,13 @@ class SaveManager(private val context: Context) {
             level = state.level,
             nextUid = state.nextUid,
             lockedCells = state.lockedCells.toList(),
+            stats = state.stats.let {
+                StatsData(it.merges, it.ordersDone, it.sold, it.coinsEarned, it.maxTier)
+            },
+            reachedAchievements = state.reachedAchievements.toList(),
+            claimedAchievements = state.claimedAchievements.toList(),
+            lastDailyClaimEpochMs = state.lastDailyClaimEpochMs,
+            onboardingDone = state.onboardingDone,
         )
         context.saveStore.edit { it[keyV3] = json.encodeToString(data) }
     }
@@ -134,6 +156,13 @@ class SaveManager(private val context: Context) {
             level = data.level,
             nextUid = maxOf(data.nextUid, 30_000L),
             lockedCells = data.lockedCells.toSet(),
+            stats = data.stats.let {
+                Stats(it.merges, it.ordersDone, it.sold, it.coinsEarned, it.maxTier)
+            },
+            reachedAchievements = data.reachedAchievements.toSet(),
+            claimedAchievements = data.claimedAchievements.toSet(),
+            lastDailyClaimEpochMs = data.lastDailyClaimEpochMs,
+            onboardingDone = data.onboardingDone,
         )
     }.getOrNull()
 

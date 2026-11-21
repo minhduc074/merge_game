@@ -38,6 +38,44 @@ data class Order(
     val isComplete: Boolean get() = remaining.isEmpty()
 }
 
+data class Stats(
+    val merges: Int = 0,
+    val ordersDone: Int = 0,
+    val sold: Int = 0,
+    val coinsEarned: Int = 0,
+    val maxTier: Int = 0,
+)
+
+enum class Metric { MERGES, ORDERS, ITEMS_SOLD, LEVEL, COINS_EARNED, HIGHEST_TIER }
+
+data class Achievement(
+    val id: String,
+    val title: String,
+    val desc: String,
+    val emoji: String,
+    val goal: Int,
+    val metric: Metric,
+    val rewardCoins: Int = 0,
+    val rewardEnergy: Int = 0,
+)
+
+object Achievements {
+    val ALL = listOf(
+        Achievement("merge10", "Tập merge", "Merge 10 lần", "🔗", 10, Metric.MERGES, rewardCoins = 20),
+        Achievement("merge50", "Tay merge vàng", "Merge 50 lần", "⚡", 50, Metric.MERGES, rewardCoins = 60),
+        Achievement("merge200", "Merge huyền thoại", "Merge 200 lần", "👑", 200, Metric.MERGES, rewardCoins = 200),
+        Achievement("order5", "Phục vụ tân thủ", "Hoàn thành 5 đơn", "📦", 5, Metric.ORDERS, rewardCoins = 30),
+        Achievement("order20", "Đầu bếp chăm chỉ", "Hoàn thành 20 đơn", "🧑‍🍳", 20, Metric.ORDERS, rewardCoins = 100),
+        Achievement("sell20", "Tiểu thương", "Bán 20 item", "🏷️", 20, Metric.ITEMS_SOLD, rewardCoins = 40),
+        Achievement("lv3", "Lên hạng", "Đạt level 3", "🌟", 3, Metric.LEVEL, rewardCoins = 50),
+        Achievement("lv5", "Cao thủ", "Đạt level 5", "💫", 5, Metric.LEVEL, rewardCoins = 120),
+        Achievement("tier5", "Chuỗi xịn", "Tạo item tier 5+", "🍰", 5, Metric.HIGHEST_TIER, rewardCoins = 60),
+        Achievement("rich500", "Đại gia", "Kiếm tổng 500🪙", "💰", 500, Metric.COINS_EARNED, rewardEnergy = 20),
+    )
+
+    fun byId(id: String): Achievement = ALL.first { it.id == id }
+}
+
 data class GameState(
     val cells: List<BoardItem?>,
     val inventory: List<BoardItem?>,
@@ -52,7 +90,20 @@ data class GameState(
     val level: Int,
     val nextUid: Long,
     val lockedCells: Set<Int> = emptySet(),
+    val stats: Stats = Stats(),
+    val reachedAchievements: Set<String> = emptySet(),
+    val claimedAchievements: Set<String> = emptySet(),
+    val lastDailyClaimEpochMs: Long = 0,
+    val onboardingDone: Boolean = false,
 ) {
+    fun metricOf(metric: Metric): Int = when (metric) {
+        Metric.MERGES -> stats.merges
+        Metric.ORDERS -> stats.ordersDone
+        Metric.ITEMS_SOLD -> stats.sold
+        Metric.LEVEL -> level
+        Metric.COINS_EARNED -> stats.coinsEarned
+        Metric.HIGHEST_TIER -> stats.maxTier
+    }
     val boardFull: Boolean
         get() = cells.indices.all { cells[it] != null || it in lockedCells }
 }
@@ -72,11 +123,22 @@ sealed interface GameEvent {
     data class Sold(val cellIndex: Int, val coinsGained: Int) : GameEvent
     data class OrderSpawned(val order: Order) : GameEvent
     data class OrderDelivered(val orderId: Long) : GameEvent
+    /** Items flown to the customer on auto-fulfill. fromIndex >= 0 is a board cell,
+     *  < 0 encodes inventory slot as (-1 - slot). */
+    data class AutoFulfillFly(
+        val orderId: Long,
+        val flown: List<Pair<String, Int>>,
+    ) : GameEvent
     data class OrderCompleted(val order: Order, val coinsGained: Int, val xpGained: Int) : GameEvent
     data class LevelUp(val level: Int, val reward: LevelReward) : GameEvent
     data class CellsUnlocked(val count: Int) : GameEvent
     data class GeneratorReady(val cellIndex: Int) : GameEvent
     data class SlotBought(val newCap: Int) : GameEvent
+    data class AchievementUnlocked(val achievement: Achievement) : GameEvent
+    data class AchievementClaimed(val achievement: Achievement) : GameEvent
+    data class DailyClaimed(val coins: Int, val energy: Int) : GameEvent
+    data object DailyNotReady : GameEvent
+    data object OnboardingFinished : GameEvent
     data object GeneratorEmpty : GameEvent
     data object NotEnoughCoins : GameEvent
     data object DeliverRejected : GameEvent

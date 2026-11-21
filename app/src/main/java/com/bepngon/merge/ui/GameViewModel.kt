@@ -25,8 +25,12 @@ data class GameUiState(
     val loading: Boolean = true,
     val showRestartConfirm: Boolean = false,
     val showBag: Boolean = false,
+    val showAchievements: Boolean = false,
+    val showDaily: Boolean = false,
     val nowMs: Long = 0,
-)
+) {
+    val showOnboarding: Boolean get() = !loading && !game.onboardingDone
+}
 
 class GameViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -92,6 +96,33 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun closeBag() {
         _ui.value = _ui.value.copy(showBag = false)
     }
+
+    fun openAchievements() {
+        _ui.value = _ui.value.copy(showAchievements = true)
+    }
+
+    fun closeAchievements() {
+        _ui.value = _ui.value.copy(showAchievements = false)
+    }
+
+    fun openDaily() {
+        _ui.value = _ui.value.copy(showDaily = true)
+    }
+
+    fun closeDaily() {
+        _ui.value = _ui.value.copy(showDaily = false)
+    }
+
+    fun claimAchievement(id: String) =
+        applyEngine { GameEngine.claimAchievement(it, id) }
+
+    fun claimDaily() =
+        applyEngine { GameEngine.claimDaily(it, System.currentTimeMillis()) }
+
+    fun dailyReady(): Boolean =
+        GameEngine.dailyReady(_ui.value.game, System.currentTimeMillis())
+
+    fun finishOnboarding() = applyEngine { GameEngine.finishOnboarding(it) }
 
     fun deliverToOrder(orderId: Long, source: ItemSource, index: Int) =
         applyEngine { GameEngine.deliverToOrder(it, orderId, source, index) }

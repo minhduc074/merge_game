@@ -1,11 +1,15 @@
 package com.bepngon.merge.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -17,7 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +32,7 @@ import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
 import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
+import com.bepngon.merge.ui.theme.WarnRed
 
 @Composable
 fun TopBar(
@@ -35,7 +43,11 @@ fun TopBar(
     level: Int,
     xp: Int,
     xpNeeded: Int,
+    dailyReady: Boolean,
     onRestart: () -> Unit,
+    onAchievements: () -> Unit,
+    onDaily: () -> Unit,
+    onCoinBounds: (Rect) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
@@ -44,7 +56,12 @@ fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StatChip("⭐", "$score", Modifier.weight(1f))
-            StatChip("🪙", "$coins", Modifier.weight(1f))
+            StatChip(
+                "🪙", "$coins",
+                Modifier
+                    .weight(1f)
+                    .onGloballyPositioned { onCoinBounds(it.boundsInWindow()) },
+            )
             Row(
                 Modifier
                     .weight(1.4f)
@@ -98,6 +115,24 @@ fun TopBar(
                 trackColor = Color(0xFFDCEDC8),
             )
             Text("$xp/$xpNeeded", fontSize = 10.sp, color = Cocoa)
+            Box(
+                Modifier.clickable(onClick = onDaily).padding(horizontal = 4.dp),
+            ) {
+                Text("🎁", fontSize = 20.sp)
+                if (dailyReady) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .size(8.dp)
+                            .background(WarnRed, CircleShape),
+                    )
+                }
+            }
+            Text(
+                "🏆",
+                fontSize = 20.sp,
+                modifier = Modifier.clickable(onClick = onAchievements).padding(horizontal = 4.dp),
+            )
         }
     }
 }

@@ -13,8 +13,14 @@ Merge game (kiểu Merge Mansion / Travel Town) cho Android: board 7x9, tap gene
 
 ```sh
 ./gradlew.bat assembleDebug          # build APK -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew.bat assembleRelease        # release signed APK -> app/build/outputs/apk/release/app-release.apk
 ./gradlew.bat testDebugUnitTest      # chạy unit test engine
 ```
+
+Release: ký bằng `keystore/bepngon.jks` (gitignored), credentials đọc từ `local.properties`
+(`RELEASE_STORE_FILE/RELEASE_STORE_PASSWORD/RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD`). Nếu thiếu
+keys đó, release build vẫn chạy nhưng APK không được ký (unsigned). minify R8 + shrinkResources bật —
+proguard rules giữ kotlinx.serialization serializers.
 
 ## Emulator (quan trọng)
 

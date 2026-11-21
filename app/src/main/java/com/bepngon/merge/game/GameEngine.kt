@@ -17,6 +17,9 @@ object GameEngine {
     const val ORDER_INTERVAL_MIN_MS = 20_000L
     const val ORDER_INTERVAL_MAX_MS = 35_000L
     const val GEN_COOLDOWN_MS = 90_000L
+    const val DAILY_COINS = 50
+    const val DAILY_ENERGY = 10
+    const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
 
     // Cells locked at game start, in unlock order (first entries unlock first).
     val INITIAL_LOCKED: List<Int> = listOf(
@@ -111,12 +114,20 @@ object GameEngine {
         cells[targetIndex] = newItem
         if (sourceIndex != null) cells[sourceIndex] = null
         if (sourceInventorySlot != null) inventory[sourceInventorySlot] = null
-        return state.copy(
+        val events = mutableListOf<GameEvent>(
+            GameEvent.Merged(targetIndex, newItem, result.score)
+        )
+        val next = state.copy(
             cells = cells,
             inventory = inventory,
             score = state.score + result.score,
             nextUid = state.nextUid + 1,
-        ) to listOf(GameEvent.Merged(targetIndex, newItem, result.score))
+            stats = state.stats.copy(
+                merges = state.stats.merges + 1,
+                maxTier = maxOf(state.stats.maxTier, result.tier),
+            ),
+        )
+        return checkAchievements(next, events) to events
     }
 
     fun inventoryToBoard(state: GameState, slot: Int, to: Int): Pair<GameState, List<GameEvent>> {
@@ -274,8 +285,16 @@ object GameEngine {
         val price = ItemCatalog[item.defId].sellPrice
         val cells = state.cells.toMutableList()
         cells[cellIndex] = null
-        return state.copy(cells = cells, coins = state.coins + price) to
-            listOf(GameEvent.Sold(cellIndex, price))
+        val events = mutableListOf<GameEvent>(GameEvent.Sold(cellIndex, price))
+        val next = state.copy(
+            cells = cells,
+            coins = state.coins + price,
+            stats = state.stats.copy(
+                sold = state.stats.sold + 1,
+                coinsEarned = state.stats.coinsEarned + price,
+            ),
+        )
+        return checkAchievements(next, events) to events
     }
 
     fun sellFromInventory(state: GameState, slot: Int): Pair<GameState, List<GameEvent>> {
@@ -283,8 +302,16 @@ object GameEngine {
         val price = ItemCatalog[item.defId].sellPrice
         val inventory = state.inventory.toMutableList()
         inventory[slot] = null
-        return state.copy(inventory = inventory, coins = state.coins + price) to
-            listOf(GameEvent.Sold(-1, price))
+        val events = mutableListOf<GameEvent>(GameEvent.Sold(-1, price))
+        val next = state.copy(
+            inventory = inventory,
+            coins = state.coins + price,
+            stats = state.stats.copy(
+                sold = state.stats.sold + 1,
+                coinsEarned = state.stats.coinsEarned + price,
+            ),
+        )
+        return checkAchievements(next, events) to events
     }
 
     // ---------- orders ----------
@@ -382,18 +409,26 @@ object GameEngine {
         }
         val cells = state.cells.toMutableList()
         val inventory = state.inventory.toMutableList()
+        val flown = mutableListOf<Pair<String, Int>>()
         for (defId in order.remaining) {
             val boardIdx = cells.indexOfFirst { it?.defId == defId }
             if (boardIdx >= 0) {
                 cells[boardIdx] = null
+                flown += defId to boardIdx
                 continue
             }
             val invIdx = inventory.indexOfFirst { it?.defId == defId }
-            if (invIdx >= 0) inventory[invIdx] = null
+            if (invIdx >= 0) {
+                inventory[invIdx] = null
+                flown += defId to (-1 - invIdx)
+            }
         }
         val next = state.copy(cells = cells, inventory = inventory)
         val (done, events) = completeOrder(next, order)
-        return done to (listOf<GameEvent>(GameEvent.OrderDelivered(orderId)) + events)
+        return done to (listOf<GameEvent>(
+            GameEvent.OrderDelivered(orderId),
+            GameEvent.AutoFulfillFly(orderId, flown),
+        ) + events)
     }
 
     fun deliverToOrder(
@@ -446,6 +481,10 @@ object GameEngine {
             orders = state.orders.filterNot { it.id == order.id },
             coins = state.coins + coinsGained,
             xp = state.xp + xpGained,
+            stats = state.stats.copy(
+                ordersDone = state.stats.ordersDone + 1,
+                coinsEarned = state.stats.coinsEarned + coinsGained,
+            ),
         )
 
         while (next.xp >= xpNeededForLevel(next.level)) {
@@ -462,8 +501,51 @@ object GameEngine {
             events += GameEvent.LevelUp(next.level, reward)
             if (unlocked > 0) events += GameEvent.CellsUnlocked(unlocked)
         }
-        return next to events
+        return checkAchievements(next, events) to events
     }
+
+    // ---------- achievements / daily / onboarding ----------
+
+    private fun checkAchievements(
+        state: GameState,
+        events: MutableList<GameEvent>,
+    ): GameState {
+        var next = state
+        for (a in Achievements.ALL) {
+            if (a.id !in next.reachedAchievements && next.metricOf(a.metric) >= a.goal) {
+                next = next.copy(reachedAchievements = next.reachedAchievements + a.id)
+                events += GameEvent.AchievementUnlocked(a)
+            }
+        }
+        return next
+    }
+
+    fun claimAchievement(state: GameState, id: String): Pair<GameState, List<GameEvent>> {
+        val a = Achievements.ALL.firstOrNull { it.id == id } ?: return state to emptyList()
+        if (id in state.claimedAchievements || state.metricOf(a.metric) < a.goal) {
+            return state to emptyList()
+        }
+        return state.copy(
+            coins = state.coins + a.rewardCoins,
+            energy = minOf(ENERGY_CAP, state.energy + a.rewardEnergy),
+            claimedAchievements = state.claimedAchievements + id,
+        ) to listOf(GameEvent.AchievementClaimed(a))
+    }
+
+    fun dailyReady(state: GameState, epochMs: Long): Boolean =
+        epochMs - state.lastDailyClaimEpochMs >= DAILY_COOLDOWN_MS
+
+    fun claimDaily(state: GameState, epochMs: Long): Pair<GameState, List<GameEvent>> {
+        if (!dailyReady(state, epochMs)) return state to listOf(GameEvent.DailyNotReady)
+        return state.copy(
+            coins = state.coins + DAILY_COINS,
+            energy = minOf(ENERGY_CAP, state.energy + DAILY_ENERGY),
+            lastDailyClaimEpochMs = epochMs,
+        ) to listOf(GameEvent.DailyClaimed(DAILY_COINS, DAILY_ENERGY))
+    }
+
+    fun finishOnboarding(state: GameState): Pair<GameState, List<GameEvent>> =
+        state.copy(onboardingDone = true) to listOf(GameEvent.OnboardingFinished)
 
     fun xpNeededForLevel(level: Int): Int = 20 + level * 12
 
