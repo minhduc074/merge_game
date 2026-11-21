@@ -266,6 +266,17 @@ fun FruitDropGame(
                                     }
                                 }
 
+                                // second bounds pass: collisions above can squeeze a
+                                // ball past the walls/floor — clamp it back in.
+                                balls.forEach { b ->
+                                    if (b.x < b.r) b.x = b.r
+                                    if (b.x > w - b.r) b.x = w - b.r
+                                    if (b.y > h - b.r) {
+                                        b.y = h - b.r
+                                        if (b.vy > 0f) b.vy = 0f
+                                    }
+                                }
+
                                 // apply merges
                                 if (pendingMerges.isNotEmpty()) {
                                     balls.removeAll { it.id < 0 }
