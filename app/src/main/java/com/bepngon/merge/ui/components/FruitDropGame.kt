@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -208,7 +209,10 @@ fun FruitDropGame(
                 val h = constraints.maxHeight.toFloat()
                 val pxScale = w / Subak.GAME_WIDTH   // meters → px
                 fun m(v: Float) = v * pxScale
-                val dangerPx = m(Subak.GAME_OVER_HEIGHT)
+                // fit the physics world to the real field aspect so the
+                // floor sits at the container's visible bottom edge
+                SideEffect { engine.configure(h / pxScale) }
+                val dangerPx = m(engine.gameOverHeight)
 
                 if (!finished) {
                     LaunchedEffect(w, h) {
@@ -325,7 +329,7 @@ fun FruitDropGame(
                     val cur = Subak.FRUITS[engine.currentFruitIndex]
                     val r = m(cur.radius)
                     val ax = (aimX ?: (w / 2f)).coerceIn(r, w - r)
-                    val ay = m(Subak.GAME_OVER_HEIGHT / 2f)
+                    val ay = m(engine.gameOverHeight / 2f)
                     Box(
                         Modifier
                             .offset { IntOffset((ax - r).roundToInt(), (ay - r).roundToInt()) }

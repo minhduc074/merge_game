@@ -90,10 +90,18 @@ data class MergeEffect(val id: Int, val x: Float, val y: Float, val radius: Floa
  * Pure JVM — unit-testable without Android. Call [step] every frame with the
  * elapsed ms; call [dropFruit] from input (respecting DROP_COOLDOWN_MS).
  */
-class SubakEngine(private val random: Random = Random) {
+class SubakEngine(
+    private val random: Random = Random,
+    worldHeight: Float = Subak.GAME_HEIGHT,
+) {
     private val world = World(Vec2(0f, Subak.GRAVITY))
     val fruits = mutableListOf<SubakFruit>()
     val mergeEffects = mutableListOf<MergeEffect>()
+
+    var worldHeight = worldHeight
+        private set
+    var gameOverHeight = worldHeight / 6f
+        private set
 
     var score = 0
         private set
@@ -114,6 +122,7 @@ class SubakEngine(private val random: Random = Random) {
     private var accumulatorMs = 0f
     private var nextId = 1
     private var nextEffectId = 1
+    private val boundBodies = mutableListOf<Body>()
     private val pendingMerges = mutableListOf<Pair<SubakFruit, SubakFruit>>()
 
     init {
@@ -146,11 +155,27 @@ class SubakEngine(private val random: Random = Random) {
             val body = world.createBody(bd)
             val box = PolygonShape().apply { setAsBox(w / 2f, h / 2f) }
             body.createFixture(box, 0f)
+            boundBodies += body
         }
         val t = Subak.WALL_THICKNESS
-        wall(-t / 2f, Subak.GAME_HEIGHT / 2f, t, Subak.GAME_HEIGHT)                 // left
-        wall(Subak.GAME_WIDTH + t / 2f, Subak.GAME_HEIGHT / 2f, t, Subak.GAME_HEIGHT) // right
-        wall(Subak.GAME_WIDTH / 2f, Subak.GAME_HEIGHT + t / 2f, Subak.GAME_WIDTH, t)  // floor
+        val h = worldHeight
+        wall(-t / 2f, h / 2f, t, h)                                // left
+        wall(Subak.GAME_WIDTH + t / 2f, h / 2f, t, h)              // right
+        wall(Subak.GAME_WIDTH / 2f, h + t / 2f, Subak.GAME_WIDTH, t) // floor
+    }
+
+    /**
+     * Re-fit the playfield to the real container aspect (height in meters).
+     * Only valid before the first fruit exists — afterwards the bounds are
+     * locked so a resize mid-game can't warp settled fruit.
+     */
+    fun configure(heightM: Float) {
+        if (fruits.isNotEmpty() || heightM == worldHeight || heightM <= 0f) return
+        worldHeight = heightM
+        gameOverHeight = heightM / 6f
+        boundBodies.forEach { world.destroyBody(it) }
+        boundBodies.clear()
+        createBounds()
     }
 
     fun randomDropIndex(): Int = random.nextInt(Subak.DROPPABLE_TIERS)
@@ -178,7 +203,7 @@ class SubakEngine(private val random: Random = Random) {
     }
 
     fun dropFruit(x: Float): SubakFruit {
-        val f = addFruit(currentFruitIndex, x, Subak.GAME_OVER_HEIGHT / 2f)
+        val f = addFruit(currentFruitIndex, x, gameOverHeight / 2f)
         currentFruitIndex = nextFruitIndex
         nextFruitIndex = randomDropIndex()
         dropCount += 1
@@ -239,7 +264,7 @@ class SubakEngine(private val random: Random = Random) {
     private fun checkGameOver() {
         for (f in fruits) {
             val top = f.body.position.y - f.radius
-            if (top < Subak.GAME_OVER_HEIGHT) {
+            if (top < gameOverHeight) {
                 val since = f.outOfBoundsSince
                 if (since == null) {
                     f.outOfBoundsSince = engineMs
