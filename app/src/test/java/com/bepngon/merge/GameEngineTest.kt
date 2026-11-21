@@ -201,6 +201,50 @@ class GameEngineTest {
         assertEquals(5, next.coins)
     }
 
+    @Test
+    fun `buying inventory slot costs coins and raises cap`() {
+        val s = stateWith(coins = 150)
+        val (next, events) = GameEngine.buyInventorySlot(s)
+        assertEquals(5, next.inventoryCap)
+        assertEquals(50, next.coins)
+        assertEquals(listOf(GameEvent.SlotBought(5)), events)
+    }
+
+    @Test
+    fun `buying slot without enough coins is rejected`() {
+        val s = stateWith(coins = 50)
+        val (next, events) = GameEngine.buyInventorySlot(s)
+        assertEquals(4, next.inventoryCap)
+        assertEquals(listOf(GameEvent.NotEnoughCoins), events)
+    }
+
+    @Test
+    fun `inventory cap stops at max`() {
+        val s = stateWith(coins = 9999, inventoryCap = GameEngine.MAX_INVENTORY)
+        val (next, events) = GameEngine.buyInventorySlot(s)
+        assertEquals(GameEngine.MAX_INVENTORY, next.inventoryCap)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun `retrieve moves inventory item to first free board cell`() {
+        val s = stateWith(
+            0 to "fruit_1",
+            inventory = listOf("fruit_2", null, null, null, null, null, null, null),
+        )
+        val (next, _) = GameEngine.retrieveToBoard(s, 0)
+        assertNull(next.inventory[0])
+        assertEquals("fruit_2", next.cells[1]?.defId)
+    }
+
+    @Test
+    fun `retrieve on full board fails`() {
+        val full = Array(GameEngine.CELLS) { it to "fruit_1" }
+        val s = stateWith(*full, inventory = listOf("fruit_2", null, null, null, null, null, null, null))
+        val (_, events) = GameEngine.retrieveToBoard(s, 0)
+        assertEquals(listOf(GameEvent.BoardFull), events)
+    }
+
     // ---------- orders ----------
 
     @Test

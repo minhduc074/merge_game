@@ -24,6 +24,7 @@ data class GameUiState(
     val game: GameState,
     val loading: Boolean = true,
     val showRestartConfirm: Boolean = false,
+    val showBag: Boolean = false,
     val nowMs: Long = 0,
 )
 
@@ -79,6 +80,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun sell(cellIndex: Int) = applyEngine { GameEngine.sell(it, cellIndex) }
 
     fun sellFromInventory(slot: Int) = applyEngine { GameEngine.sellFromInventory(it, slot) }
+
+    fun buyInventorySlot() = applyEngine { GameEngine.buyInventorySlot(it) }
+
+    fun retrieveToBoard(slot: Int) = applyEngine { GameEngine.retrieveToBoard(it, slot) }
+
+    fun openBag() {
+        _ui.value = _ui.value.copy(showBag = true)
+    }
+
+    fun closeBag() {
+        _ui.value = _ui.value.copy(showBag = false)
+    }
 
     fun deliverToOrder(orderId: Long, source: ItemSource, index: Int) =
         applyEngine { GameEngine.deliverToOrder(it, orderId, source, index) }

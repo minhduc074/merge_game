@@ -69,6 +69,7 @@ import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.LevelReward
+import com.bepngon.merge.ui.components.BagScreen
 import com.bepngon.merge.ui.components.OrderBar
 import com.bepngon.merge.ui.components.SellZone
 import com.bepngon.merge.ui.components.TopBar
@@ -95,6 +96,18 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
         } else {
             GameContent(vm, ui)
+        }
+
+        if (ui.showBag) {
+            BagScreen(
+                inventory = ui.game.inventory,
+                cap = ui.game.inventoryCap,
+                coins = ui.game.coins,
+                onBuySlot = vm::buyInventorySlot,
+                onRetrieve = vm::retrieveToBoard,
+                onSell = vm::sellFromInventory,
+                onClose = vm::closeBag,
+            )
         }
 
         if (ui.showRestartConfirm) {
@@ -264,6 +277,14 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         pushFloater("⚡ xong!", r.center, MergeGreen)
                     }
                 }
+                is GameEvent.SlotBought -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    pushFloater("+1 ô kho! 🎒", Offset(300f, 1400f), MergeGreen)
+                }
+                GameEvent.NotEnoughCoins -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    pushFloater("Không đủ vàng! 🪙", Offset(300f, 1400f), WarnRed)
+                }
                 GameEvent.GeneratorEmpty,
                 GameEvent.DeliverRejected,
                 GameEvent.NoEnergy,
@@ -326,6 +347,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         InventoryBar(
             inventory = ui.game.inventory,
             cap = ui.game.inventoryCap,
+            coins = ui.game.coins,
             nowMs = ui.nowMs,
             drag = drag,
             hoverInv = hoverInv,
@@ -334,6 +356,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDrag = onDrag,
             onDragEnd = onDragEnd,
             onTapInfo = { infoItem = it },
+            onOpenBag = vm::openBag,
         )
 
         SellZone(
@@ -521,6 +544,7 @@ private fun CellBox(
 private fun InventoryBar(
     inventory: List<BoardItem?>,
     cap: Int,
+    coins: Int,
     nowMs: Long,
     drag: DragState?,
     hoverInv: Int?,
@@ -529,6 +553,7 @@ private fun InventoryBar(
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onTapInfo: (BoardItem) -> Unit,
+    onOpenBag: () -> Unit,
 ) {
     Row(
         Modifier
@@ -537,8 +562,16 @@ private fun InventoryBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("🎒", fontSize = 20.sp)
-        for (slot in 0 until cap) {
+        Text(
+            "🎒",
+            fontSize = 20.sp,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onOpenBag)
+                .padding(4.dp),
+        )
+        for (slot in 0 until GameEngine.MAX_INVENTORY) {
+            val locked = slot >= cap
             var bounds by remember { mutableStateOf(Rect.Zero) }
             val item = inventory[slot]
             Box(
@@ -547,11 +580,12 @@ private fun InventoryBar(
                     .aspectRatio(1f)
                     .onGloballyPositioned {
                         bounds = it.boundsInWindow()
-                        invBounds[slot] = bounds
+                        if (!locked) invBounds[slot] = bounds
                     }
                     .clip(RoundedCornerShape(10.dp))
                     .background(
                         when {
+                            locked -> Color(0xFFDCCFC2)
                             hoverInv == slot && item == null && drag != null ->
                                 Color(0xFFA5D6A7)
                             hoverInv == slot -> Color(0xFFFFF9C4)
@@ -560,13 +594,28 @@ private fun InventoryBar(
                     )
                     .border(
                         1.dp,
-                        if (drag != null && item == null) Gold else Color(0x335D4037),
+                        if (drag != null && item == null && !locked) Gold else Color(0x335D4037),
                         RoundedCornerShape(10.dp),
-                    ),
+                    )
+                    .then(if (locked) Modifier.clickable(onClick = onOpenBag) else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
-                if (item != null) {
-                    ItemTile(
+                when {
+                    locked -> {
+                        val cost = GameEngine.inventorySlotCost(slot)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🔒", fontSize = 12.sp)
+                            if (cost != null && slot == cap) {
+                                Text(
+                                    "$cost",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (coins >= cost) MergeGreen else WarnRed,
+                                )
+                            }
+                        }
+                    }
+                    item != null -> ItemTile(
                         index = slot,
                         item = item,
                         nowMs = nowMs,

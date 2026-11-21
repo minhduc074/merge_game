@@ -163,6 +163,36 @@ object GameEngine {
         return state.copy(inventory = inventory) to emptyList()
     }
 
+    /** Coin cost to unlock the inventory slot at index [cap]; null if no more slots. */
+    fun inventorySlotCost(cap: Int): Int? = when (cap) {
+        4 -> 100
+        5 -> 200
+        6 -> 350
+        7 -> 500
+        else -> null
+    }
+
+    fun buyInventorySlot(state: GameState): Pair<GameState, List<GameEvent>> {
+        val cost = inventorySlotCost(state.inventoryCap) ?: return state to emptyList()
+        if (state.coins < cost) return state to listOf(GameEvent.NotEnoughCoins)
+        return state.copy(
+            coins = state.coins - cost,
+            inventoryCap = state.inventoryCap + 1,
+        ) to listOf(GameEvent.SlotBought(state.inventoryCap + 1))
+    }
+
+    /** Move an inventory item to the first free board cell. */
+    fun retrieveToBoard(state: GameState, slot: Int): Pair<GameState, List<GameEvent>> {
+        val item = state.inventory.getOrNull(slot) ?: return state to emptyList()
+        val target = emptyCells(state).firstOrNull()
+            ?: return state to listOf(GameEvent.BoardFull)
+        val cells = state.cells.toMutableList()
+        val inventory = state.inventory.toMutableList()
+        cells[target] = item
+        inventory[slot] = null
+        return state.copy(cells = cells, inventory = inventory) to emptyList()
+    }
+
     // ---------- generator ----------
 
     fun tapGenerator(
