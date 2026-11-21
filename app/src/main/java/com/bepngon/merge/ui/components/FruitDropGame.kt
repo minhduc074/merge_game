@@ -385,12 +385,12 @@ fun FruitDropGame(
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🍉 Hết giờ!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Cocoa)
+                            Text("🍉 Tràn rồi!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Cocoa)
                             Text("Điểm: ${engine.score}", fontSize = 18.sp, color = Cocoa,
                                 modifier = Modifier.padding(top = 6.dp))
                             val e = minOf(
                                 com.bepngon.merge.game.GameEngine.MINI_MAX_ENERGY,
-                                engine.score / 2,
+                                engine.score / 10,
                             )
                             Text("+$e ⚡", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                 color = MergeGreen, modifier = Modifier.padding(top = 4.dp))
@@ -399,8 +399,7 @@ fun FruitDropGame(
                                     modifier = Modifier.padding(top = 2.dp))
                             }
                             Text(
-                                if (game.miniPlaysLeft > 0) "🍹 Nhận thưởng (${game.miniPlaysLeft} lượt còn)"
-                                else "🍹 Nhận thưởng",
+                                "🍹 Nhận thưởng",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,

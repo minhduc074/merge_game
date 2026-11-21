@@ -32,9 +32,10 @@ proguard rules giữ kotlinx.serialization serializers.
 
 ## Debug gameplay
 
-- Cheat: bấm nút coin 🪙 trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv20, mở hết ô, +99,999🪙,
-  full energy/kho/onboarding, reset lượt thả trái về 3). Bản debug bấm coin không mở popup info mà
-  đếm + hiện floater "x/10" để bấm liên tục được. Chỉ hoạt động trong build DEBUG (`BuildConfig.DEBUG`).
+- Cheat: bấm badge `Lv.xx` trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv20, mở hết ô, +99,999🪙,
+  full energy/kho/onboarding). Đếm lặng, không hiện UI — đủ 10 tự kích hoạt.
+  Chỉ hoạt động trong build DEBUG (`BuildConfig.DEBUG`).
+- Minigame thả trái: không giới hạn lượt; thưởng = `min(20, score/10)` ⚡ (`finishMiniGame`).
 
 ### Quy trình sau mỗi lần sửa (user yêu cầu)
 

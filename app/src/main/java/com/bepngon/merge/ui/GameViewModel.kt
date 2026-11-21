@@ -157,12 +157,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         applyEngine { GameEngine.feedPetItem(it, source, index, nowMs()) }
 
     fun openMiniGame() {
-        val (next, events) = GameEngine.startMiniGame(_ui.value.game, nowMs())
-        if (next !== _ui.value.game) {
-            _ui.value = _ui.value.copy(game = next, showMiniGame = true)
-            viewModelScope.launch { saveManager.save(next, nowMs()) }
-        }
-        events.forEach { _events.tryEmit(it) }
+        // plays are unlimited — just show the game
+        _ui.value = _ui.value.copy(showMiniGame = true)
     }
 
     fun finishMiniGame(score: Int) {

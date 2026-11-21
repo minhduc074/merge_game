@@ -968,13 +968,8 @@ object GameEngine {
     }
 
     fun startMiniGame(state: GameState, nowMs: Long): Pair<GameState, List<GameEvent>> {
-        if (state.miniPlaysLeft <= 0) return state to listOf(GameEvent.MiniGameNoPlays)
-        val left = state.miniPlaysLeft - 1
-        return state.copy(
-            miniPlaysLeft = left,
-            miniRefillAtMs = if (state.miniRefillAtMs == 0L) nowMs + MINI_REFILL_MS
-            else state.miniRefillAtMs,
-        ) to emptyList()
+        // unlimited plays — kept as a hook so the caller stays unchanged
+        return state to emptyList()
     }
 
     fun finishMiniGame(
@@ -982,7 +977,7 @@ object GameEngine {
         score: Int,
         nowMs: Long,
     ): Pair<GameState, List<GameEvent>> {
-        val energy = minOf(MINI_MAX_ENERGY, score / 2)
+        val energy = minOf(MINI_MAX_ENERGY, score / 10)
         return state.copy(
             energy = minOf(ENERGY_CAP, state.energy + energy),
             miniBest = maxOf(state.miniBest, score),

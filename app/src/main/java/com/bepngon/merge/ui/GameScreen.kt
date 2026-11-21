@@ -235,7 +235,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var infoItem by remember { mutableStateOf<BoardItem?>(null) }
     var genListItem by remember { mutableStateOf<BoardItem?>(null) }
     var statInfo by remember { mutableStateOf<String?>(null) }
-    var coinTaps by remember { mutableIntStateOf(0) }
+    var levelTaps by remember { mutableIntStateOf(0) }
     var coinBounds by remember { mutableStateOf<Rect?>(null) }
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
     var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
@@ -569,23 +569,15 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onGuide = vm::openGuide,
             onRoom = vm::openRoom,
             onCoinBounds = { coinBounds = it },
-            onStatTap = { kind ->
-                // Debug cheat: 10 taps on the coin chip maxes level + coins.
-                // In debug builds coin taps count toward the cheat instead of
-                // opening the info card — the popup would block rapid tapping.
-                if (BuildConfig.DEBUG && kind == "coins") {
-                    coinTaps++
-                    if (coinTaps >= 10) {
-                        coinTaps = 0
+            onStatTap = { kind -> statInfo = kind },
+            onLevelTap = {
+                // Debug cheat: 10 silent taps on the Lv badge -> max out.
+                if (BuildConfig.DEBUG) {
+                    levelTaps++
+                    if (levelTaps >= 10) {
+                        levelTaps = 0
                         vm.debugMaxOut()
-                    } else {
-                        coinBounds?.center?.let {
-                            pushFloater("🪙 $coinTaps/10", it, Gold)
-                        }
                     }
-                } else {
-                    coinTaps = 0
-                    statInfo = kind
                 }
             },
         )

@@ -928,18 +928,19 @@ class GameEngineTest {
     }
 
     @Test
-    fun `mini game consumes a play and pays energy capped`() {
+    fun `mini game pays 1 energy per 10 points capped`() {
         var s = stateWith(energy = 90)
-        val (started, _) = GameEngine.startMiniGame(s, 0)
-        assertEquals(2, started.miniPlaysLeft)
-        assertTrue(started.miniRefillAtMs > 0)
-
-        // score 50 -> 20 energy (cap) but energy cap 100 applies
-        val (done, events) = GameEngine.finishMiniGame(started, 50, 1000)
-        assertEquals(100, done.energy)
+        val (done, events) = GameEngine.finishMiniGame(s, 50, 1000)
+        assertEquals(95, done.energy)
         assertEquals(50, done.miniBest)
         val fin = events.filterIsInstance<GameEvent.MiniGameFinished>().single()
-        assertEquals(20, fin.energy)
+        assertEquals(5, fin.energy)
+
+        // reward still capped at MINI_MAX_ENERGY even for huge scores
+        val (done2, events2) = GameEngine.finishMiniGame(s, 1000, 1000)
+        val fin2 = events2.filterIsInstance<GameEvent.MiniGameFinished>().single()
+        assertEquals(20, fin2.energy)
+        assertEquals(100, done2.energy) // clamped at ENERGY_CAP
     }
 
     @Test
@@ -951,10 +952,10 @@ class GameEngineTest {
     }
 
     @Test
-    fun `mini game start rejected with no plays`() {
+    fun `mini game plays are unlimited`() {
         val s = stateWith().copy(miniPlaysLeft = 0)
         val (next, events) = GameEngine.startMiniGame(s, 0)
         assertEquals(s, next)
-        assertTrue(events.any { it is GameEvent.MiniGameNoPlays })
+        assertTrue(events.isEmpty())
     }
 }

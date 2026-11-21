@@ -158,12 +158,7 @@ fun RoomScreen(
             ) {
                 Chip("🛋️ Decor") { panel = RoomPanel.DECOR }
                 Chip("🐾 Thú cưng") { panel = RoomPanel.PET }
-                val miniNote = if (game.miniPlaysLeft > 0) {
-                    "${game.miniPlaysLeft} lượt"
-                } else {
-                    "đang hồi"
-                }
-                Chip("🍉 Thả trái ($miniNote)") { onOpenMiniGame() }
+                Chip("🍉 Thả trái") { onOpenMiniGame() }
             }
 
             // ---- bottom panels ----

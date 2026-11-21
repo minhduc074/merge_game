@@ -51,6 +51,7 @@ fun TopBar(
     onRoom: () -> Unit,
     onCoinBounds: (Rect) -> Unit,
     onStatTap: (String) -> Unit,
+    onLevelTap: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
@@ -110,6 +111,7 @@ fun TopBar(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFE3F2D9))
+                    .clickable(onClick = onLevelTap)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             )
             LinearProgressIndicator(
