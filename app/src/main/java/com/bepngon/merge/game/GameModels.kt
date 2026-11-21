@@ -104,6 +104,9 @@ data class GameState(
     val claimedAchievements: Set<String> = emptySet(),
     val lastDailyClaimEpochMs: Long = 0,
     val onboardingDone: Boolean = false,
+    val frenzyUntilMs: Long = 0,
+    val qte: QteOffer? = null,
+    val nextQteAtMs: Long = 0,
 ) {
     fun metricOf(metric: Metric): Int = when (metric) {
         Metric.MERGES -> stats.merges
@@ -124,6 +127,11 @@ data class LevelReward(
 )
 
 enum class ItemSource { BOARD, INVENTORY }
+
+enum class QteReward { WILDCARD, FRENZY, ENERGY, COINS, RECHARGE }
+
+/** A timed bonus the player taps to claim before it expires. */
+data class QteOffer(val reward: QteReward, val expiresAtMs: Long)
 
 sealed interface GameEvent {
     data class Merged(val cellIndex: Int, val newItem: BoardItem, val scoreGained: Int) : GameEvent
@@ -154,4 +162,11 @@ sealed interface GameEvent {
     data object NoEnergy : GameEvent
     data object BoardFull : GameEvent
     data object InvalidDrop : GameEvent
+    data class QteOffered(val offer: QteOffer) : GameEvent
+    data class QteClaimed(val reward: QteReward) : GameEvent
+    /** Wildcard item placed; index >= 0 is a board cell, < 0 encodes -1 - inventory slot. */
+    data class WildcardSpawned(val index: Int) : GameEvent
+    /** Duplicate created by the magic wand; index uses the same encoding as [WildcardSpawned]. */
+    data class ItemDuplicated(val index: Int) : GameEvent
+    data class FrenzyStarted(val untilMs: Long) : GameEvent
 }

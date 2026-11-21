@@ -6,6 +6,7 @@ enum class Family(val tint: Long) {
     DRINK(0xFFD7F0FF),
     VIET(0xFFE3F2D9),
     GENERATOR(0xFFEFE3FF),
+    SPECIAL(0xFFFFF3D9),
 }
 
 data class SpawnEntry(val itemId: String, val weight: Int)
@@ -156,6 +157,14 @@ object ItemCatalog {
         generator(
             "gen_viet_3", 3, "🏮", "Nhà hàng", null, 200,
             "viet_2" to 40, "viet_3" to 35, "viet_4" to 20, "viet_5" to 5,
+        )
+        put(
+            "magic_wild",
+            ItemDef(
+                id = "magic_wild", name = "Đũa phép", emoji = "🪄",
+                family = Family.SPECIAL, tier = 1, mergeResult = null,
+                sellPrice = 0, score = 0,
+            ),
         )
     }
 

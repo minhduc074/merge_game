@@ -21,6 +21,16 @@ object GameEngine {
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
 
+    // Quick-time event: a claimable bonus appears for a short window.
+    const val MAGIC_WILD_ID = "magic_wild"
+    const val FRENZY_MS = 90_000L
+    const val QTE_ENERGY = 15
+    const val QTE_COINS = 30
+    const val QTE_FIRST_MS = 90_000L
+    const val QTE_OFFER_MS = 15_000L
+    const val QTE_INTERVAL_MIN_MS = 150_000L
+    const val QTE_INTERVAL_MAX_MS = 240_000L
+
     // Cells locked at game start, in unlock order (first entries unlock first).
     val INITIAL_LOCKED: List<Int> = listOf(
         idx(5, 0), idx(5, 6), idx(6, 0), idx(6, 1), idx(6, 5), idx(6, 6),
@@ -75,6 +85,7 @@ object GameEngine {
             level = 1,
             nextUid = uid,
             lockedCells = INITIAL_LOCKED.toSet(),
+            nextQteAtMs = QTE_FIRST_MS,
         )
     }
 
@@ -108,6 +119,18 @@ object GameEngine {
             cells[to] = dragged
             cells[from] = null
             return state.copy(cells = cells) to emptyList()
+        }
+
+        // Magic wand: drop onto any unfrozen item to duplicate it into the
+        // wand's own cell (the wand is consumed).
+        if (dragged.defId == MAGIC_WILD_ID) {
+            if (target.frozen || target.defId == MAGIC_WILD_ID) {
+                return state to listOf(GameEvent.InvalidDrop)
+            }
+            val cells = state.cells.toMutableList()
+            cells[from] = newItem(state.nextUid, target.defId)
+            return state.copy(cells = cells, nextUid = state.nextUid + 1) to
+                listOf(GameEvent.ItemDuplicated(from))
         }
 
         // Dropping a matching item onto a frozen one merges and unlocks it.
@@ -174,6 +197,17 @@ object GameEngine {
             cells[to] = dragged
             inventory[slot] = null
             return state.copy(cells = cells, inventory = inventory) to emptyList()
+        }
+
+        // Magic wand from the bag: duplicate the target into the wand's slot.
+        if (dragged.defId == MAGIC_WILD_ID) {
+            if (target.frozen || target.defId == MAGIC_WILD_ID) {
+                return state to listOf(GameEvent.InvalidDrop)
+            }
+            val inventory = state.inventory.toMutableList()
+            inventory[slot] = newItem(state.nextUid, target.defId)
+            return state.copy(inventory = inventory, nextUid = state.nextUid + 1) to
+                listOf(GameEvent.ItemDuplicated(-1 - slot))
         }
 
         val okToMerge = if (target.frozen) {
@@ -254,9 +288,12 @@ object GameEngine {
         val def = ItemCatalog[item.defId]
         if (!def.isGenerator || def.spawnTable.isEmpty()) return state to emptyList()
 
+        val frenzy = nowMs < state.frenzyUntilMs
         val cooling = item.cooldownUntilMs > nowMs
         if (cooling || item.charges == 0) return state to listOf(GameEvent.GeneratorEmpty)
-        if (state.energy < ENERGY_PER_SPAWN) return state to listOf(GameEvent.NoEnergy)
+        if (!frenzy && state.energy < ENERGY_PER_SPAWN) {
+            return state to listOf(GameEvent.NoEnergy)
+        }
 
         val empty = emptyCells(state)
         if (empty.isEmpty()) return state to listOf(GameEvent.BoardFull)
@@ -272,10 +309,10 @@ object GameEngine {
         val spawnedDefId = pickWeighted(def.spawnTable, random)
         val spawned = newItem(state.nextUid, spawnedDefId)
 
-        val charges = genItem.charges - 1
+        val charges = if (frenzy) genItem.charges else genItem.charges - 1
         genItem = genItem.copy(
             charges = charges,
-            cooldownUntilMs = if (charges == 0) nowMs + GEN_COOLDOWN_MS else 0,
+            cooldownUntilMs = if (!frenzy && charges == 0) nowMs + GEN_COOLDOWN_MS else 0,
         )
 
         val cells = state.cells.toMutableList()
@@ -283,7 +320,7 @@ object GameEngine {
         cells[target] = spawned
         return state.copy(
             cells = cells,
-            energy = state.energy - ENERGY_PER_SPAWN,
+            energy = if (frenzy) state.energy else state.energy - ENERGY_PER_SPAWN,
             nextUid = state.nextUid + 1,
         ) to listOf(GameEvent.Spawned(target, spawned))
     }
@@ -313,7 +350,91 @@ object GameEngine {
         if (recharged) next = next.copy(cells = cells)
 
         val (afterOrders, orderEvents) = maybeSpawnOrder(next, nowMs, random)
-        return afterOrders to (events + orderEvents)
+        val (afterQte, qteEvents) = qteStep(afterOrders, nowMs, random)
+        return afterQte to (events + orderEvents + qteEvents)
+    }
+
+    // ---------- quick-time events ----------
+
+    private fun nextQteDelay(random: Random): Long =
+        QTE_INTERVAL_MIN_MS + random.nextLong(QTE_INTERVAL_MAX_MS - QTE_INTERVAL_MIN_MS)
+
+    private fun qteStep(
+        state: GameState,
+        nowMs: Long,
+        random: Random,
+    ): Pair<GameState, List<GameEvent>> {
+        val offer = state.qte
+        if (offer != null) {
+            return if (nowMs > offer.expiresAtMs) {
+                state.copy(qte = null, nextQteAtMs = nowMs + nextQteDelay(random)) to emptyList()
+            } else {
+                state to emptyList()
+            }
+        }
+        if (state.nextQteAtMs <= 0 || nowMs < state.nextQteAtMs) return state to emptyList()
+        val newOffer = QteOffer(QteReward.entries.random(random), nowMs + QTE_OFFER_MS)
+        return state.copy(qte = newOffer) to listOf(GameEvent.QteOffered(newOffer))
+    }
+
+    fun claimQte(
+        state: GameState,
+        nowMs: Long,
+        random: Random = Random,
+    ): Pair<GameState, List<GameEvent>> {
+        val offer = state.qte ?: return state to emptyList()
+        var next = state.copy(qte = null, nextQteAtMs = nowMs + nextQteDelay(random))
+        val events = mutableListOf<GameEvent>(GameEvent.QteClaimed(offer.reward))
+        when (offer.reward) {
+            QteReward.FRENZY -> {
+                next = next.copy(frenzyUntilMs = nowMs + FRENZY_MS)
+                events += GameEvent.FrenzyStarted(next.frenzyUntilMs)
+            }
+            QteReward.ENERGY ->
+                next = next.copy(energy = minOf(ENERGY_CAP, next.energy + QTE_ENERGY))
+            QteReward.COINS -> next = next.copy(
+                coins = next.coins + QTE_COINS,
+                stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + QTE_COINS),
+            )
+            QteReward.RECHARGE -> {
+                val cells = next.cells.toMutableList()
+                cells.forEachIndexed { i, it ->
+                    if (it != null && ItemCatalog[it.defId].isGenerator) {
+                        cells[i] = it.copy(
+                            charges = ItemCatalog[it.defId].maxCharges,
+                            cooldownUntilMs = 0,
+                        )
+                    }
+                }
+                next = next.copy(cells = cells)
+            }
+            QteReward.WILDCARD -> {
+                val empty = emptyCells(next)
+                val slot = next.inventory.indices.firstOrNull { i ->
+                    i < next.inventoryCap && next.inventory[i] == null
+                }
+                when {
+                    empty.isNotEmpty() -> {
+                        val cell = empty.random(random)
+                        val cells = next.cells.toMutableList()
+                        cells[cell] = newItem(next.nextUid, MAGIC_WILD_ID)
+                        next = next.copy(cells = cells, nextUid = next.nextUid + 1)
+                        events += GameEvent.WildcardSpawned(cell)
+                    }
+                    slot != null -> {
+                        val inventory = next.inventory.toMutableList()
+                        inventory[slot] = newItem(next.nextUid, MAGIC_WILD_ID)
+                        next = next.copy(inventory = inventory, nextUid = next.nextUid + 1)
+                        events += GameEvent.WildcardSpawned(-1 - slot)
+                    }
+                    else -> next = next.copy(
+                        coins = next.coins + QTE_COINS,
+                        stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + QTE_COINS),
+                    )
+                }
+            }
+        }
+        return next to events
     }
 
     // ---------- orders ----------

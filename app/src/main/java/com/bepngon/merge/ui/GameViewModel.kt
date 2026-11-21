@@ -135,6 +135,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun autoFulfillOrder(orderId: Long) =
         applyEngine { GameEngine.autoFulfillOrder(it, orderId) }
 
+    fun claimQte() = applyEngine { GameEngine.claimQte(it, nowMs()) }
+
     fun askRestart() {
         _ui.value = _ui.value.copy(showRestartConfirm = true)
     }

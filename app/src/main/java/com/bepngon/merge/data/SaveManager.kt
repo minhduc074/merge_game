@@ -61,6 +61,8 @@ private data class SaveData(
     val claimedAchievements: List<String> = emptyList(),
     val lastDailyClaimEpochMs: Long = 0,
     val onboardingDone: Boolean = false,
+    val frenzyInMs: Long = 0,
+    val nextQteInMs: Long = 0,
 )
 
 @Serializable
@@ -118,6 +120,8 @@ class SaveManager(private val context: Context) {
             claimedAchievements = state.claimedAchievements.toList(),
             lastDailyClaimEpochMs = state.lastDailyClaimEpochMs,
             onboardingDone = state.onboardingDone,
+            frenzyInMs = (state.frenzyUntilMs - nowMs).coerceAtLeast(0),
+            nextQteInMs = (state.nextQteAtMs - nowMs).coerceAtLeast(0),
         )
         context.saveStore.edit { it[keyV3] = json.encodeToString(data) }
     }
@@ -165,6 +169,12 @@ class SaveManager(private val context: Context) {
             claimedAchievements = data.claimedAchievements.toSet(),
             lastDailyClaimEpochMs = data.lastDailyClaimEpochMs,
             onboardingDone = data.onboardingDone,
+            frenzyUntilMs = if (data.frenzyInMs > 0) nowMs + data.frenzyInMs else 0,
+            nextQteAtMs = if (data.nextQteInMs > 0) {
+                nowMs + data.nextQteInMs
+            } else {
+                nowMs + GameEngine.QTE_FIRST_MS
+            },
         )
     }.getOrNull()
 

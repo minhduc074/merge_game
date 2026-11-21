@@ -2,7 +2,11 @@ package com.bepngon.merge.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -74,6 +78,7 @@ import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.LevelReward
+import com.bepngon.merge.game.QteReward
 import com.bepngon.merge.sound.SoundManager
 import com.bepngon.merge.ui.components.AchievementsScreen
 import com.bepngon.merge.ui.components.BagScreen
@@ -387,6 +392,60 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 GameEvent.DailyNotReady -> {
                     SoundManager.play(SoundManager.Sfx.Error)
                 }
+                is GameEvent.QteOffered -> {
+                    SoundManager.play(SoundManager.Sfx.Achieve)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                is GameEvent.QteClaimed -> {
+                    SoundManager.play(SoundManager.Sfx.Daily)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    levelBanner = when (e.reward) {
+                        QteReward.WILDCARD -> "🪄 Đũa phép! Kéo lên item để nhân bản"
+                        QteReward.FRENZY -> "🔥 Điên cuồng! Gen miễn phí 90 giây!"
+                        QteReward.ENERGY -> "⚡ +${GameEngine.QTE_ENERGY} năng lượng!"
+                        QteReward.COINS -> "🪙 +${GameEngine.QTE_COINS} vàng!"
+                        QteReward.RECHARGE -> "🔋 Mọi generator đã sạc đầy!"
+                    }
+                    scope.launch {
+                        kotlinx.coroutines.delay(2500)
+                        levelBanner = null
+                    }
+                }
+                is GameEvent.WildcardSpawned -> {
+                    SoundManager.play(SoundManager.Sfx.Achieve)
+                    val r = if (e.index >= 0) {
+                        cellBounds[e.index]
+                    } else {
+                        invBounds[-1 - e.index]
+                    }
+                    r?.let {
+                        sparkles = sparkles + it.center
+                        scope.launch {
+                            kotlinx.coroutines.delay(650)
+                            sparkles = sparkles.drop(1)
+                        }
+                    }
+                }
+                is GameEvent.ItemDuplicated -> {
+                    SoundManager.playMerge()
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val r = if (e.index >= 0) {
+                        cellBounds[e.index]
+                    } else {
+                        invBounds[-1 - e.index]
+                    }
+                    r?.let {
+                        pushFloater("🪄 Nhân bản!", it.center, MergeGreen)
+                        sparkles = sparkles + it.center
+                        scope.launch {
+                            kotlinx.coroutines.delay(650)
+                            sparkles = sparkles.drop(1)
+                        }
+                    }
+                }
+                is GameEvent.FrenzyStarted -> {
+                    SoundManager.play(SoundManager.Sfx.LevelUp)
+                }
                 GameEvent.OnboardingFinished -> {
                     SoundManager.play(SoundManager.Sfx.Complete)
                 }
@@ -439,6 +498,25 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onPositioned = { id, r -> orderBounds[id] = r },
             modifier = Modifier.padding(bottom = 6.dp),
         )
+
+        val frenzyLeft = ui.game.frenzyUntilMs - ui.nowMs
+        if (frenzyLeft > 0) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFFF7043)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "🔥 GEN MIỄN PHÍ — còn ${frenzyLeft / 1000 + 1}s",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                )
+            }
+        }
 
         if (ui.game.boardFull) {
             Text(
@@ -576,6 +654,19 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             )
         }
     }
+
+    // Quick-time event bubble floating above the inventory bar
+    ui.game.qte?.let { offer ->
+        val leftSec = ((offer.expiresAtMs - ui.nowMs) / 1000).coerceAtLeast(0)
+        if (leftSec > 0) {
+            Box(
+                Modifier.fillMaxSize().padding(bottom = 78.dp),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                QteBubble(offer = offer, leftSec = leftSec, onClaim = vm::claimQte)
+            }
+        }
+    }
 }
 
 private fun Color.darken(f: Float): Color = Color(red * f, green * f, blue * f, alpha)
@@ -625,10 +716,11 @@ private fun BoardGrid(
                         hidden = drag?.source == ItemSource.BOARD && drag.index == cell,
                         hover = hoverCell == cell,
                         canDrop = if (drag != null && item != null && hoverCell == cell) {
-                            if (item.frozen) {
-                                drag.defId == item.defId
-                            } else {
-                                GameEngine.canMerge(
+                            when {
+                                item.frozen -> drag.defId == item.defId
+                                drag.defId == GameEngine.MAGIC_WILD_ID ->
+                                    item.defId != GameEngine.MAGIC_WILD_ID
+                                else -> GameEngine.canMerge(
                                     BoardItem(drag.uid, drag.defId),
                                     item,
                                 )
@@ -1165,6 +1257,14 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                 fontSize = 12.sp,
                 color = Cocoa,
             )
+            if (item.defId == GameEngine.MAGIC_WILD_ID) {
+                Text(
+                    "🪄 Kéo lên item bất kì để nhân bản nó!",
+                    fontSize = 12.sp,
+                    color = Color(0xFF7B1FA2),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             val prev = ItemCatalog.previousOf(item.defId)
             if (prev != null) {
                 Text(
@@ -1361,5 +1461,54 @@ private fun StatInfoCard(kind: String, onDismiss: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Text("🎯 Cách kiếm:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
         Text(info.earn, fontSize = 13.sp, color = Cocoa)
+    }
+}
+
+private fun qteLabel(r: QteReward): Pair<String, String> = when (r) {
+    QteReward.WILDCARD -> "🪄" to "Đũa phép nhân bản"
+    QteReward.FRENZY -> "🔥" to "Gen miễn phí 90s"
+    QteReward.ENERGY -> "⚡" to "+${GameEngine.QTE_ENERGY} năng lượng"
+    QteReward.COINS -> "🪙" to "+${GameEngine.QTE_COINS} vàng"
+    QteReward.RECHARGE -> "🔋" to "Sạc đầy mọi gen"
+}
+
+@Composable
+private fun QteBubble(
+    offer: com.bepngon.merge.game.QteOffer,
+    leftSec: Long,
+    onClaim: () -> Unit,
+) {
+    val pulse by rememberInfiniteTransition(label = "qte").animateFloat(
+        initialValue = 1f,
+        targetValue = 1.07f,
+        animationSpec = infiniteRepeatable(tween(380), RepeatMode.Reverse),
+        label = "pulse",
+    )
+    val (emoji, label) = qteLabel(offer.reward)
+    Row(
+        Modifier
+            .scale(pulse)
+            .shadow(10.dp, RoundedCornerShape(20.dp))
+            .background(Color(0xFFFFF3D9), RoundedCornerShape(20.dp))
+            .border(2.dp, Gold, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClaim)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(emoji, fontSize = 26.sp)
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(
+                "🎁 Quà bất ngờ! Bấm nhận",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Cocoa,
+            )
+            Text(
+                "$label • còn ${leftSec}s",
+                fontSize = 11.sp,
+                color = Cocoa.copy(alpha = 0.7f),
+            )
+        }
     }
 }

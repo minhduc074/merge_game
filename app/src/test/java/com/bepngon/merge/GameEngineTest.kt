@@ -8,6 +8,8 @@ import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.Order
+import com.bepngon.merge.game.QteOffer
+import com.bepngon.merge.game.QteReward
 import com.bepngon.merge.game.Stats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -612,5 +614,87 @@ class GameEngineTest {
         )
         val (early, _) = GameEngine.maybeSpawnOrder(s, 5, Random(1))
         assertTrue(early.orders.isEmpty())
+    }
+
+    // ---------- quick-time events ----------
+
+    @Test
+    fun `wildcard duplicates the dragged-onto item into its own cell`() {
+        val s = stateWith(0 to "magic_wild", 1 to "fruit_3")
+        val (next, events) = GameEngine.moveOrMerge(s, 0, 1)
+        assertEquals("fruit_3", next.cells[0]?.defId)
+        assertEquals("fruit_3", next.cells[1]?.defId)
+        assertTrue(events.single() is GameEvent.ItemDuplicated)
+    }
+
+    @Test
+    fun `wildcard cannot target frozen items or other wildcards`() {
+        val s = stateWith(0 to "magic_wild", 1 to "fruit_3", frozenCells = setOf(1))
+        val (_, events) = GameEngine.moveOrMerge(s, 0, 1)
+        assertTrue(events.single() is GameEvent.InvalidDrop)
+
+        val s2 = stateWith(0 to "magic_wild", 1 to "magic_wild")
+        val (_, events2) = GameEngine.moveOrMerge(s2, 0, 1)
+        assertTrue(events2.single() is GameEvent.InvalidDrop)
+    }
+
+    @Test
+    fun `wildcard moves onto empty cells like a normal item`() {
+        val s = stateWith(0 to "magic_wild")
+        val (next, _) = GameEngine.moveOrMerge(s, 0, 1)
+        assertNull(next.cells[0])
+        assertEquals("magic_wild", next.cells[1]?.defId)
+    }
+
+    @Test
+    fun `qte offer appears on tick and expires`() {
+        val s = stateWith(0 to "gen_fruit_1").copy(nextQteAtMs = 10)
+        val (offered, events) = GameEngine.tick(s, 20, Random(1))
+        assertNotNull(offered.qte)
+        assertTrue(events.any { it is GameEvent.QteOffered })
+
+        val (expired, _) = GameEngine.tick(
+            offered,
+            offered.qte!!.expiresAtMs + 1,
+            Random(1),
+        )
+        assertNull(expired.qte)
+        assertTrue(expired.nextQteAtMs > offered.qte!!.expiresAtMs + 1)
+    }
+
+    @Test
+    fun `claiming frenzy makes generator taps free`() {
+        var s = stateWith(0 to "gen_fruit_1", energy = 5)
+            .copy(qte = QteOffer(QteReward.FRENZY, 60_000))
+        val (claimed, events) = GameEngine.claimQte(s, 100, Random(1))
+        assertNull(claimed.qte)
+        assertEquals(100 + GameEngine.FRENZY_MS, claimed.frenzyUntilMs)
+        assertTrue(events.any { it is GameEvent.FrenzyStarted })
+        assertTrue(events.any { it is GameEvent.QteClaimed })
+
+        val (tapped, _) = GameEngine.tapGenerator(claimed, 0, 200, Random(1))
+        assertEquals(5, tapped.energy) // free during frenzy
+        assertEquals(
+            ItemCatalog["gen_fruit_1"].maxCharges,
+            tapped.cells[0]?.charges,
+        )
+    }
+
+    @Test
+    fun `claiming wildcard spawns magic_wild on an empty cell`() {
+        val s = stateWith(0 to "gen_fruit_1")
+            .copy(qte = QteOffer(QteReward.WILDCARD, 60_000))
+        val (next, events) = GameEngine.claimQte(s, 100, Random(1))
+        assertTrue(next.cells.any { it?.defId == "magic_wild" })
+        assertTrue(events.any { it is GameEvent.WildcardSpawned })
+        assertNull(next.qte)
+    }
+
+    @Test
+    fun `claimQte without an offer is a no-op`() {
+        val s = stateWith(0 to "gen_fruit_1")
+        val (next, events) = GameEngine.claimQte(s, 100, Random(1))
+        assertEquals(s, next)
+        assertTrue(events.isEmpty())
     }
 }
