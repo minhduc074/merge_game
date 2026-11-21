@@ -274,7 +274,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         vm.events.collect { e ->
             when (e) {
                 is GameEvent.Merged -> {
-                    SoundManager.play(SoundManager.Sfx.Merge)
+                    SoundManager.playMerge()
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     cellBounds[e.cellIndex]?.let { r ->
                         pushFloater("+${e.scoreGained}", r.center, MergeGreen)

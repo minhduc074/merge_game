@@ -10,7 +10,9 @@ object SoundManager {
     enum class Sfx(@RawRes val res: Int) {
         Spawn(R.raw.spawn),
         Tap(R.raw.tap),
-        Merge(R.raw.merge),
+        Merge1(R.raw.merge1),
+        Merge2(R.raw.merge2),
+        Merge3(R.raw.merge3),
         Deliver(R.raw.deliver),
         Complete(R.raw.complete),
         LevelUp(R.raw.levelup),
@@ -51,6 +53,10 @@ object SoundManager {
         val id = ids[sfx] ?: return
         pool?.play(id, 0.7f, 0.7f, 1, 0, 1f)
     }
+
+    private val mergeVariants = listOf(Sfx.Merge1, Sfx.Merge2, Sfx.Merge3)
+
+    fun playMerge() = play(mergeVariants.random())
 
     fun release() {
         pool?.release()
