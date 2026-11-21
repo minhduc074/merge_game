@@ -93,6 +93,9 @@ private const val REST = 0.25f
 private const val GAME_MS = 90_000L
 private const val DROP_CD_MS = 600L
 private const val OVERLINE_MS = 1_800L
+private const val WALL_PAD = 10f      // fruit circles never touch the brown border
+private const val BALL_GAP = 2f       // and never overlap each other's circle
+private const val SOLVER_PASSES = 3   // relaxation iterations per frame
 
 private fun radiusFor(tier: Int, unit: Float): Float = unit * (0.62f + 0.22f * tier)
 
@@ -186,30 +189,39 @@ fun FruitDropGame(
                                 val dt = min((frame - last) / 1000f, 0.05f)
                                 last = frame
 
+                                fun clampIn(b: Ball) {
+                                    if (b.x < WALL_PAD + b.r) b.x = WALL_PAD + b.r
+                                    if (b.x > w - WALL_PAD - b.r) b.x = w - WALL_PAD - b.r
+                                    if (b.y > h - WALL_PAD - b.r) {
+                                        b.y = h - WALL_PAD - b.r
+                                        if (b.vy > 0f) b.vy = 0f
+                                    }
+                                }
+
                                 // integrate
                                 balls.forEach { b ->
                                     b.vy += GRAVITY * dt
                                     b.x += b.vx * dt
                                     b.y += b.vy * dt
-                                    if (b.x < b.r) {
-                                        b.x = b.r
+                                    if (b.x < WALL_PAD + b.r) {
+                                        b.x = WALL_PAD + b.r
                                         if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
                                         b.vx = -b.vx * REST
                                     }
-                                    if (b.x > w - b.r) {
-                                        b.x = w - b.r
+                                    if (b.x > w - WALL_PAD - b.r) {
+                                        b.x = w - WALL_PAD - b.r
                                         if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
                                         b.vx = -b.vx * REST
                                     }
-                                    if (b.y > h - b.r) {
-                                        b.y = h - b.r
+                                    if (b.y > h - WALL_PAD - b.r) {
+                                        b.y = h - WALL_PAD - b.r
                                         if (abs(b.vy) > 220f) { b.squashX = 1.35f; b.squashY = 0.6f }
                                         b.vy = -b.vy * REST
                                         b.vx *= 0.9f
                                         if (abs(b.vy) < 40f) b.vy = 0f
                                     }
                                     // squash & stretch: elongate while falling fast, spring back after.
-                                    val flying = b.y < h - b.r - 2f && abs(b.vy) > 550f
+                                    val flying = b.y < h - WALL_PAD - b.r - 2f && abs(b.vy) > 550f
                                     val tx = if (flying) 0.85f else 1f
                                     val ty = if (flying) 1.18f else 1f
                                     b.squashX += (tx - b.squashX) * min(1f, dt * 9)
@@ -220,61 +232,55 @@ fun FruitDropGame(
                                 puffs.removeAll { it.age > 0.4f }
                                 previewPop += (1f - previewPop) * min(1f, dt * 12)
 
-                                // pairwise collisions
-                                for (i in balls.indices) {
-                                    for (j in i + 1 until balls.size) {
-                                        val a = balls[i]
-                                        val c = balls[j]
-                                        val dx = c.x - a.x
-                                        val dy = c.y - a.y
-                                        val d = sqrt(dx * dx + dy * dy)
-                                        val minD = a.r + c.r
-                                        if (d in 0.001f..minD) {
-                                            if (a.tier == c.tier && a.tier < TIERS.lastIndex + 1) {
-                                                pendingMerges += Triple(
-                                                    (a.x + c.x) / 2f,
-                                                    (a.y + c.y) / 2f,
-                                                    a.tier,
-                                                )
-                                                a.id = -a.id - 1
-                                                c.id = -c.id - 1
-                                            } else {
-                                                // Mass-weighted resolution: mass ∝ r², so
-                                                // heavier tiers shove lighter ones aside.
-                                                val nx = dx / d
-                                                val ny = dy / d
-                                                val ma = a.r * a.r
-                                                val mc = c.r * c.r
-                                                val tot = ma + mc
-                                                val sep = minD - d
-                                                a.x -= nx * sep * (mc / tot)
-                                                a.y -= ny * sep * (mc / tot)
-                                                c.x += nx * sep * (ma / tot)
-                                                c.y += ny * sep * (ma / tot)
-                                                val relV = abs(a.vx - c.vx) + abs(a.vy - c.vy)
-                                                if (relV > 320f) {
-                                                    a.squashX = 1.22f; a.squashY = 0.78f
-                                                    c.squashX = 1.22f; c.squashY = 0.78f
+                                // Pairwise collisions, several relaxation passes so a pile
+                                // settles without circles overlapping; each pass re-clamps.
+                                repeat(SOLVER_PASSES) {
+                                    for (i in balls.indices) {
+                                        for (j in i + 1 until balls.size) {
+                                            val a = balls[i]
+                                            val c = balls[j]
+                                            if (a.id < 0 || c.id < 0) continue
+                                            val dx = c.x - a.x
+                                            val dy = c.y - a.y
+                                            val d = sqrt(dx * dx + dy * dy)
+                                            val minD = a.r + c.r + BALL_GAP
+                                            if (d in 0.001f..minD) {
+                                                if (a.tier == c.tier && a.tier < TIERS.lastIndex + 1) {
+                                                    pendingMerges += Triple(
+                                                        (a.x + c.x) / 2f,
+                                                        (a.y + c.y) / 2f,
+                                                        a.tier,
+                                                    )
+                                                    a.id = -a.id - 1
+                                                    c.id = -c.id - 1
+                                                } else {
+                                                    // Mass-weighted resolution: mass ∝ r², so
+                                                    // heavier tiers shove lighter ones aside.
+                                                    val nx = dx / d
+                                                    val ny = dy / d
+                                                    val ma = a.r * a.r
+                                                    val mc = c.r * c.r
+                                                    val tot = ma + mc
+                                                    val sep = minD - d
+                                                    a.x -= nx * sep * (mc / tot)
+                                                    a.y -= ny * sep * (mc / tot)
+                                                    c.x += nx * sep * (ma / tot)
+                                                    c.y += ny * sep * (ma / tot)
+                                                    val relV = abs(a.vx - c.vx) + abs(a.vy - c.vy)
+                                                    if (relV > 320f) {
+                                                        a.squashX = 1.22f; a.squashY = 0.78f
+                                                        c.squashX = 1.22f; c.squashY = 0.78f
+                                                    }
+                                                    val push = 40f
+                                                    a.vx -= nx * push * (mc / tot) * dt
+                                                    a.vy -= ny * push * (mc / tot) * dt
+                                                    c.vx += nx * push * (ma / tot) * dt
+                                                    c.vy += ny * push * (ma / tot) * dt
                                                 }
-                                                val push = 40f
-                                                a.vx -= nx * push * (mc / tot) * dt
-                                                a.vy -= ny * push * (mc / tot) * dt
-                                                c.vx += nx * push * (ma / tot) * dt
-                                                c.vy += ny * push * (ma / tot) * dt
                                             }
                                         }
                                     }
-                                }
-
-                                // second bounds pass: collisions above can squeeze a
-                                // ball past the walls/floor — clamp it back in.
-                                balls.forEach { b ->
-                                    if (b.x < b.r) b.x = b.r
-                                    if (b.x > w - b.r) b.x = w - b.r
-                                    if (b.y > h - b.r) {
-                                        b.y = h - b.r
-                                        if (b.vy > 0f) b.vy = 0f
-                                    }
+                                    balls.forEach(::clampIn)
                                 }
 
                                 // apply merges
@@ -386,8 +392,8 @@ fun FruitDropGame(
                                     onDrag = { change, _ ->
                                         change.consume()
                                         aimX = change.position.x.coerceIn(
-                                            radiusFor(nextTier, unit),
-                                            w - radiusFor(nextTier, unit),
+                                            WALL_PAD + radiusFor(nextTier, unit),
+                                            w - WALL_PAD - radiusFor(nextTier, unit),
                                         )
                                     },
                                     onDragEnd = {
@@ -395,8 +401,8 @@ fun FruitDropGame(
                                         if (nowT - lastDrop > DROP_CD_MS) {
                                             lastDrop = nowT
                                             val dropX = (aimX ?: (w / 2)).coerceIn(
-                                                radiusFor(nextTier, unit),
-                                                w - radiusFor(nextTier, unit),
+                                                WALL_PAD + radiusFor(nextTier, unit),
+                                                w - WALL_PAD - radiusFor(nextTier, unit),
                                             )
                                             val r0 = radiusFor(nextTier, unit)
                                             balls += Ball(
@@ -420,8 +426,8 @@ fun FruitDropGame(
                                     if (nowT - lastDrop > DROP_CD_MS) {
                                         lastDrop = nowT
                                         val dropX = pos.x.coerceIn(
-                                            radiusFor(nextTier, unit),
-                                            w - radiusFor(nextTier, unit),
+                                            WALL_PAD + radiusFor(nextTier, unit),
+                                            w - WALL_PAD - radiusFor(nextTier, unit),
                                         )
                                         val r0 = radiusFor(nextTier, unit)
                                         aimX = dropX
