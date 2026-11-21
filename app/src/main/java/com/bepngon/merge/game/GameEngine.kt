@@ -16,7 +16,7 @@ object GameEngine {
     const val FIRST_ORDER_DELAY_MS = 8_000L
     const val ORDER_INTERVAL_MIN_MS = 20_000L
     const val ORDER_INTERVAL_MAX_MS = 35_000L
-    const val GEN_COOLDOWN_MS = 90_000L
+    const val GEN_COOLDOWN_MS = 45_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
