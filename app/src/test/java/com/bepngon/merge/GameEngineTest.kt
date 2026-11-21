@@ -582,10 +582,12 @@ class GameEngineTest {
         val (early, _) = GameEngine.maybeSpawnOrder(s, 5, Random(1))
         assertTrue(early.orders.isEmpty())
 
-        val fullOrders = List(3) { i -> orderOf("fruit_1").copy(id = i + 1L) }
+        val fullOrders = List(GameEngine.MAX_ACTIVE_ORDERS) { i ->
+            orderOf("fruit_1").copy(id = i + 1L)
+        }
         val s2 = stateWith(0 to "gen_fruit_1", orders = fullOrders, nextOrderAtMs = 10)
         val (reschedule, _) = GameEngine.maybeSpawnOrder(s2, 100, Random(1))
-        assertEquals(3, reschedule.orders.size)
+        assertEquals(GameEngine.MAX_ACTIVE_ORDERS, reschedule.orders.size)
         assertEquals(10_100L, reschedule.nextOrderAtMs)
     }
 

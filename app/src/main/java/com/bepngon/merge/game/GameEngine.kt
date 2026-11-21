@@ -12,7 +12,7 @@ object GameEngine {
     const val START_COINS = 50
     const val MAX_INVENTORY = 8
     const val START_INVENTORY_CAP = 4
-    const val MAX_ACTIVE_ORDERS = 3
+    const val MAX_ACTIVE_ORDERS = 5
     const val FIRST_ORDER_DELAY_MS = 8_000L
     const val ORDER_INTERVAL_MIN_MS = 20_000L
     const val ORDER_INTERVAL_MAX_MS = 35_000L
