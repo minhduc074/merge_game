@@ -464,7 +464,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         InventoryBar(
             inventory = ui.game.inventory,
             cap = ui.game.inventoryCap,
-            coins = ui.game.coins,
             nowMs = ui.nowMs,
             drag = drag,
             hoverInv = hoverInv,
@@ -696,7 +695,6 @@ private fun CellBox(
 private fun InventoryBar(
     inventory: List<BoardItem?>,
     cap: Int,
-    coins: Int,
     nowMs: Long,
     drag: DragState?,
     hoverInv: Int?,
@@ -756,20 +754,7 @@ private fun InventoryBar(
                 contentAlignment = Alignment.Center,
             ) {
                 when {
-                    locked -> {
-                        val cost = GameEngine.inventorySlotCost(slot)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🔒", fontSize = 12.sp)
-                            if (cost != null && slot == cap) {
-                                Text(
-                                    "$cost",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (coins >= cost) MergeGreen else WarnRed,
-                                )
-                            }
-                        }
-                    }
+                    locked -> Text("🔒", fontSize = 12.sp)
                     item != null -> ItemTile(
                         index = slot,
                         item = item,
