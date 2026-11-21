@@ -91,10 +91,15 @@ private class Puff(val x: Float, val y: Float, val r: Float, val alpha: Float = 
 
 private val TIERS = listOf("fruit_1", "fruit_2", "fruit_3", "fruit_4", "fruit_5", "fruit_6")
 private const val GRAVITY = 2200f
+private const val STEP = 1f / 60f     // fixed physics step
+private const val MAX_STEPS = 4       // per frame; backlog beyond this is dropped
 private const val MAX_VY = 2600f      // terminal velocity; also prevents tunneling
-private const val MAX_DT = 0.02f      // physics substep threshold
 private const val REST = 0.25f        // wall / floor restitution
 private const val REST_BALL = 0.2f    // fruit-fruit restitution
+private const val REST_VEL = 140f     // px/s closing speed below which contacts are
+                                      // inelastic (restitution slop) → no rest jitter
+private const val SLOP = 0.6f         // px of overlap left uncorrected (penetration slop)
+private const val POS_PERCENT = 0.6f  // fraction of overlap corrected per pass
 private const val FRICTION = 0.35f    // tangential impulse cap (Coulomb μ)
 private const val FLOOR_FRICTION = 6f // /s velocity scrub while touching the floor
 private const val SLEEP_V = 18f       // px/s below which a fruit counts as still
@@ -190,6 +195,7 @@ fun FruitDropGame(
                 if (!finished) {
                     LaunchedEffect(w, h) {
                         var last = System.currentTimeMillis()
+                        var acc = 0f   // fixed-step accumulator
                         while (true) {
                             withFrameMillis {
                                 // One clock everywhere: epoch ms (frame time is uptime-based).
@@ -207,8 +213,9 @@ fun FruitDropGame(
                                     }
                                 }
 
-                                // One physics step. Runs in <=MAX_DT substeps so fast fruit
-                                // cannot tunnel through thin ones.
+                                // One fixed physics step. Restitution only fires above
+                                // REST_VEL — slow contacts are inelastic so resting piles
+                                // don't micro-bounce (Box2D b2_velocityThreshold).
                                 fun step(sdt: Float) {
                                     // integrate (asleep fruit skip gravity & motion)
                                     balls.forEach { b ->
@@ -223,7 +230,7 @@ fun FruitDropGame(
                                                 val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
                                                 b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
                                             }
-                                            b.vx = -b.vx * REST
+                                            b.vx = if (impact > REST_VEL) -b.vx * REST else 0f
                                         }
                                         if (b.x > w - WALL_PAD - b.r) {
                                             b.x = w - WALL_PAD - b.r
@@ -232,7 +239,7 @@ fun FruitDropGame(
                                                 val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
                                                 b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
                                             }
-                                            b.vx = -b.vx * REST
+                                            b.vx = if (impact > REST_VEL) -b.vx * REST else 0f
                                         }
                                         if (b.y > h - WALL_PAD - b.r) {
                                             b.y = h - WALL_PAD - b.r
@@ -244,8 +251,7 @@ fun FruitDropGame(
                                                     puffs += Puff(b.x, h - WALL_PAD - 2f, b.r * 0.7f, 0.5f)
                                                 }
                                             }
-                                            b.vy = -b.vy * REST
-                                            if (abs(b.vy) < 40f) b.vy = 0f
+                                            b.vy = if (impact > REST_VEL) -b.vy * REST else 0f
                                         }
                                         // ground friction while resting/sliding on the floor
                                         if (b.y + b.r >= h - WALL_PAD - 1f) {
@@ -280,22 +286,27 @@ fun FruitDropGame(
                                                     val ma = a.r * a.r
                                                     val mc = c.r * c.r
                                                     val tot = ma + mc
-                                                    // positional split by mass: heavy fruit
-                                                    // shoves light ones aside
-                                                    val sep = minD - d
-                                                    a.x -= nx * sep * (mc / tot)
-                                                    a.y -= ny * sep * (mc / tot)
-                                                    c.x += nx * sep * (ma / tot)
-                                                    c.y += ny * sep * (ma / tot)
-                                                    a.still = 0f; c.still = 0f // displaced → wake
+                                                    // positional split by mass with slop +
+                                                    // partial correction: leave a sliver of
+                                                    // overlap so resting piles stop oscillating
+                                                    val sep = (minD - d - SLOP).coerceAtLeast(0f) * POS_PERCENT
+                                                    if (sep > 0f) {
+                                                        a.x -= nx * sep * (mc / tot)
+                                                        a.y -= ny * sep * (mc / tot)
+                                                        c.x += nx * sep * (ma / tot)
+                                                        c.y += ny * sep * (ma / tot)
+                                                        a.still = 0f; c.still = 0f // displaced → wake
+                                                    }
 
-                                                    // impulse along the contact normal
+                                                    // impulse along the contact normal; only
+                                                    // hard-enough hits restitute
                                                     val rvx = a.vx - c.vx
                                                     val rvy = a.vy - c.vy
                                                     val vn = rvx * nx + rvy * ny
                                                     if (vn < 0f) {
+                                                        val e = if (-vn > REST_VEL) REST_BALL else 0f
                                                         val inv = 1f / ma + 1f / mc
-                                                        val jn = -(1f + REST_BALL) * vn / inv
+                                                        val jn = -(1f + e) * vn / inv
                                                         a.vx -= nx * jn / ma
                                                         a.vy -= ny * jn / ma
                                                         c.vx += nx * jn / mc
@@ -332,9 +343,16 @@ fun FruitDropGame(
                                     }
                                 }
 
-                                // substep when a frame is long → no tunneling
-                                val steps = if (dt > MAX_DT) 2 else 1
-                                repeat(steps) { step(dt / steps) }
+                                // fixed timestep: identical step sizes keep friction and
+                                // restitution consistent regardless of frame hitches
+                                acc += dt
+                                var steps = 0
+                                while (acc >= STEP && steps < MAX_STEPS) {
+                                    step(STEP)
+                                    acc -= STEP
+                                    steps++
+                                }
+                                if (steps == MAX_STEPS) acc = 0f
 
                                 // once per frame: sleep bookkeeping + support check + juice
                                 balls.forEach { b ->
