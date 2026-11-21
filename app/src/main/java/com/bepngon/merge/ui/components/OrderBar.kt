@@ -83,6 +83,8 @@ private fun OrderCard(
                 .fillMaxWidth()
                 .border(2.dp, borderColor, RoundedCornerShape(12.dp))
                 .background(CellWhite, RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.dp))
+                .then(if (fulfillable) Modifier.clickable(onClick = onFulfill) else Modifier)
                 .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -136,7 +138,6 @@ private fun OrderCard(
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
                     .background(MergeGreen, CircleShape)
-                    .clickable(onClick = onFulfill)
                     .padding(horizontal = 7.dp, vertical = 2.dp),
             )
         }
