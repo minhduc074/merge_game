@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -1246,32 +1245,36 @@ private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit
         val chain = def.spawnTable.firstOrNull()?.let { ItemCatalog.chainOf(it.itemId) }
         if (chain != null && chain.size > 1) {
             Text("🔗 Chuỗi merge:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
-            Row(
-                Modifier
-                    .padding(top = 6.dp)
-                    .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-            ) {
-                chain.forEachIndexed { i, cd ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier
-                                .size(38.dp)
-                                .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            GameArt(cd.id, cd.emoji, 32.dp, emojiSize = 19.sp)
+            chain.chunked(6).forEach { rowItems ->
+                Row(Modifier.padding(top = 6.dp)) {
+                    rowItems.forEachIndexed { i, cd ->
+                        val gi = chain.indexOf(cd)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                Modifier
+                                    .size(38.dp)
+                                    .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                GameArt(cd.id, cd.emoji, 32.dp, emojiSize = 19.sp)
+                            }
+                            Text(
+                                cd.name,
+                                fontSize = 8.sp,
+                                color = Cocoa.copy(alpha = 0.7f),
+                                maxLines = 1,
+                            )
                         }
-                        Text(cd.name, fontSize = 8.sp, color = Cocoa.copy(alpha = 0.7f), maxLines = 1)
-                    }
-                    if (i < chain.lastIndex) {
-                        Text(
-                            "→",
-                            fontSize = 13.sp,
-                            color = Cocoa.copy(alpha = 0.5f),
-                            modifier = Modifier
-                                .align(Alignment.Top)
-                                .padding(top = 10.dp, start = 2.dp, end = 4.dp),
-                        )
+                        if (gi < chain.lastIndex) {
+                            Text(
+                                "→",
+                                fontSize = 13.sp,
+                                color = Cocoa.copy(alpha = 0.5f),
+                                modifier = Modifier
+                                    .align(Alignment.Top)
+                                    .padding(top = 10.dp, start = 2.dp, end = 4.dp),
+                            )
+                        }
                     }
                 }
             }
