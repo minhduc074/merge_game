@@ -2,6 +2,7 @@ package com.bepngon.merge.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,14 +24,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.Order
+import androidx.compose.ui.text.font.FontWeight
 import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
 import com.bepngon.merge.ui.theme.Gold
+import com.bepngon.merge.ui.theme.MergeGreen
 
 @Composable
 fun OrderBar(
     orders: List<Order>,
     dragDefId: String?,
+    canFulfill: (Order) -> Boolean,
+    onFulfill: (Long) -> Unit,
     onPositioned: (Long, Rect) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,6 +50,8 @@ fun OrderBar(
             OrderCard(
                 order = order,
                 accepts = dragDefId != null && dragDefId in order.remaining,
+                fulfillable = canFulfill(order),
+                onFulfill = { onFulfill(order.id) },
                 modifier = Modifier
                     .weight(1f)
                     .onGloballyPositioned { onPositioned(order.id, it.boundsInWindow()) },
@@ -54,15 +61,27 @@ fun OrderBar(
 }
 
 @Composable
-private fun OrderCard(order: Order, accepts: Boolean, modifier: Modifier = Modifier) {
-    val borderColor = if (accepts) Gold else Color(0xFFE8D5B7)
-    Column(
-        modifier
-            .border(2.dp, borderColor, RoundedCornerShape(12.dp))
-            .background(CellWhite, RoundedCornerShape(12.dp))
-            .padding(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+private fun OrderCard(
+    order: Order,
+    accepts: Boolean,
+    fulfillable: Boolean,
+    onFulfill: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val borderColor = when {
+        fulfillable -> MergeGreen
+        accepts -> Gold
+        else -> Color(0xFFE8D5B7)
+    }
+    Box(modifier) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .border(2.dp, borderColor, RoundedCornerShape(12.dp))
+                .background(CellWhite, RoundedCornerShape(12.dp))
+                .padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -90,6 +109,21 @@ private fun OrderCard(order: Order, accepts: Boolean, modifier: Modifier = Modif
                     modifier = Modifier.alpha(if (done) 0.3f else 1f),
                 )
             }
+        }
+        }
+        if (fulfillable) {
+            Text(
+                "✓",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .background(MergeGreen, CircleShape)
+                    .clickable(onClick = onFulfill)
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            )
         }
     }
 }

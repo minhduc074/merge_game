@@ -96,6 +96,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun deliverToOrder(orderId: Long, source: ItemSource, index: Int) =
         applyEngine { GameEngine.deliverToOrder(it, orderId, source, index) }
 
+    fun autoFulfillOrder(orderId: Long) =
+        applyEngine { GameEngine.autoFulfillOrder(it, orderId) }
+
     fun askRestart() {
         _ui.value = _ui.value.copy(showRestartConfirm = true)
     }

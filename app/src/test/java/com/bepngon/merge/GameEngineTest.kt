@@ -333,6 +333,52 @@ class GameEngineTest {
         assertTrue(next.nextOrderAtMs > 100)
     }
 
+    @Test
+    fun `auto fulfill consumes board items and completes order`() {
+        val s = stateWith(
+            0 to "fruit_1", 1 to "fruit_2",
+            orders = listOf(orderOf("fruit_1", "fruit_2")),
+        )
+        val (next, events) = GameEngine.autoFulfillOrder(s, 1)
+        assertTrue(next.orders.isEmpty())
+        assertNull(next.cells[0])
+        assertNull(next.cells[1])
+        assertTrue(events.any { it is GameEvent.OrderCompleted })
+    }
+
+    @Test
+    fun `auto fulfill takes remainder from inventory`() {
+        val s = stateWith(
+            0 to "fruit_1",
+            inventory = listOf("fruit_2", null, null, null, null, null, null, null),
+            orders = listOf(orderOf("fruit_1", "fruit_2")),
+        )
+        val (next, _) = GameEngine.autoFulfillOrder(s, 1)
+        assertNull(next.cells[0])
+        assertNull(next.inventory[0])
+        assertTrue(next.orders.isEmpty())
+    }
+
+    @Test
+    fun `auto fulfill rejects when items missing`() {
+        val s = stateWith(0 to "fruit_1", orders = listOf(orderOf("fruit_1", "fruit_1")))
+        val (next, events) = GameEngine.autoFulfillOrder(s, 1)
+        assertEquals("fruit_1", next.cells[0]?.defId)
+        assertEquals(1, next.orders.size)
+        assertEquals(listOf(GameEvent.DeliverRejected), events)
+    }
+
+    @Test
+    fun `auto fulfill only consumes remaining after partial delivery`() {
+        val s = stateWith(
+            0 to "fruit_2",
+            orders = listOf(orderOf("fruit_1", "fruit_2").copy(fulfilled = listOf("fruit_1"))),
+        )
+        val (next, _) = GameEngine.autoFulfillOrder(s, 1)
+        assertNull(next.cells[0])
+        assertTrue(next.orders.isEmpty())
+    }
+
     // ---------- locked cells ----------
 
     @Test

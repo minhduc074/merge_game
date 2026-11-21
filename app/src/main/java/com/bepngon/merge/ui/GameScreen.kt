@@ -312,6 +312,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         OrderBar(
             orders = ui.game.orders,
             dragDefId = drag?.defId,
+            canFulfill = { GameEngine.canFulfillOrder(ui.game, it) },
+            onFulfill = vm::autoFulfillOrder,
             onPositioned = { id, r -> orderBounds[id] = r },
             modifier = Modifier.padding(bottom = 6.dp),
         )

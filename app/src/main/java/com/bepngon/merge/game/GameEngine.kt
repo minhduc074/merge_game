@@ -361,6 +361,41 @@ object GameEngine {
         return families
     }
 
+    /** True when every remaining required item exists on board + inventory. */
+    fun canFulfillOrder(state: GameState, order: Order): Boolean {
+        if (order.remaining.isEmpty()) return false
+        val counts = mutableMapOf<String, Int>()
+        state.cells.forEach { it?.let { i -> counts.merge(i.defId, 1, Int::plus) } }
+        state.inventory.forEach { it?.let { i -> counts.merge(i.defId, 1, Int::plus) } }
+        return order.remaining.groupingBy { it }.eachCount()
+            .all { (defId, need) -> (counts[defId] ?: 0) >= need }
+    }
+
+    /** Consume all remaining items for an order (board first, then inventory). */
+    fun autoFulfillOrder(
+        state: GameState,
+        orderId: Long,
+    ): Pair<GameState, List<GameEvent>> {
+        val order = state.orders.firstOrNull { it.id == orderId } ?: return state to emptyList()
+        if (!canFulfillOrder(state, order)) {
+            return state to listOf(GameEvent.DeliverRejected)
+        }
+        val cells = state.cells.toMutableList()
+        val inventory = state.inventory.toMutableList()
+        for (defId in order.remaining) {
+            val boardIdx = cells.indexOfFirst { it?.defId == defId }
+            if (boardIdx >= 0) {
+                cells[boardIdx] = null
+                continue
+            }
+            val invIdx = inventory.indexOfFirst { it?.defId == defId }
+            if (invIdx >= 0) inventory[invIdx] = null
+        }
+        val next = state.copy(cells = cells, inventory = inventory)
+        val (done, events) = completeOrder(next, order)
+        return done to (listOf<GameEvent>(GameEvent.OrderDelivered(orderId)) + events)
+    }
+
     fun deliverToOrder(
         state: GameState,
         orderId: Long,
