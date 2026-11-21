@@ -588,4 +588,27 @@ class GameEngineTest {
         assertEquals(3, reschedule.orders.size)
         assertEquals(10_100L, reschedule.nextOrderAtMs)
     }
+
+    @Test
+    fun `empty order list refills immediately regardless of timer`() {
+        // All orders completed but nextOrderAtMs is still in the future —
+        // the list must refill on the next tick, not wait out the timer.
+        val s = stateWith(0 to "gen_fruit_1", nextOrderAtMs = 60_000)
+            .copy(nextOrderId = 5)
+        val (next, events) = GameEngine.maybeSpawnOrder(s, 100, Random(1))
+        assertEquals(1, next.orders.size)
+        assertTrue(events.any { it is GameEvent.OrderSpawned })
+        assertTrue(next.nextOrderAtMs > 100)
+    }
+
+    @Test
+    fun `first order still respects the initial delay`() {
+        // nextOrderId == 1 → nothing has spawned yet, keep FIRST_ORDER_DELAY
+        val s = stateWith(
+            0 to "gen_fruit_1",
+            nextOrderAtMs = GameEngine.FIRST_ORDER_DELAY_MS,
+        )
+        val (early, _) = GameEngine.maybeSpawnOrder(s, 5, Random(1))
+        assertTrue(early.orders.isEmpty())
+    }
 }

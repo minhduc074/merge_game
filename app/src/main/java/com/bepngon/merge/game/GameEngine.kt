@@ -323,7 +323,11 @@ object GameEngine {
         nowMs: Long,
         random: Random = Random,
     ): Pair<GameState, List<GameEvent>> {
-        if (state.nextOrderAtMs <= 0 || nowMs < state.nextOrderAtMs) return state to emptyList()
+        if (state.nextOrderAtMs <= 0) return state to emptyList()
+        // Never leave the order list empty once spawning has started —
+        // bypass the timer so the next tick refills it immediately.
+        val emptyAfterStart = state.orders.isEmpty() && state.nextOrderId > 1
+        if (nowMs < state.nextOrderAtMs && !emptyAfterStart) return state to emptyList()
         if (state.orders.size >= MAX_ACTIVE_ORDERS) {
             return state.copy(nextOrderAtMs = nowMs + 10_000L) to emptyList()
         }
