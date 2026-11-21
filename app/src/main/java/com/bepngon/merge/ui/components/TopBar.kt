@@ -56,9 +56,9 @@ fun TopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatChip("⭐", "$score", Modifier.weight(1f))
+            StatChip("icon_star", "⭐", "$score", Modifier.weight(1f))
             StatChip(
-                "🪙", "$coins",
+                "icon_coin", "🪙", "$coins",
                 Modifier
                     .weight(1f)
                     .onGloballyPositioned { onCoinBounds(it.boundsInWindow()) },
@@ -72,7 +72,7 @@ fun TopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("⚡", fontSize = 15.sp)
+                GameArt("icon_energy", "⚡", 22.dp, emojiSize = 15.sp)
                 Column {
                     Text(
                         "$energy/$energyCap",
@@ -119,7 +119,7 @@ fun TopBar(
             Box(
                 Modifier.clickable(onClick = onDaily).padding(horizontal = 4.dp),
             ) {
-                Text("🎁", fontSize = 20.sp)
+                GameArt("icon_gift", "🎁", 28.dp, emojiSize = 20.sp)
                 if (dailyReady) {
                     Box(
                         Modifier
@@ -129,14 +129,18 @@ fun TopBar(
                     )
                 }
             }
-            Text(
+            GameArt(
+                "icon_trophy",
                 "🏆",
-                fontSize = 20.sp,
+                28.dp,
+                emojiSize = 20.sp,
                 modifier = Modifier.clickable(onClick = onAchievements).padding(horizontal = 4.dp),
             )
-            Text(
+            GameArt(
+                "icon_question",
                 "❓",
-                fontSize = 18.sp,
+                26.dp,
+                emojiSize = 18.sp,
                 modifier = Modifier.clickable(onClick = onGuide).padding(horizontal = 4.dp),
             )
         }
@@ -144,7 +148,7 @@ fun TopBar(
 }
 
 @Composable
-private fun StatChip(emoji: String, value: String, modifier: Modifier = Modifier) {
+private fun StatChip(resName: String, emoji: String, value: String, modifier: Modifier = Modifier) {
     Row(
         modifier
             .clip(RoundedCornerShape(12.dp))
@@ -153,7 +157,7 @@ private fun StatChip(emoji: String, value: String, modifier: Modifier = Modifier
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(emoji, fontSize = 15.sp)
+        GameArt(resName, emoji, 22.dp, emojiSize = 15.sp)
         Text(value, color = Cocoa, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }

@@ -6,4 +6,6 @@ local.properties
 .idea/
 .cxx/
 keystore/
+art_out/slices/
+art_out/z_*.png
 local.properties

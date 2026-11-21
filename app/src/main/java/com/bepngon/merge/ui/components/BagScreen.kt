@@ -147,9 +147,11 @@ fun BagScreen(
                                 )
                             }
                             locked -> Text("🔒", fontSize = 22.sp)
-                            item != null -> Text(
+                            item != null -> GameArt(
+                                item.defId,
                                 ItemCatalog[item.defId].emoji,
-                                fontSize = 34.sp,
+                                56.dp,
+                                emojiSize = 34.sp,
                             )
                         }
                     }
@@ -171,7 +173,7 @@ fun BagScreen(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(def.emoji, fontSize = 30.sp)
+                GameArt(selItem.defId, def.emoji, 44.dp, emojiSize = 30.sp)
                 Column(Modifier.padding(start = 8.dp).weight(1f)) {
                     Text(def.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Cocoa)
                     Text(

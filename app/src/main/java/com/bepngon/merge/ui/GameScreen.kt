@@ -77,6 +77,7 @@ import com.bepngon.merge.sound.SoundManager
 import com.bepngon.merge.ui.components.AchievementsScreen
 import com.bepngon.merge.ui.components.BagScreen
 import com.bepngon.merge.ui.components.DailyRewardDialog
+import com.bepngon.merge.ui.components.GameArt
 import com.bepngon.merge.ui.components.OnboardingScreen
 import com.bepngon.merge.ui.components.OrderBar
 import com.bepngon.merge.ui.components.TopBar
@@ -175,6 +176,7 @@ private data class Floater(
 
 private data class FlyAnim(
     val id: Long,
+    val resName: String,
     val emoji: String,
     val from: Offset,
     val to: Offset,
@@ -202,8 +204,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var flyId by remember { mutableStateOf(0L) }
     var sparkles by remember { mutableStateOf(listOf<Offset>()) }
 
-    fun pushFly(emoji: String, from: Offset, to: Offset) {
-        val f = FlyAnim(flyId++, emoji, from, to)
+    fun pushFly(resName: String, emoji: String, from: Offset, to: Offset) {
+        val f = FlyAnim(flyId++, resName, emoji, from, to)
         flies = flies + f
         scope.launch {
             kotlinx.coroutines.delay(600)
@@ -307,7 +309,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         ?: Offset(300f, 200f)
                     pushFloater("🎉 +${e.coinsGained}🪙 +${e.xpGained}XP", pos, MergeGreen)
                     coinBounds?.center?.let { wallet ->
-                        pushFly("🪙", pos, wallet)
+                        pushFly("icon_coin", "🪙", pos, wallet)
                     }
                 }
                 is GameEvent.AutoFulfillFly -> {
@@ -318,7 +320,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         } else {
                             invBounds[-1 - fromIdx]?.center
                         } ?: return@forEach
-                        pushFly(ItemCatalog[defId].emoji, from, dest)
+                        pushFly(defId, ItemCatalog[defId].emoji, from, dest)
                     }
                 }
                 is GameEvent.LevelUp -> {
@@ -519,7 +521,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 .scale(1.1f),
             contentAlignment = Alignment.Center,
         ) {
-            Text(emoji, fontSize = 30.sp)
+            GameArt(d.defId, emoji, 42.dp, emojiSize = 30.sp)
         }
     }
 
@@ -643,7 +645,7 @@ private fun CellBox(
     ) {
         if (locked) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🕸️", fontSize = 18.sp)
+                GameArt("fx_webtile", "🕸️", 34.dp, alpha = 0.75f, emojiSize = 18.sp)
                 if (unlockLevel != null) {
                     Text("Lv$unlockLevel", fontSize = 8.sp, color = Cocoa.copy(alpha = 0.7f))
                 }
@@ -688,9 +690,11 @@ private fun InventoryBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        GameArt(
+            "icon_bag",
             "🎒",
-            fontSize = 20.sp,
+            30.dp,
+            emojiSize = 20.sp,
             modifier = Modifier
                 .clip(CircleShape)
                 .clickable(onClick = onOpenBag)
@@ -872,16 +876,20 @@ private fun ItemTile(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
+            GameArt(
+                item.defId,
                 def.emoji,
-                fontSize = 26.sp,
-                modifier = Modifier.alpha(if (item.frozen) 0.6f else 1f),
+                40.dp,
+                alpha = if (item.frozen) 0.6f else 1f,
+                emojiSize = 26.sp,
             )
         }
         if (item.frozen) {
-            Text(
+            GameArt(
+                "icon_snow",
                 "❄️",
-                fontSize = 12.sp,
+                14.dp,
+                emojiSize = 12.sp,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(1.dp),
@@ -935,9 +943,11 @@ private fun FlyingEmoji(f: FlyAnim) {
     // parabolic arc
     val lift = kotlin.math.sin(t * Math.PI.toFloat()) * 110f
     val y = f.from.y + (f.to.y - f.from.y) * t - lift
-    Text(
+    GameArt(
+        f.resName,
         f.emoji,
-        fontSize = 28.sp,
+        44.dp,
+        emojiSize = 28.sp,
         modifier = Modifier
             .offset { IntOffset((x - 24.dp.toPx()).roundToInt(), (y - 24.dp.toPx()).roundToInt()) }
             .scale(1.3f - 0.5f * t)
@@ -1050,7 +1060,7 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                     .background(Color(def.family.tint), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(def.emoji, fontSize = 30.sp)
+                GameArt(item.defId, def.emoji, 44.dp, emojiSize = 30.sp)
             }
             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                 Text(def.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Cocoa)

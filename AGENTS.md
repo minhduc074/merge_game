@@ -45,3 +45,10 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Callbacks truyền vào `pointerInput` phải đi qua `rememberUpdatedState` — pointerInput coroutine capture lambda cũ, không tự refresh.
 - Tọa độ drag/drop tính trong window coords qua `boundsInWindow()` của từng cell. `PointerInputChange.position` trong `detectDragGestures.onDrag` là LOCAL coords của tile — phải cộng `bounds.topLeft` trước khi hit-test.
 - Orders/XP/inventory sống trong `GameEngine` (order spawn theo timer trong ViewModel, reward level-up map ở `rewardForLevel`). Drag phân biệt nguồn bằng `ItemSource` (BOARD/INVENTORY) trong `DragState`.
+
+## Art assets
+
+- Art thật nằm trong `app/src/main/res/drawable-nodpi/`, tên file = `defId` (`fruit_4.png`, `gen_bakery_2.png`), customer = `cust_<id>`, icon/UI = `icon_*`/`ui_*`/`fx_*`.
+- Render qua `ui/components/GameArt.kt` — lookup drawable theo tên (cache `getIdentifier`), fallback emoji nếu thiếu file. Muốn đổi art cho item chỉ cần thay PNG cùng tên.
+- Source sheet gốc (AI gen, 1696×2528): `art_out/Gemini_Generated_Image_*.png`. Script cắt: `python tools/slice_sheet.py` → `art_out/slices/` (gitignored, đã copy vào drawable-nodpi). Prompt pack: `art-prompts.md`.
+- Slicer: band y-range hardcode theo layout sheet (divider line full-width làm row-projection merge), cột dùng gap detection hoặc even-split snap về cột ít pixel nhất, nền trắng xóa bằng flood-fill từ mép (giữ trắng nội bộ như chai sữa).

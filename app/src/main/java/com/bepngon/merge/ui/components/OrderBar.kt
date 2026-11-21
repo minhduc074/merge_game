@@ -92,7 +92,12 @@ private fun OrderCard(
                     .background(Color(0xFFF3E5F5), CircleShape)
                     .padding(4.dp),
             ) {
-                Text(order.customer.emoji, fontSize = 20.sp)
+                GameArt(
+                    "cust_${order.customer.id}",
+                    order.customer.emoji,
+                    34.dp,
+                    emojiSize = 20.sp,
+                )
             }
             Column(Modifier.padding(start = 6.dp)) {
                 Text(order.customer.name, fontSize = 10.sp, color = Cocoa, maxLines = 1)
@@ -107,11 +112,13 @@ private fun OrderCard(
             val fulfilledLeft = order.fulfilled.toMutableList()
             order.required.forEach { req ->
                 val done = fulfilledLeft.remove(req)
-                Text(
+                GameArt(
+                    req,
                     ItemCatalog[req].emoji,
-                    fontSize = 16.sp,
+                    28.dp,
+                    alpha = if (done) 0.3f else 1f,
+                    emojiSize = 16.sp,
                     modifier = Modifier
-                        .alpha(if (done) 0.3f else 1f)
                         .clip(CircleShape)
                         .clickable { onItemTap(req) }
                         .padding(2.dp),
