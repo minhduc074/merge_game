@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
 import com.bepngon.merge.ui.theme.Gold
+import com.bepngon.merge.ui.theme.MergeGreen
 
 @Composable
 fun TopBar(
@@ -31,44 +32,72 @@ fun TopBar(
     coins: Int,
     energy: Int,
     energyCap: Int,
+    level: Int,
+    xp: Int,
+    xpNeeded: Int,
     onRestart: () -> Unit,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StatChip("⭐", "$score", Modifier.weight(1f))
-        StatChip("🪙", "$coins", Modifier.weight(1f))
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
-            Modifier
-                .weight(1.4f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(CellWhite)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("⚡", fontSize = 15.sp)
-            Column {
-                Text(
-                    "$energy/$energyCap",
-                    color = Cocoa,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                LinearProgressIndicator(
-                    progress = { energy / energyCap.toFloat() },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Gold,
-                    trackColor = Color(0xFFFFECB3),
-                )
+            StatChip("⭐", "$score", Modifier.weight(1f))
+            StatChip("🪙", "$coins", Modifier.weight(1f))
+            Row(
+                Modifier
+                    .weight(1.4f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CellWhite)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("⚡", fontSize = 15.sp)
+                Column {
+                    Text(
+                        "$energy/$energyCap",
+                        color = Cocoa,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    LinearProgressIndicator(
+                        progress = { energy / energyCap.toFloat() },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Gold,
+                        trackColor = Color(0xFFFFECB3),
+                    )
+                }
+            }
+            IconButton(onClick = onRestart) {
+                Icon(Icons.Default.Refresh, contentDescription = "Chơi lại", tint = Cocoa)
             }
         }
-        IconButton(onClick = onRestart) {
-            Icon(Icons.Default.Refresh, contentDescription = "Chơi lại", tint = Cocoa)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "Lv.$level",
+                color = Cocoa,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFE3F2D9))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+            LinearProgressIndicator(
+                progress = { xp / xpNeeded.toFloat().coerceAtLeast(1f) },
+                modifier = Modifier.weight(1f),
+                color = MergeGreen,
+                trackColor = Color(0xFFDCEDC8),
+            )
+            Text("$xp/$xpNeeded", fontSize = 10.sp, color = Cocoa)
         }
     }
 }

@@ -138,4 +138,7 @@ object ItemCatalog {
 
     fun mergeResultOf(item: BoardItem): ItemDef? =
         get(item.defId).mergeResult?.let { get(it) }
+
+    fun allInFamilies(families: Set<Family>): List<ItemDef> =
+        defs.values.filter { it.family in families && !it.isGenerator }
 }

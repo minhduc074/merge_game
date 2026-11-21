@@ -1,0 +1,95 @@
+package com.bepngon.merge.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.bepngon.merge.game.ItemCatalog
+import com.bepngon.merge.game.Order
+import com.bepngon.merge.ui.theme.CellWhite
+import com.bepngon.merge.ui.theme.Cocoa
+import com.bepngon.merge.ui.theme.Gold
+
+@Composable
+fun OrderBar(
+    orders: List<Order>,
+    dragDefId: String?,
+    onPositioned: (Long, Rect) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (orders.isEmpty()) return
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        orders.forEach { order ->
+            OrderCard(
+                order = order,
+                accepts = dragDefId != null && dragDefId in order.remaining,
+                modifier = Modifier
+                    .weight(1f)
+                    .onGloballyPositioned { onPositioned(order.id, it.boundsInWindow()) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun OrderCard(order: Order, accepts: Boolean, modifier: Modifier = Modifier) {
+    val borderColor = if (accepts) Gold else Color(0xFFE8D5B7)
+    Column(
+        modifier
+            .border(2.dp, borderColor, RoundedCornerShape(12.dp))
+            .background(CellWhite, RoundedCornerShape(12.dp))
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .background(Color(0xFFF3E5F5), CircleShape)
+                    .padding(4.dp),
+            ) {
+                Text(order.customer.emoji, fontSize = 20.sp)
+            }
+            Column(Modifier.padding(start = 6.dp)) {
+                Text(order.customer.name, fontSize = 10.sp, color = Cocoa, maxLines = 1)
+                val coins = order.required.sumOf { ItemCatalog[it].sellPrice } * 3 / 2
+                Text("+$coins🪙", fontSize = 9.sp, color = Color(0xFFE65100))
+            }
+        }
+        Row(
+            Modifier.padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val fulfilledLeft = order.fulfilled.toMutableList()
+            order.required.forEach { req ->
+                val done = fulfilledLeft.remove(req)
+                Text(
+                    ItemCatalog[req].emoji,
+                    fontSize = 16.sp,
+                    modifier = Modifier.alpha(if (done) 0.3f else 1f),
+                )
+            }
+        }
+    }
+}
