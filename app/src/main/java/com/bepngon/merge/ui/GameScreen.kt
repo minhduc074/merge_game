@@ -19,7 +19,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,8 +58,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -102,12 +99,7 @@ import com.bepngon.merge.ui.theme.CreamBg
 import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
 import com.bepngon.merge.ui.theme.WarnRed
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlinx.coroutines.launch
 
 @Composable
@@ -656,11 +648,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 onLongPressGen = { genListItem = it },
                 modifier = Modifier,
             )
-            val comboActive = ui.game.comboCount >= GameEngine.COMBO_MIN &&
-                ui.nowMs < ui.game.comboUntilMs
-            if (comboActive) {
-                ComboFlames(combo = ui.game.comboCount)
-            }
         }
 
         InventoryBar(
@@ -1629,122 +1616,3 @@ private fun QteBubble(
     }
 }
 
-/** Wreath of interlocking flame licks ringing the board while a combo is hot —
- *  layered red/orange/yellow licks leaning into a slow spin, fire-ring style. */
-private val LICK_W = 15.dp
-private val LICK_H = 27.dp
-private const val LICK_LEAN = -16f // swirl tilt off the radial normal
-private const val LICK_MAX = 128
-
-private val LICK_LAYERS = listOf(
-    1.22f to Color(0x59FB8C00), // soft orange haze haloing the red lick
-    1.00f to Color(0xFFE53935),
-    0.68f to Color(0xFFFB8C00),
-    0.40f to Color(0xFFFFD54F),
-)
-
-/** Flame-lick silhouette: base centered at (0,0), tip at -lh leaning right. */
-private fun lickPath(lw: Float, lh: Float): Path = Path().apply {
-    moveTo(0f, 0f)
-    cubicTo(-0.42f * lw, -0.05f * lh, -0.52f * lw, -0.34f * lh, -0.44f * lw, -0.58f * lh)
-    cubicTo(-0.36f * lw, -0.78f * lh, -0.08f * lw, -0.74f * lh, 0.16f * lw, -lh)
-    cubicTo(0.10f * lw, -0.78f * lh, 0.40f * lw, -0.66f * lh, 0.46f * lw, -0.44f * lh)
-    cubicTo(0.50f * lw, -0.22f * lh, 0.30f * lw, -0.04f * lh, 0f, 0f)
-    close()
-}
-
-/** Ramanujan perimeter estimate — used to space licks evenly along the ring. */
-private fun ellipsePerimeter(rx: Float, ry: Float): Float =
-    (Math.PI * (3f * (rx + ry) - sqrt((3f * rx + ry) * (rx + 3f * ry)))).toFloat()
-
-/** [count] spots evenly spaced by arc length along an ellipse, each paired with
- *  its outward-normal angle (deg) so flames can point away from the center. */
-private fun flameRing(
-    cx: Float,
-    cy: Float,
-    rx: Float,
-    ry: Float,
-    count: Int,
-): List<Pair<Offset, Float>> {
-    val steps = 720
-    val xs = FloatArray(steps + 1)
-    val ys = FloatArray(steps + 1)
-    val arc = FloatArray(steps + 1)
-    for (i in 0..steps) {
-        val t = (2.0 * Math.PI * i / steps).toFloat()
-        xs[i] = cx + rx * cos(t)
-        ys[i] = cy + ry * sin(t)
-        if (i > 0) arc[i] = arc[i - 1] + hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1])
-    }
-    val total = arc[steps]
-    var seg = 0
-    return List(count) { k ->
-        val target = total * k / count
-        while (seg < steps && arc[seg + 1] < target) seg++
-        val f = (target - arc[seg]) / (arc[seg + 1] - arc[seg]).coerceAtLeast(1e-6f)
-        val x = xs[seg] + (xs[seg + 1] - xs[seg]) * f
-        val y = ys[seg] + (ys[seg + 1] - ys[seg]) * f
-        // ellipse outward normal ∝ (dx/rx², dy/ry²)
-        val deg = Math.toDegrees(
-            atan2((y - cy) / (ry * ry), (x - cx) / (rx * rx)).toDouble()
-        ).toFloat()
-        Offset(x, y) to deg
-    }
-}
-
-@Composable
-private fun ComboFlames(combo: Int) {
-    val phase by rememberInfiniteTransition(label = "fireFlicker").animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(1200)),
-        label = "phase",
-    )
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val w = constraints.maxWidth.toFloat()
-        val h = constraints.maxHeight.toFloat()
-        val rx = w / 2f - 10f
-        val ry = h / 2f - 10f
-        val density = LocalDensity.current
-        val spots = remember(w, h) {
-            val spacing = with(density) { LICK_W.toPx() } * 0.92f
-            val count = (ellipsePerimeter(rx, ry) / spacing).roundToInt()
-                .coerceIn(36, LICK_MAX)
-            flameRing(w / 2f, h / 2f, rx, ry, count)
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            val lick = lickPath(LICK_W.toPx(), LICK_H.toPx())
-            spots.forEachIndexed { i, (pos, deg) ->
-                val seed = i * 1.37f
-                val flick = 0.86f + 0.26f * sin(phase * 3f + seed)
-                val stretch = 0.92f + 0.2f * sin(phase * 5f + seed * 2f)
-                withTransform({
-                    translate(pos.x, pos.y)
-                    rotate(deg + 90f + LICK_LEAN, Offset.Zero)
-                    scale(flick, flick * stretch, Offset.Zero)
-                }) {
-                    LICK_LAYERS.forEach { (layerScale, color) ->
-                        withTransform({ scale(layerScale, layerScale, Offset.Zero) }) {
-                            drawPath(lick, color)
-                        }
-                    }
-                }
-            }
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-14).dp)
-                .shadow(6.dp, RoundedCornerShape(12.dp))
-                .background(Color(0xFFFF5722), RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 3.dp),
-        ) {
-            Text(
-                "🔥 COMBO x$combo",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color.White,
-            )
-        }
-    }
-}
