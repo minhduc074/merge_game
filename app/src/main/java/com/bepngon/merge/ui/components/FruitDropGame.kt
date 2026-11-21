@@ -80,16 +80,25 @@ private class Ball(
     var pop by mutableFloatStateOf(popStart)
     var squashX by mutableFloatStateOf(1f)
     var squashY by mutableFloatStateOf(1f)
+    // s of near-zero speed → past SLEEP_MS it stops integrating (physics-only)
+    var still = 0f
 }
 
 /** Merge/impact ring burst: expands and fades over ~0.4s. */
-private class Puff(val x: Float, val y: Float, val r: Float) {
+private class Puff(val x: Float, val y: Float, val r: Float, val alpha: Float = 1f) {
     var age by mutableFloatStateOf(0f)
 }
 
 private val TIERS = listOf("fruit_1", "fruit_2", "fruit_3", "fruit_4", "fruit_5", "fruit_6")
 private const val GRAVITY = 2200f
-private const val REST = 0.25f
+private const val MAX_VY = 2600f      // terminal velocity; also prevents tunneling
+private const val MAX_DT = 0.02f      // physics substep threshold
+private const val REST = 0.25f        // wall / floor restitution
+private const val REST_BALL = 0.2f    // fruit-fruit restitution
+private const val FRICTION = 0.35f    // tangential impulse cap (Coulomb μ)
+private const val FLOOR_FRICTION = 6f // /s velocity scrub while touching the floor
+private const val SLEEP_V = 18f       // px/s below which a fruit counts as still
+private const val SLEEP_MS = 0.4f     // s of stillness → asleep (no integrate)
 private const val GAME_MS = 90_000L
 private const val DROP_CD_MS = 600L
 private const val OVERLINE_MS = 1_800L
@@ -198,53 +207,65 @@ fun FruitDropGame(
                                     }
                                 }
 
-                                // integrate
-                                balls.forEach { b ->
-                                    b.vy += GRAVITY * dt
-                                    b.x += b.vx * dt
-                                    b.y += b.vy * dt
-                                    if (b.x < WALL_PAD + b.r) {
-                                        b.x = WALL_PAD + b.r
-                                        if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
-                                        b.vx = -b.vx * REST
+                                // One physics step. Runs in <=MAX_DT substeps so fast fruit
+                                // cannot tunnel through thin ones.
+                                fun step(sdt: Float) {
+                                    // integrate (asleep fruit skip gravity & motion)
+                                    balls.forEach { b ->
+                                        if (b.still >= SLEEP_MS) return@forEach
+                                        b.vy = min(b.vy + GRAVITY * sdt, MAX_VY)
+                                        b.x += b.vx * sdt
+                                        b.y += b.vy * sdt
+                                        if (b.x < WALL_PAD + b.r) {
+                                            b.x = WALL_PAD + b.r
+                                            val impact = abs(b.vx)
+                                            if (impact > 200f) {
+                                                val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
+                                                b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
+                                            }
+                                            b.vx = -b.vx * REST
+                                        }
+                                        if (b.x > w - WALL_PAD - b.r) {
+                                            b.x = w - WALL_PAD - b.r
+                                            val impact = abs(b.vx)
+                                            if (impact > 200f) {
+                                                val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
+                                                b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
+                                            }
+                                            b.vx = -b.vx * REST
+                                        }
+                                        if (b.y > h - WALL_PAD - b.r) {
+                                            b.y = h - WALL_PAD - b.r
+                                            val impact = abs(b.vy)
+                                            if (impact > 180f) {
+                                                val dep = (impact / 1500f).coerceIn(0.10f, 0.42f)
+                                                b.squashX = 1f + dep * 1.2f; b.squashY = 1f - dep
+                                                if (impact > 650f) {
+                                                    puffs += Puff(b.x, h - WALL_PAD - 2f, b.r * 0.7f, 0.5f)
+                                                }
+                                            }
+                                            b.vy = -b.vy * REST
+                                            if (abs(b.vy) < 40f) b.vy = 0f
+                                        }
+                                        // ground friction while resting/sliding on the floor
+                                        if (b.y + b.r >= h - WALL_PAD - 1f) {
+                                            b.vx *= (1f - FLOOR_FRICTION * sdt).coerceAtLeast(0f)
+                                        }
                                     }
-                                    if (b.x > w - WALL_PAD - b.r) {
-                                        b.x = w - WALL_PAD - b.r
-                                        if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
-                                        b.vx = -b.vx * REST
-                                    }
-                                    if (b.y > h - WALL_PAD - b.r) {
-                                        b.y = h - WALL_PAD - b.r
-                                        if (abs(b.vy) > 220f) { b.squashX = 1.35f; b.squashY = 0.6f }
-                                        b.vy = -b.vy * REST
-                                        b.vx *= 0.9f
-                                        if (abs(b.vy) < 40f) b.vy = 0f
-                                    }
-                                    // squash & stretch: elongate while falling fast, spring back after.
-                                    val flying = b.y < h - WALL_PAD - b.r - 2f && abs(b.vy) > 550f
-                                    val tx = if (flying) 0.85f else 1f
-                                    val ty = if (flying) 1.18f else 1f
-                                    b.squashX += (tx - b.squashX) * min(1f, dt * 9)
-                                    b.squashY += (ty - b.squashY) * min(1f, dt * 9)
-                                    b.pop += (1f - b.pop) * min(1f, dt * 11)
-                                }
-                                puffs.forEach { it.age += dt }
-                                puffs.removeAll { it.age > 0.4f }
-                                previewPop += (1f - previewPop) * min(1f, dt * 12)
 
-                                // Pairwise collisions, several relaxation passes so a pile
-                                // settles without circles overlapping; each pass re-clamps.
-                                repeat(SOLVER_PASSES) {
-                                    for (i in balls.indices) {
-                                        for (j in i + 1 until balls.size) {
-                                            val a = balls[i]
-                                            val c = balls[j]
-                                            if (a.id < 0 || c.id < 0) continue
-                                            val dx = c.x - a.x
-                                            val dy = c.y - a.y
-                                            val d = sqrt(dx * dx + dy * dy)
-                                            val minD = a.r + c.r + BALL_GAP
-                                            if (d in 0.001f..minD) {
+                                    // Pairwise contacts, several relaxation passes so a pile
+                                    // settles without overlapping; each pass re-clamps.
+                                    repeat(SOLVER_PASSES) {
+                                        for (i in balls.indices) {
+                                            for (j in i + 1 until balls.size) {
+                                                val a = balls[i]
+                                                val c = balls[j]
+                                                if (a.id < 0 || c.id < 0) continue
+                                                val dx = c.x - a.x
+                                                val dy = c.y - a.y
+                                                val d = sqrt(dx * dx + dy * dy)
+                                                val minD = a.r + c.r + BALL_GAP
+                                                if (d !in 0.001f..minD) continue
                                                 if (a.tier == c.tier && a.tier < TIERS.lastIndex + 1) {
                                                     pendingMerges += Triple(
                                                         (a.x + c.x) / 2f,
@@ -254,38 +275,102 @@ fun FruitDropGame(
                                                     a.id = -a.id - 1
                                                     c.id = -c.id - 1
                                                 } else {
-                                                    // Mass-weighted resolution: mass ∝ r², so
-                                                    // heavier tiers shove lighter ones aside.
                                                     val nx = dx / d
                                                     val ny = dy / d
                                                     val ma = a.r * a.r
                                                     val mc = c.r * c.r
                                                     val tot = ma + mc
+                                                    // positional split by mass: heavy fruit
+                                                    // shoves light ones aside
                                                     val sep = minD - d
                                                     a.x -= nx * sep * (mc / tot)
                                                     a.y -= ny * sep * (mc / tot)
                                                     c.x += nx * sep * (ma / tot)
                                                     c.y += ny * sep * (ma / tot)
-                                                    val relV = abs(a.vx - c.vx) + abs(a.vy - c.vy)
-                                                    if (relV > 320f) {
-                                                        a.squashX = 1.22f; a.squashY = 0.78f
-                                                        c.squashX = 1.22f; c.squashY = 0.78f
+                                                    a.still = 0f; c.still = 0f // displaced → wake
+
+                                                    // impulse along the contact normal
+                                                    val rvx = a.vx - c.vx
+                                                    val rvy = a.vy - c.vy
+                                                    val vn = rvx * nx + rvy * ny
+                                                    if (vn < 0f) {
+                                                        val inv = 1f / ma + 1f / mc
+                                                        val jn = -(1f + REST_BALL) * vn / inv
+                                                        a.vx -= nx * jn / ma
+                                                        a.vy -= ny * jn / ma
+                                                        c.vx += nx * jn / mc
+                                                        c.vy += ny * jn / mc
+                                                        // friction: tangential impulse capped by μ·jn
+                                                        val tx = -ny
+                                                        val ty = nx
+                                                        val vt = rvx * tx + rvy * ty
+                                                        val jt = (-vt / inv).coerceIn(-jn * FRICTION, jn * FRICTION)
+                                                        a.vx -= tx * jt / ma
+                                                        a.vy -= ty * jt / ma
+                                                        c.vx += tx * jt / mc
+                                                        c.vy += ty * jt / mc
+                                                        // squash along the contact normal; the
+                                                        // lighter fruit deforms more
+                                                        val impact = -vn
+                                                        if (impact > 180f) {
+                                                            val dep = (impact / 1500f).coerceIn(0.06f, 0.4f)
+                                                            val dA = dep * (2f * mc / tot)
+                                                            val dC = dep * (2f * ma / tot)
+                                                            if (abs(ny) > abs(nx)) {
+                                                                a.squashX = 1f + dA; a.squashY = 1f - dA
+                                                                c.squashX = 1f + dC; c.squashY = 1f - dC
+                                                            } else {
+                                                                a.squashX = 1f - dA; a.squashY = 1f + dA
+                                                                c.squashX = 1f - dC; c.squashY = 1f + dC
+                                                            }
+                                                        }
                                                     }
-                                                    val push = 40f
-                                                    a.vx -= nx * push * (mc / tot) * dt
-                                                    a.vy -= ny * push * (mc / tot) * dt
-                                                    c.vx += nx * push * (ma / tot) * dt
-                                                    c.vy += ny * push * (ma / tot) * dt
                                                 }
                                             }
                                         }
+                                        balls.forEach(::clampIn)
                                     }
-                                    balls.forEach(::clampIn)
                                 }
+
+                                // substep when a frame is long → no tunneling
+                                val steps = if (dt > MAX_DT) 2 else 1
+                                repeat(steps) { step(dt / steps) }
+
+                                // once per frame: sleep bookkeeping + support check + juice
+                                balls.forEach { b ->
+                                    if (b.vx * b.vx + b.vy * b.vy < SLEEP_V * SLEEP_V) {
+                                        b.still += dt
+                                    } else {
+                                        b.still = 0f
+                                    }
+                                    if (b.still >= SLEEP_MS) { b.vx = 0f; b.vy = 0f }
+                                    // squash & stretch: elongate while falling fast, spring back
+                                    val flying = b.y < h - WALL_PAD - b.r - 2f && abs(b.vy) > 550f
+                                    val tx = if (flying) 0.85f else 1f
+                                    val ty = if (flying) 1.18f else 1f
+                                    b.squashX += (tx - b.squashX) * min(1f, dt * 9)
+                                    b.squashY += (ty - b.squashY) * min(1f, dt * 9)
+                                    b.pop += (1f - b.pop) * min(1f, dt * 11)
+                                }
+                                // wake sleepers whose support disappeared (fruit below merged)
+                                balls.forEach { b ->
+                                    if (b.still >= SLEEP_MS && b.y + b.r < h - WALL_PAD - 6f &&
+                                        balls.none { o ->
+                                            o !== b &&
+                                                abs(o.x - b.x) < b.r + o.r + 8f &&
+                                                abs(o.y - b.y) < b.r + o.r + 8f
+                                        }
+                                    ) b.still = 0f
+                                }
+                                puffs.forEach { it.age += dt }
+                                puffs.removeAll { it.age > 0.4f }
+                                previewPop += (1f - previewPop) * min(1f, dt * 12)
 
                                 // apply merges
                                 if (pendingMerges.isNotEmpty()) {
                                     balls.removeAll { it.id < 0 }
+                                    // a merge removes a support point → wake the pile
+                                    balls.forEach { it.still = 0f }
                                     pendingMerges.forEach { (mx, my, t) ->
                                         val nt = t + 1
                                         puffs += Puff(mx, my, radiusFor(min(t, TIERS.lastIndex), unit))
@@ -361,7 +446,7 @@ fun FruitDropGame(
                         Modifier
                             .offset { IntOffset((p.x - pr).roundToInt(), (p.y - pr).roundToInt()) }
                             .size(with(density) { (pr * 2).toDp() })
-                            .border(3.dp, Color(0xFFFFB74D).copy(alpha = 1f - t), CircleShape),
+                            .border(3.dp, Color(0xFFFFB74D).copy(alpha = (1f - t) * p.alpha), CircleShape),
                     )
                 }
 
