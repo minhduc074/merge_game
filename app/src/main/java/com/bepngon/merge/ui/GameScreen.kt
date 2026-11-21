@@ -939,14 +939,6 @@ private fun ItemTile(
                         .background(MergeGreen, CircleShape)
                         .padding(horizontal = 3.dp),
                 )
-                Text(
-                    "tap",
-                    fontSize = 8.sp,
-                    color = Cocoa.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 2.dp),
-                )
             }
         }
     }
