@@ -796,4 +796,35 @@ class GameEngineTest {
         assertEquals(1, events.filterIsInstance<GameEvent.DailyClaimed>().single().day)
         assertEquals(0, s2.dailyStreak)
     }
+
+    @Test
+    fun `wand roll is boosted while a generator is cooling`() {
+        var wild = 0
+        repeat(100) { i ->
+            val s = stateWith(0 to "gen_fruit_1").let { st ->
+                st.copy(
+                    cells = st.cells.toMutableList().apply {
+                        this[0] = this[0]!!.copy(cooldownUntilMs = 60_000)
+                    },
+                    nextQteAtMs = 10,
+                )
+            }
+            val (offered, _) = GameEngine.tick(s, 20, Random(i))
+            if (offered.qte?.reward == QteReward.WILDCARD) wild++
+        }
+        // ~50% expected with the cooling boost; fixed seeds keep this deterministic.
+        assertTrue(wild >= 35)
+    }
+
+    @Test
+    fun `wand roll stays rare when no generator is cooling`() {
+        var wild = 0
+        repeat(100) { i ->
+            val s = stateWith(0 to "gen_fruit_1").copy(nextQteAtMs = 10)
+            val (offered, _) = GameEngine.tick(s, 20, Random(i))
+            if (offered.qte?.reward == QteReward.WILDCARD) wild++
+        }
+        // ~20% expected with even odds; fixed seeds keep this deterministic.
+        assertTrue(wild < 35)
+    }
 }

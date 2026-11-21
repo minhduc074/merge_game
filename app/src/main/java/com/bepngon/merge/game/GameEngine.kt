@@ -39,6 +39,8 @@ object GameEngine {
     const val QTE_OFFER_MS = 15_000L
     const val QTE_INTERVAL_MIN_MS = 150_000L
     const val QTE_INTERVAL_MAX_MS = 240_000L
+    /** Magic-wand weight in the QTE roll while a generator is cooling. */
+    const val QTE_WILD_WHEN_COOLING = 0.5f
 
     // Cells locked at game start, in unlock order (first entries unlock first).
     val INITIAL_LOCKED: List<Int> = listOf(
@@ -382,8 +384,18 @@ object GameEngine {
             }
         }
         if (state.nextQteAtMs <= 0 || nowMs < state.nextQteAtMs) return state to emptyList()
-        val newOffer = QteOffer(QteReward.entries.random(random), nowMs + QTE_OFFER_MS)
+        val newOffer = QteOffer(rollQteReward(state, nowMs, random), nowMs + QTE_OFFER_MS)
         return state.copy(qte = newOffer) to listOf(GameEvent.QteOffered(newOffer))
+    }
+
+    /** Even odds normally; the wand jumps to [QTE_WILD_WHEN_COOLING] while a gen cools. */
+    private fun rollQteReward(state: GameState, nowMs: Long, random: Random): QteReward {
+        val cooling = (state.cells + state.inventory).any {
+            it != null && ItemCatalog[it.defId].isGenerator && it.cooldownUntilMs > nowMs
+        }
+        if (!cooling) return QteReward.entries.random(random)
+        if (random.nextFloat() < QTE_WILD_WHEN_COOLING) return QteReward.WILDCARD
+        return QteReward.entries.filter { it != QteReward.WILDCARD }.random(random)
     }
 
     fun claimQte(
