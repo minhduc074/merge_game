@@ -32,11 +32,25 @@ object GameEngine {
         2 to 2, 3 to 3, 4 to 3, 5 to 4, 6 to 4, 7 to 4,
     )
 
+    /** Frozen high-tier items hidden under locked cells (revealed on level-up)
+     *  plus a few on the open board at start. */
+    private val FROZEN_SEEDS: Map<Int, String> = mapOf(
+        idx(5, 0) to "fruit_4",   // under web, unlocks Lv2
+        idx(5, 6) to "bakery_4",  // under web, unlocks Lv2
+        idx(6, 1) to "fruit_5",
+        idx(6, 5) to "drink_3",
+        idx(7, 1) to "viet_3",
+        idx(7, 3) to "fruit_6",
+        idx(7, 5) to "bakery_5",
+        idx(8, 1) to "drink_4",
+        idx(8, 5) to "viet_4",
+    )
+
     fun initialState(): GameState {
         val cells = MutableList<BoardItem?>(CELLS) { null }
         var uid = 1L
-        fun place(defId: String, index: Int) {
-            cells[index] = newItem(uid++, defId)
+        fun place(defId: String, index: Int, frozen: Boolean = false) {
+            cells[index] = newItem(uid++, defId).copy(frozen = frozen)
         }
         place("gen_fruit_1", idx(3, 3))
         place("gen_fruit_1", idx(3, 5))
@@ -44,6 +58,9 @@ object GameEngine {
         place("fruit_1", idx(1, 2))
         place("fruit_1", idx(1, 4))
         place("bakery_1", idx(4, 3))
+        place("fruit_3", idx(4, 1), frozen = true)
+        place("bakery_3", idx(6, 3), frozen = true)
+        FROZEN_SEEDS.forEach { (cell, defId) -> place(defId, cell, frozen = true) }
         return GameState(
             cells = cells,
             inventory = List(MAX_INVENTORY) { null },
@@ -83,6 +100,7 @@ object GameEngine {
         }
         if (to in state.lockedCells) return state to listOf(GameEvent.InvalidDrop)
         val dragged = state.cells[from] ?: return state to emptyList()
+        if (dragged.frozen) return state to emptyList() // frozen items can't move
         val target = state.cells[to]
 
         if (target == null) {
@@ -92,7 +110,13 @@ object GameEngine {
             return state.copy(cells = cells) to emptyList()
         }
 
-        if (!canMerge(dragged, target)) {
+        // Dropping a matching item onto a frozen one merges and unlocks it.
+        val okToMerge = if (target.frozen) {
+            dragged.defId == target.defId
+        } else {
+            canMerge(dragged, target)
+        }
+        if (!okToMerge) {
             return state to listOf(GameEvent.InvalidDrop)
         }
 
@@ -107,13 +131,21 @@ object GameEngine {
         targetIndex: Int,
         sourceInventorySlot: Int? = null,
     ): Pair<GameState, List<GameEvent>> {
-        val result = ItemCatalog.mergeResultOf(dragged) ?: return state to emptyList()
-        val newItem = newItem(state.nextUid, result.id)
         val cells = state.cells.toMutableList()
         val inventory = state.inventory.toMutableList()
-        cells[targetIndex] = newItem
         if (sourceIndex != null) cells[sourceIndex] = null
         if (sourceInventorySlot != null) inventory[sourceInventorySlot] = null
+
+        val result = ItemCatalog.mergeResultOf(dragged)
+        if (result == null) {
+            // Max-tier frozen item: consume the dragged match to unfreeze in place.
+            if (!target.frozen) return state to emptyList()
+            cells[targetIndex] = target.copy(frozen = false)
+            return state.copy(cells = cells, inventory = inventory) to
+                listOf(GameEvent.Unfrozen(targetIndex))
+        }
+        val newItem = newItem(state.nextUid, result.id)
+        cells[targetIndex] = newItem
         val events = mutableListOf<GameEvent>(
             GameEvent.Merged(targetIndex, newItem, result.score)
         )
@@ -144,7 +176,12 @@ object GameEngine {
             return state.copy(cells = cells, inventory = inventory) to emptyList()
         }
 
-        if (!canMerge(dragged, target)) {
+        val okToMerge = if (target.frozen) {
+            dragged.defId == target.defId
+        } else {
+            canMerge(dragged, target)
+        }
+        if (!okToMerge) {
             return state to listOf(GameEvent.InvalidDrop)
         }
         return doMerge(state, dragged, target, sourceIndex = null, targetIndex = to, sourceInventorySlot = slot)
@@ -156,6 +193,7 @@ object GameEngine {
         }
         if (state.inventory[slot] != null) return state to listOf(GameEvent.InvalidDrop)
         val dragged = state.cells[from] ?: return state to emptyList()
+        if (dragged.frozen) return state to listOf(GameEvent.InvalidDrop)
 
         val cells = state.cells.toMutableList()
         val inventory = state.inventory.toMutableList()
@@ -278,42 +316,6 @@ object GameEngine {
         return afterOrders to (events + orderEvents)
     }
 
-    // ---------- selling ----------
-
-    fun sell(state: GameState, cellIndex: Int): Pair<GameState, List<GameEvent>> {
-        val item = state.cells.getOrNull(cellIndex) ?: return state to emptyList()
-        val price = ItemCatalog[item.defId].sellPrice
-        val cells = state.cells.toMutableList()
-        cells[cellIndex] = null
-        val events = mutableListOf<GameEvent>(GameEvent.Sold(cellIndex, price))
-        val next = state.copy(
-            cells = cells,
-            coins = state.coins + price,
-            stats = state.stats.copy(
-                sold = state.stats.sold + 1,
-                coinsEarned = state.stats.coinsEarned + price,
-            ),
-        )
-        return checkAchievements(next, events) to events
-    }
-
-    fun sellFromInventory(state: GameState, slot: Int): Pair<GameState, List<GameEvent>> {
-        val item = state.inventory.getOrNull(slot) ?: return state to emptyList()
-        val price = ItemCatalog[item.defId].sellPrice
-        val inventory = state.inventory.toMutableList()
-        inventory[slot] = null
-        val events = mutableListOf<GameEvent>(GameEvent.Sold(-1, price))
-        val next = state.copy(
-            inventory = inventory,
-            coins = state.coins + price,
-            stats = state.stats.copy(
-                sold = state.stats.sold + 1,
-                coinsEarned = state.stats.coinsEarned + price,
-            ),
-        )
-        return checkAchievements(next, events) to events
-    }
-
     // ---------- orders ----------
 
     fun maybeSpawnOrder(
@@ -388,11 +390,12 @@ object GameEngine {
         return families
     }
 
-    /** True when every remaining required item exists on board + inventory. */
+    /** True when every remaining required item exists on board + inventory.
+     *  Frozen items don't count — they can't be delivered. */
     fun canFulfillOrder(state: GameState, order: Order): Boolean {
         if (order.remaining.isEmpty()) return false
         val counts = mutableMapOf<String, Int>()
-        state.cells.forEach { it?.let { i -> counts.merge(i.defId, 1, Int::plus) } }
+        state.cells.forEach { it?.takeUnless { i -> i.frozen }?.let { i -> counts.merge(i.defId, 1, Int::plus) } }
         state.inventory.forEach { it?.let { i -> counts.merge(i.defId, 1, Int::plus) } }
         return order.remaining.groupingBy { it }.eachCount()
             .all { (defId, need) -> (counts[defId] ?: 0) >= need }
@@ -411,7 +414,7 @@ object GameEngine {
         val inventory = state.inventory.toMutableList()
         val flown = mutableListOf<Pair<String, Int>>()
         for (defId in order.remaining) {
-            val boardIdx = cells.indexOfFirst { it?.defId == defId }
+            val boardIdx = cells.indexOfFirst { it?.defId == defId && it.frozen == false }
             if (boardIdx >= 0) {
                 cells[boardIdx] = null
                 flown += defId to boardIdx
@@ -443,7 +446,7 @@ object GameEngine {
             ItemSource.INVENTORY -> state.inventory.getOrNull(index)
         } ?: return state to emptyList()
 
-        if (item.defId !in order.remaining) {
+        if (item.frozen || item.defId !in order.remaining) {
             return state to listOf(GameEvent.DeliverRejected)
         }
 

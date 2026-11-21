@@ -170,4 +170,8 @@ object ItemCatalog {
 
     fun generatorsFor(itemDefId: String): List<ItemDef> =
         defs.values.filter { it.isGenerator && it.spawnTable.any { s -> s.itemId == itemDefId } }
+
+    /** The lower-tier def that merges into [defId], null for tier-1 items. */
+    fun previousOf(defId: String): ItemDef? =
+        defs.values.firstOrNull { it.mergeResult == defId }
 }

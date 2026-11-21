@@ -27,6 +27,7 @@ data class GameUiState(
     val showBag: Boolean = false,
     val showAchievements: Boolean = false,
     val showDaily: Boolean = false,
+    val showGuide: Boolean = false,
     val nowMs: Long = 0,
 ) {
     val showOnboarding: Boolean get() = !loading && !game.onboardingDone
@@ -81,10 +82,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun tapGenerator(cellIndex: Int) = applyEngine { GameEngine.tapGenerator(it, cellIndex, nowMs()) }
 
-    fun sell(cellIndex: Int) = applyEngine { GameEngine.sell(it, cellIndex) }
-
-    fun sellFromInventory(slot: Int) = applyEngine { GameEngine.sellFromInventory(it, slot) }
-
     fun buyInventorySlot() = applyEngine { GameEngine.buyInventorySlot(it) }
 
     fun retrieveToBoard(slot: Int) = applyEngine { GameEngine.retrieveToBoard(it, slot) }
@@ -111,6 +108,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeDaily() {
         _ui.value = _ui.value.copy(showDaily = false)
+    }
+
+    fun openGuide() {
+        _ui.value = _ui.value.copy(showGuide = true)
+    }
+
+    fun closeGuide() {
+        _ui.value = _ui.value.copy(showGuide = false)
     }
 
     fun claimAchievement(id: String) =
@@ -140,7 +145,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun restart() {
         startedAtMs = System.currentTimeMillis()
-        _ui.value = GameUiState(game = GameEngine.initialState())
+        _ui.value = GameUiState(game = GameEngine.initialState(), loading = false)
         viewModelScope.launch { saveManager.clear() }
     }
 

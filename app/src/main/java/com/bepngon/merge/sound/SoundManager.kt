@@ -11,7 +11,6 @@ object SoundManager {
         Spawn(R.raw.spawn),
         Tap(R.raw.tap),
         Merge(R.raw.merge),
-        Sell(R.raw.sell),
         Deliver(R.raw.deliver),
         Complete(R.raw.complete),
         LevelUp(R.raw.levelup),

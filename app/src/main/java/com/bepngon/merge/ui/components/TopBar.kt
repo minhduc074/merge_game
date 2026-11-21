@@ -47,6 +47,7 @@ fun TopBar(
     onRestart: () -> Unit,
     onAchievements: () -> Unit,
     onDaily: () -> Unit,
+    onGuide: () -> Unit,
     onCoinBounds: (Rect) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -132,6 +133,11 @@ fun TopBar(
                 "🏆",
                 fontSize = 20.sp,
                 modifier = Modifier.clickable(onClick = onAchievements).padding(horizontal = 4.dp),
+            )
+            Text(
+                "❓",
+                fontSize = 18.sp,
+                modifier = Modifier.clickable(onClick = onGuide).padding(horizontal = 4.dp),
             )
         }
     }

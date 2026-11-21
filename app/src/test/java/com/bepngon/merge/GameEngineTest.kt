@@ -29,11 +29,12 @@ private fun stateWith(
     lockedCells: Set<Int> = emptySet(),
     stats: Stats = Stats(),
     reachedAchievements: Set<String> = emptySet(),
+    frozenCells: Set<Int> = emptySet(),
 ): GameState {
     val cells = MutableList<BoardItem?>(GameEngine.CELLS) { null }
     var uid = 1L
     placements.forEach { (i, defId) ->
-        cells[i] = GameEngine.newItem(uid++, defId)
+        cells[i] = GameEngine.newItem(uid++, defId).copy(frozen = i in frozenCells)
     }
     val inv = MutableList<BoardItem?>(GameEngine.MAX_INVENTORY) { null }
     inventory.forEachIndexed { i, defId -> defId?.let { inv[i] = BoardItem(uid++, it) } }
@@ -148,15 +149,6 @@ class GameEngineTest {
     }
 
     @Test
-    fun `selling item pays coins and frees cell`() {
-        val s = stateWith(4 to "fruit_3")
-        val (next, events) = GameEngine.sell(s, 4)
-        assertNull(next.cells[4])
-        assertEquals(5, next.coins)
-        assertTrue(events.single() is GameEvent.Sold)
-    }
-
-    @Test
     fun `generators can merge into next generator tier`() {
         val s = stateWith(0 to "gen_fruit_1", 1 to "gen_fruit_1")
         val (next, _) = GameEngine.moveOrMerge(s, 0, 1)
@@ -197,14 +189,6 @@ class GameEngineTest {
         val (next, _) = GameEngine.inventoryToBoard(s, 0, 10)
         assertNull(next.inventory[0])
         assertEquals("fruit_3", next.cells[10]?.defId)
-    }
-
-    @Test
-    fun `selling from inventory pays coins`() {
-        val s = stateWith(inventory = listOf("fruit_3", null, null, null, null, null, null, null))
-        val (next, _) = GameEngine.sellFromInventory(s, 0)
-        assertNull(next.inventory[0])
-        assertEquals(5, next.coins)
     }
 
     @Test
@@ -398,17 +382,11 @@ class GameEngineTest {
     }
 
     @Test
-    fun `stats count merges sells and orders`() {
+    fun `stats count merges and orders`() {
         var s = stateWith(0 to "fruit_1", 1 to "fruit_1")
         val (m, _) = GameEngine.moveOrMerge(s, 0, 1)
         assertEquals(1, m.stats.merges)
         assertEquals(2, m.stats.maxTier)
-
-        val (sold, _) = GameEngine.sell(m, 1)
-        val price = ItemCatalog["fruit_2"].sellPrice
-        assertEquals(1, sold.stats.sold)
-        assertEquals(m.coins + price, sold.coins)
-        assertEquals(price, sold.stats.coinsEarned)
 
         s = stateWith(
             0 to "fruit_1",
@@ -482,6 +460,66 @@ class GameEngineTest {
             t0 + GameEngine.DAILY_COOLDOWN_MS,
         )
         assertEquals(claimed.coins + GameEngine.DAILY_COINS, later.coins)
+    }
+
+    // ---------- frozen items ----------
+
+    @Test
+    fun `frozen item cannot move`() {
+        val s = stateWith(0 to "fruit_3", 5 to "fruit_1", frozenCells = setOf(0))
+        val (next, _) = GameEngine.moveOrMerge(s, 0, 5)
+        assertEquals("fruit_3", next.cells[0]?.defId)
+        assertEquals("fruit_1", next.cells[5]?.defId)
+    }
+
+    @Test
+    fun `matching item onto frozen merges and unlocks`() {
+        val s = stateWith(0 to "fruit_3", 1 to "fruit_3", frozenCells = setOf(0))
+        val (next, events) = GameEngine.moveOrMerge(s, 1, 0)
+        assertNull(next.cells[1])
+        assertEquals("fruit_4", next.cells[0]?.defId)
+        assertEquals(false, next.cells[0]?.frozen)
+        assertTrue(events.any { it is GameEvent.Merged })
+    }
+
+    @Test
+    fun `non matching item onto frozen is rejected`() {
+        val s = stateWith(0 to "fruit_3", 1 to "fruit_2", frozenCells = setOf(0))
+        val (next, events) = GameEngine.moveOrMerge(s, 1, 0)
+        assertEquals("fruit_3", next.cells[0]?.defId)
+        assertEquals(true, next.cells[0]?.frozen)
+        assertEquals(listOf(GameEvent.InvalidDrop), events)
+    }
+
+    @Test
+    fun `max tier frozen unfreezes in place`() {
+        val s = stateWith(0 to "fruit_11", 1 to "fruit_11", frozenCells = setOf(0))
+        val (next, events) = GameEngine.moveOrMerge(s, 1, 0)
+        assertNull(next.cells[1])
+        assertEquals("fruit_11", next.cells[0]?.defId)
+        assertEquals(false, next.cells[0]?.frozen)
+        assertTrue(events.any { it is GameEvent.Unfrozen })
+    }
+
+    @Test
+    fun `frozen item cannot be delivered or counted for orders`() {
+        val s = stateWith(
+            0 to "fruit_1",
+            frozenCells = setOf(0),
+            orders = listOf(orderOf("fruit_1")),
+        )
+        assertEquals(false, GameEngine.canFulfillOrder(s, s.orders.first()))
+        val (next, events) = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0)
+        assertEquals("fruit_1", next.cells[0]?.defId)
+        assertEquals(listOf(GameEvent.DeliverRejected), events)
+    }
+
+    @Test
+    fun `frozen item cannot go to inventory`() {
+        val s = stateWith(0 to "fruit_3", frozenCells = setOf(0))
+        val (next, events) = GameEngine.boardToInventory(s, 0, 0)
+        assertEquals("fruit_3", next.cells[0]?.defId)
+        assertEquals(listOf(GameEvent.InvalidDrop), events)
     }
 
     // ---------- locked cells ----------

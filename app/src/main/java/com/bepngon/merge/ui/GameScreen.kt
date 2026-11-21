@@ -77,7 +77,6 @@ import com.bepngon.merge.ui.components.BagScreen
 import com.bepngon.merge.ui.components.DailyRewardDialog
 import com.bepngon.merge.ui.components.OnboardingScreen
 import com.bepngon.merge.ui.components.OrderBar
-import com.bepngon.merge.ui.components.SellZone
 import com.bepngon.merge.ui.components.TopBar
 import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
@@ -111,7 +110,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 coins = ui.game.coins,
                 onBuySlot = vm::buyInventorySlot,
                 onRetrieve = vm::retrieveToBoard,
-                onSell = vm::sellFromInventory,
                 onClose = vm::closeBag,
             )
         }
@@ -135,8 +133,10 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             )
         }
 
-        if (ui.showOnboarding) {
-            OnboardingScreen(onDone = vm::finishOnboarding)
+        if (ui.showOnboarding || ui.showGuide) {
+            OnboardingScreen(
+                onDone = if (ui.showGuide) vm::closeGuide else vm::finishOnboarding,
+            )
         }
 
         if (ui.showRestartConfirm) {
@@ -186,12 +186,10 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     val cellBounds = remember { mutableStateMapOf<Int, Rect>() }
     val invBounds = remember { mutableStateMapOf<Int, Rect>() }
     val orderBounds = remember { mutableStateMapOf<Long, Rect>() }
-    var sellBounds by remember { mutableStateOf(Rect.Zero) }
 
     var drag by remember { mutableStateOf<DragState?>(null) }
     var hoverCell by remember { mutableStateOf<Int?>(null) }
     var hoverInv by remember { mutableStateOf<Int?>(null) }
-    var sellHover by remember { mutableStateOf(false) }
     var floaters by remember { mutableStateOf(listOf<Floater>()) }
     var floaterId by remember { mutableStateOf(0L) }
     var levelBanner by remember { mutableStateOf<String?>(null) }
@@ -231,9 +229,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             val overOrder = ui.game.orders.any { o ->
                 orderBounds[o.id]?.contains(pos) == true
             }
-            sellHover = !overOrder && sellBounds.contains(pos)
             hoverInv = invBounds.entries.firstOrNull { it.value.contains(pos) }?.key
-            hoverCell = if (sellHover || overOrder || hoverInv != null) {
+            hoverCell = if (overOrder || hoverInv != null) {
                 null
             } else {
                 cellBounds.entries.firstOrNull { it.value.contains(pos) }?.key
@@ -251,10 +248,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             val cellHit = cellBounds.entries.firstOrNull { it.value.contains(d.position) }?.key
             when {
                 orderHit != null -> vm.deliverToOrder(orderHit, d.source, d.index)
-                sellHover -> when (d.source) {
-                    ItemSource.BOARD -> vm.sell(d.index)
-                    ItemSource.INVENTORY -> vm.sellFromInventory(d.index)
-                }
                 invHit != null -> when (d.source) {
                     ItemSource.BOARD -> vm.boardToInventory(d.index, invHit)
                     ItemSource.INVENTORY -> vm.moveInInventory(d.index, invHit)
@@ -268,7 +261,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         drag = null
         hoverCell = null
         hoverInv = null
-        sellHover = false
     }
 
     LaunchedEffect(Unit) {
@@ -290,15 +282,12 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     SoundManager.play(SoundManager.Sfx.Spawn)
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
-                is GameEvent.Sold -> {
-                    SoundManager.play(SoundManager.Sfx.Sell)
+                is GameEvent.Unfrozen -> {
+                    SoundManager.play(SoundManager.Sfx.Unlock)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    val pos = if (e.cellIndex >= 0) {
-                        cellBounds[e.cellIndex]?.center
-                    } else {
-                        sellBounds.center
+                    cellBounds[e.cellIndex]?.let { r ->
+                        pushFloater("❄️ Mở băng!", r.center, Color(0xFF4FC3F7))
                     }
-                    pos?.let { pushFloater("+${e.coinsGained}🪙", it, Gold) }
                 }
                 is GameEvent.OrderSpawned -> {
                     SoundManager.play(SoundManager.Sfx.Tap)
@@ -423,6 +412,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onRestart = vm::askRestart,
             onAchievements = vm::openAchievements,
             onDaily = vm::openDaily,
+            onGuide = vm::openGuide,
             onCoinBounds = { coinBounds = it },
         )
 
@@ -431,13 +421,14 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             dragDefId = drag?.defId,
             canFulfill = { GameEngine.canFulfillOrder(ui.game, it) },
             onFulfill = vm::autoFulfillOrder,
+            onItemTap = { infoItem = BoardItem(-1, it) },
             onPositioned = { id, r -> orderBounds[id] = r },
             modifier = Modifier.padding(bottom = 6.dp),
         )
 
         if (ui.game.boardFull) {
             Text(
-                "Bàn đầy rồi! Merge hoặc bán bớt đồ nhé 😅",
+                "Bàn đầy rồi! Merge hoặc giao đơn để dọn chỗ nhé 😅",
                 color = WarnRed,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -476,15 +467,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDragEnd = onDragEnd,
             onTapInfo = { infoItem = it },
             onOpenBag = vm::openBag,
-        )
-
-        SellZone(
-            active = drag != null,
-            highlighted = sellHover,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-                .onGloballyPositioned { sellBounds = it.boundsInWindow() },
         )
     }
 
@@ -566,7 +548,7 @@ private fun BoardGrid(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
         for (row in 0 until GameEngine.ROWS) {
             Row(
@@ -585,10 +567,14 @@ private fun BoardGrid(
                         hidden = drag?.source == ItemSource.BOARD && drag.index == cell,
                         hover = hoverCell == cell,
                         canDrop = if (drag != null && item != null && hoverCell == cell) {
-                            GameEngine.canMerge(
-                                BoardItem(drag.uid, drag.defId),
-                                item,
-                            )
+                            if (item.frozen) {
+                                drag.defId == item.defId
+                            } else {
+                                GameEngine.canMerge(
+                                    BoardItem(drag.uid, drag.defId),
+                                    item,
+                                )
+                            }
                         } else {
                             null
                         },
@@ -805,13 +791,13 @@ private fun ItemTile(
                 alpha = if (hidden) 0.25f else if (cooling) 0.55f else 1f
             }
             .scale(scale.value * (0.6f + 0.4f * pop.value))
-            .pointerInput(item.uid, source) {
+            .pointerInput(item.uid, source, item.frozen) {
                 detectTapGestures {
                     val it = currentItem
                     val d = ItemCatalog[it.defId]
                     val dep = d.isGenerator &&
                         (it.cooldownUntilMs > currentNowMs || it.charges == 0)
-                    if (d.isGenerator && !dep) {
+                    if (d.isGenerator && !dep && !it.frozen) {
                         onTapGenerator(index)
                         scope.launch {
                             scale.animateTo(0.85f, tween(70))
@@ -825,25 +811,31 @@ private fun ItemTile(
                     }
                 }
             }
-            .pointerInput(item.uid, source) {
-                detectDragGestures(
-                    onDragStart = {
-                        currentOnDragStart(
-                            source,
-                            index,
-                            item.uid,
-                            item.defId,
-                            currentBounds.center,
+            .then(
+                if (item.frozen) {
+                    Modifier // frozen items can't be dragged at all
+                } else {
+                    Modifier.pointerInput(item.uid, source) {
+                        detectDragGestures(
+                            onDragStart = {
+                                currentOnDragStart(
+                                    source,
+                                    index,
+                                    item.uid,
+                                    item.defId,
+                                    currentBounds.center,
+                                )
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                currentOnDrag(currentBounds.topLeft + change.position)
+                            },
+                            onDragEnd = { currentOnDragEnd() },
+                            onDragCancel = { currentOnDragEnd() },
                         )
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        currentOnDrag(currentBounds.topLeft + change.position)
-                    },
-                    onDragEnd = { currentOnDragEnd() },
-                    onDragCancel = { currentOnDragEnd() },
-                )
-            },
+                    }
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -851,15 +843,38 @@ private fun ItemTile(
                 .size(42.dp)
                 .shadow(1.dp, RoundedCornerShape(12.dp))
                 .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFFFFFFFF), Color(def.family.tint)),
-                    ),
+                    if (item.frozen) {
+                        Brush.verticalGradient(
+                            listOf(Color(0xFFE1F5FE), Color(0xFFB3E5FC)),
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            listOf(Color(0xFFFFFFFF), Color(def.family.tint)),
+                        )
+                    },
                     RoundedCornerShape(12.dp),
                 )
-                .border(1.dp, Color(def.family.tint).darken(0.82f), RoundedCornerShape(12.dp)),
+                .border(
+                    1.dp,
+                    if (item.frozen) Color(0xFF4FC3F7) else Color(def.family.tint).darken(0.82f),
+                    RoundedCornerShape(12.dp),
+                ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(def.emoji, fontSize = 26.sp)
+            Text(
+                def.emoji,
+                fontSize = 26.sp,
+                modifier = Modifier.alpha(if (item.frozen) 0.6f else 1f),
+            )
+        }
+        if (item.frozen) {
+            Text(
+                "❄️",
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(1.dp),
+            )
         }
         if (def.isGenerator) {
             if (cooling) {
@@ -1073,11 +1088,29 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
             }
         } else {
             val next = def.mergeResult?.let { ItemCatalog[it] }
+            if (item.frozen) {
+                Text(
+                    "❄️ Đóng băng — kéo ${def.emoji} khác vào để mở khóa" +
+                        if (next != null) " (merge lên ${next.emoji})" else "",
+                    fontSize = 12.sp,
+                    color = Color(0xFF0288D1),
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             Text(
                 if (next != null) "➡️ Merge lên: ${next.emoji} ${next.name}" else "🏆 Đã max tier!",
                 fontSize = 12.sp,
                 color = Cocoa,
             )
+            val prev = ItemCatalog.previousOf(item.defId)
+            if (prev != null) {
+                Text(
+                    "🔗 Ghép từ: ${prev.emoji} ${prev.name} + ${prev.emoji} ${prev.name}",
+                    fontSize = 12.sp,
+                    color = Cocoa.copy(alpha = 0.8f),
+                )
+            }
             val gens = ItemCatalog.generatorsFor(item.defId)
             Spacer(Modifier.height(4.dp))
             Text(

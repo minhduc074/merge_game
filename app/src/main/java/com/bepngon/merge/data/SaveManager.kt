@@ -30,13 +30,13 @@ private data class CellData(
     val defId: String,
     val charges: Int = -1,
     val cooldownInMs: Long = 0,
+    val frozen: Boolean = false,
 )
 
 @Serializable
 private data class StatsData(
     val merges: Int = 0,
     val ordersDone: Int = 0,
-    val sold: Int = 0,
     val coinsEarned: Int = 0,
     val maxTier: Int = 0,
 )
@@ -93,6 +93,7 @@ class SaveManager(private val context: Context) {
                         defId = item.defId,
                         charges = item.charges,
                         cooldownInMs = (item.cooldownUntilMs - nowMs).coerceAtLeast(0),
+                        frozen = item.frozen,
                     )
                 }
             },
@@ -111,7 +112,7 @@ class SaveManager(private val context: Context) {
             nextUid = state.nextUid,
             lockedCells = state.lockedCells.toList(),
             stats = state.stats.let {
-                StatsData(it.merges, it.ordersDone, it.sold, it.coinsEarned, it.maxTier)
+                StatsData(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
             },
             reachedAchievements = state.reachedAchievements.toList(),
             claimedAchievements = state.claimedAchievements.toList(),
@@ -137,6 +138,7 @@ class SaveManager(private val context: Context) {
                         defId = it.defId,
                         charges = it.charges,
                         cooldownUntilMs = if (it.cooldownInMs > 0) nowMs + it.cooldownInMs else 0,
+                        frozen = it.frozen,
                     )
                 }
             },
@@ -157,7 +159,7 @@ class SaveManager(private val context: Context) {
             nextUid = maxOf(data.nextUid, 30_000L),
             lockedCells = data.lockedCells.toSet(),
             stats = data.stats.let {
-                Stats(it.merges, it.ordersDone, it.sold, it.coinsEarned, it.maxTier)
+                Stats(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
             },
             reachedAchievements = data.reachedAchievements.toSet(),
             claimedAchievements = data.claimedAchievements.toSet(),

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
@@ -36,6 +37,7 @@ fun OrderBar(
     dragDefId: String?,
     canFulfill: (Order) -> Boolean,
     onFulfill: (Long) -> Unit,
+    onItemTap: (String) -> Unit,
     onPositioned: (Long, Rect) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -52,6 +54,7 @@ fun OrderBar(
                 accepts = dragDefId != null && dragDefId in order.remaining,
                 fulfillable = canFulfill(order),
                 onFulfill = { onFulfill(order.id) },
+                onItemTap = onItemTap,
                 modifier = Modifier
                     .weight(1f)
                     .onGloballyPositioned { onPositioned(order.id, it.boundsInWindow()) },
@@ -66,6 +69,7 @@ private fun OrderCard(
     accepts: Boolean,
     fulfillable: Boolean,
     onFulfill: () -> Unit,
+    onItemTap: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val borderColor = when {
@@ -106,7 +110,11 @@ private fun OrderCard(
                 Text(
                     ItemCatalog[req].emoji,
                     fontSize = 16.sp,
-                    modifier = Modifier.alpha(if (done) 0.3f else 1f),
+                    modifier = Modifier
+                        .alpha(if (done) 0.3f else 1f)
+                        .clip(CircleShape)
+                        .clickable { onItemTap(req) }
+                        .padding(2.dp),
                 )
             }
         }

@@ -46,7 +46,6 @@ fun BagScreen(
     coins: Int,
     onBuySlot: () -> Unit,
     onRetrieve: (Int) -> Unit,
-    onSell: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -176,7 +175,7 @@ fun BagScreen(
                 Column(Modifier.padding(start = 8.dp).weight(1f)) {
                     Text(def.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Cocoa)
                     Text(
-                        "Tier ${def.tier} • 🪙${def.sellPrice}",
+                        "Tier ${def.tier}",
                         fontSize = 11.sp,
                         color = Cocoa.copy(alpha = 0.7f),
                     )
@@ -185,16 +184,11 @@ fun BagScreen(
                     onRetrieve(selected!!)
                     selected = null
                 }
-                Spacer(Modifier.size(8.dp))
-                BagButton("🪙 Bán", WarnRed) {
-                    onSell(selected!!)
-                    selected = null
-                }
             }
         } else {
             Text(
                 bagMsg
-                    ?: "Chạm vào item để lấy ra hoặc bán.\nÔ 🔒 có thể mở bằng vàng!",
+                    ?: "Chạm vào item để lấy ra.\nÔ 🔒 có thể mở bằng vàng!",
                 fontSize = 12.sp,
                 color = if (bagMsg != null) WarnRed else Cocoa.copy(alpha = 0.6f),
                 fontWeight = if (bagMsg != null) FontWeight.Bold else FontWeight.Normal,
