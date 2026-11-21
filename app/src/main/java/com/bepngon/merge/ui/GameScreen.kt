@@ -1243,54 +1243,35 @@ private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit
         }
 
         Spacer(Modifier.height(8.dp))
-        Text("🎯 Có thể sinh ra:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
-
-        val total = def.spawnTable.sumOf { it.weight }
-        def.spawnTable.forEach { entry ->
-            val sd = ItemCatalog[entry.itemId]
-            Row(
-                Modifier.padding(top = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .background(Color(sd.family.tint), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    GameArt(sd.id, sd.emoji, 30.dp, emojiSize = 18.sp)
-                }
-                Column(Modifier.padding(start = 8.dp).weight(1f)) {
-                    Text(sd.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Cocoa)
-                    Text("Tier ${sd.tier}", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.6f))
-                }
-                Text(
-                    "${entry.weight * 100 / total}%",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MergeGreen,
-                )
-            }
-        }
-
         val chain = def.spawnTable.firstOrNull()?.let { ItemCatalog.chainOf(it.itemId) }
         if (chain != null && chain.size > 1) {
-            Spacer(Modifier.height(10.dp))
             Text("🔗 Chuỗi merge:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
             Row(
                 Modifier
-                    .padding(top = 4.dp)
+                    .padding(top = 6.dp)
                     .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
             ) {
-                chain.forEach { cd ->
-                    Box(
-                        Modifier
-                            .padding(end = 4.dp)
-                            .size(30.dp)
-                            .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GameArt(cd.id, cd.emoji, 24.dp, emojiSize = 15.sp)
+                chain.forEachIndexed { i, cd ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier
+                                .size(38.dp)
+                                .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            GameArt(cd.id, cd.emoji, 32.dp, emojiSize = 19.sp)
+                        }
+                        Text(cd.name, fontSize = 8.sp, color = Cocoa.copy(alpha = 0.7f), maxLines = 1)
+                    }
+                    if (i < chain.lastIndex) {
+                        Text(
+                            "→",
+                            fontSize = 13.sp,
+                            color = Cocoa.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .align(Alignment.Top)
+                                .padding(top = 10.dp, start = 2.dp, end = 4.dp),
+                        )
                     }
                 }
             }
