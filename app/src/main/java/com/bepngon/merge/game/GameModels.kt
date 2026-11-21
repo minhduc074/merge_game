@@ -107,6 +107,9 @@ data class GameState(
     val frenzyUntilMs: Long = 0,
     val qte: QteOffer? = null,
     val nextQteAtMs: Long = 0,
+    val dailyStreak: Int = 0,
+    val comboCount: Int = 0,
+    val comboUntilMs: Long = 0,
 ) {
     fun metricOf(metric: Metric): Int = when (metric) {
         Metric.MERGES -> stats.merges
@@ -152,8 +155,15 @@ sealed interface GameEvent {
     data class SlotBought(val newCap: Int) : GameEvent
     data class AchievementUnlocked(val achievement: Achievement) : GameEvent
     data class AchievementClaimed(val achievement: Achievement) : GameEvent
-    data class DailyClaimed(val coins: Int, val energy: Int) : GameEvent
+    data class DailyClaimed(
+        val day: Int,
+        val coins: Int,
+        val energy: Int,
+        val wildcard: Boolean = false,
+    ) : GameEvent
     data object DailyNotReady : GameEvent
+    /** Bonus for completing [combo] orders inside the combo window. */
+    data class ComboBonus(val combo: Int, val coins: Int, val xp: Int) : GameEvent
     data object OnboardingFinished : GameEvent
     data object GeneratorEmpty : GameEvent
     data object NotEnoughCoins : GameEvent

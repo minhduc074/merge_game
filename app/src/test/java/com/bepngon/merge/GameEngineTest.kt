@@ -461,7 +461,10 @@ class GameEngineTest {
             claimed,
             t0 + GameEngine.DAILY_COOLDOWN_MS,
         )
-        assertEquals(claimed.coins + GameEngine.DAILY_COINS, later.coins)
+        assertEquals(
+            claimed.coins + GameEngine.DAILY_REWARDS[1].first,
+            later.coins,
+        )
     }
 
     // ---------- frozen items ----------
@@ -696,5 +699,101 @@ class GameEngineTest {
         val (next, events) = GameEngine.claimQte(s, 100, Random(1))
         assertEquals(s, next)
         assertTrue(events.isEmpty())
+    }
+
+    // ---------- order combo ----------
+
+    @Test
+    fun `completing orders in the window builds a combo with bonus from the third`() {
+        var s = stateWith(
+            0 to "fruit_1", 1 to "fruit_2", 2 to "fruit_3",
+            orders = listOf(
+                orderOf("fruit_1").copy(id = 1),
+                orderOf("fruit_2").copy(id = 2),
+                orderOf("fruit_3").copy(id = 3),
+            ),
+            level = 10, // keep xp rewards below the level-up threshold
+        )
+        fun complete(id: Long, at: Long) {
+            val (n, ev) = GameEngine.autoFulfillOrder(s, id, at)
+            s = n
+            if (ev.any { it is GameEvent.ComboBonus }) {
+                throw AssertionError("unexpected bonus at $at")
+            }
+        }
+        // Orders 1-2: combo builds, no bonus yet
+        complete(1, 0)
+        complete(2, 5_000)
+        assertEquals(2, s.comboCount)
+
+        // Order 3 inside the window: bonus +30 coins +12 xp (10*x, 4*x)
+        val (s3, events3) = GameEngine.autoFulfillOrder(s, 3, 10_000)
+        val bonus = events3.filterIsInstance<GameEvent.ComboBonus>().single()
+        assertEquals(3, bonus.combo)
+        assertEquals(30, bonus.coins)
+        assertEquals(12, bonus.xp)
+        // Order pays sellPrice*3/2 for fruit_3 (=7) plus the combo bonus.
+        assertEquals(s.coins + 7 + 30, s3.coins)
+        assertEquals(3, s3.comboCount)
+        assertEquals(10_000 + GameEngine.COMBO_WINDOW_MS, s3.comboUntilMs)
+    }
+
+    @Test
+    fun `combo resets when the window lapses`() {
+        var s = stateWith(
+            0 to "fruit_1", 1 to "fruit_2",
+            orders = listOf(
+                orderOf("fruit_1").copy(id = 1),
+                orderOf("fruit_2").copy(id = 2),
+            ),
+            level = 10,
+        )
+        s = GameEngine.autoFulfillOrder(s, 1, 0).first
+        assertEquals(1, s.comboCount)
+        val (s2, events) = GameEngine.autoFulfillOrder(s, 2, GameEngine.COMBO_WINDOW_MS + 1)
+        assertEquals(1, s2.comboCount)
+        assertTrue(events.none { it is GameEvent.ComboBonus })
+    }
+
+    // ---------- daily streak ----------
+
+    @Test
+    fun `daily claims advance the streak and wrap after day 7`() {
+        var s = stateWith()
+        val t0 = 1_000_000_000L
+        repeat(8) { day ->
+            val at = t0 + day * GameEngine.DAILY_COOLDOWN_MS
+            val idx = GameEngine.dailyDayIndex(s, at)
+            assertEquals(day % 7, idx)
+            val (next, events) = GameEngine.claimDaily(s, at, Random(1))
+            val claimed = events.filterIsInstance<GameEvent.DailyClaimed>().single()
+            assertEquals(day % 7 + 1, claimed.day)
+            if (idx == 6) {
+                assertTrue(claimed.wildcard)
+                assertTrue(events.any { it is GameEvent.WildcardSpawned })
+            } else {
+                assertTrue(!claimed.wildcard)
+            }
+            s = next
+        }
+        assertEquals(0, s.dailyStreak) // wrapped to day 1 index on the 8th claim
+        assertTrue(s.cells.any { it?.defId == "magic_wild" })
+    }
+
+    @Test
+    fun `streak resets when the 48h window is missed`() {
+        var s = stateWith()
+        val t0 = 1_000_000_000L
+        s = GameEngine.claimDaily(s, t0, Random(1)).first
+        assertEquals(0, s.dailyStreak)
+        s = GameEngine.claimDaily(s, t0 + GameEngine.DAILY_COOLDOWN_MS, Random(1)).first
+        assertEquals(1, s.dailyStreak)
+
+        // Skip ~3 days → back to day 1
+        val late = t0 + GameEngine.DAILY_COOLDOWN_MS + 3 * GameEngine.DAILY_COOLDOWN_MS
+        assertEquals(0, GameEngine.dailyDayIndex(s, late))
+        val (s2, events) = GameEngine.claimDaily(s, late, Random(1))
+        assertEquals(1, events.filterIsInstance<GameEvent.DailyClaimed>().single().day)
+        assertEquals(0, s2.dailyStreak)
     }
 }

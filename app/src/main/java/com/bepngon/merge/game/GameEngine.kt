@@ -20,6 +20,15 @@ object GameEngine {
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
+    /** Claim within this window of the last claim to keep the streak alive. */
+    const val DAILY_STREAK_WINDOW_MS = 48 * 3_600_000L
+    /** (coins, energy) per streak day 1..7; day 7 also drops a magic wand. */
+    val DAILY_REWARDS: List<Pair<Int, Int>> = listOf(
+        50 to 10, 60 to 12, 75 to 15, 90 to 18, 110 to 22, 140 to 28, 200 to 40,
+    )
+
+    const val COMBO_WINDOW_MS = 60_000L
+    const val COMBO_MIN = 3
 
     // Quick-time event: a claimable bonus appears for a short window.
     const val MAGIC_WILD_ID = "magic_wild"
@@ -409,32 +418,39 @@ object GameEngine {
                 next = next.copy(cells = cells)
             }
             QteReward.WILDCARD -> {
-                val empty = emptyCells(next)
-                val slot = next.inventory.indices.firstOrNull { i ->
-                    i < next.inventoryCap && next.inventory[i] == null
-                }
-                when {
-                    empty.isNotEmpty() -> {
-                        val cell = empty.random(random)
-                        val cells = next.cells.toMutableList()
-                        cells[cell] = newItem(next.nextUid, MAGIC_WILD_ID)
-                        next = next.copy(cells = cells, nextUid = next.nextUid + 1)
-                        events += GameEvent.WildcardSpawned(cell)
-                    }
-                    slot != null -> {
-                        val inventory = next.inventory.toMutableList()
-                        inventory[slot] = newItem(next.nextUid, MAGIC_WILD_ID)
-                        next = next.copy(inventory = inventory, nextUid = next.nextUid + 1)
-                        events += GameEvent.WildcardSpawned(-1 - slot)
-                    }
-                    else -> next = next.copy(
-                        coins = next.coins + QTE_COINS,
-                        stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + QTE_COINS),
-                    )
-                }
+                val (placed, cellIndex) = placeWildcard(next, random)
+                next = placed
+                if (cellIndex != null) events += GameEvent.WildcardSpawned(cellIndex)
             }
         }
         return next to events
+    }
+
+    /** Drop a magic wand on a random empty cell (or free bag slot, or +coins
+     *  when everything is full). Returns the new state + where it landed. */
+    private fun placeWildcard(
+        state: GameState,
+        random: Random,
+    ): Pair<GameState, Int?> {
+        val empty = emptyCells(state)
+        if (empty.isNotEmpty()) {
+            val cell = empty.random(random)
+            val cells = state.cells.toMutableList()
+            cells[cell] = newItem(state.nextUid, MAGIC_WILD_ID)
+            return state.copy(cells = cells, nextUid = state.nextUid + 1) to cell
+        }
+        val slot = state.inventory.indices.firstOrNull { i ->
+            i < state.inventoryCap && state.inventory[i] == null
+        }
+        if (slot != null) {
+            val inventory = state.inventory.toMutableList()
+            inventory[slot] = newItem(state.nextUid, MAGIC_WILD_ID)
+            return state.copy(inventory = inventory, nextUid = state.nextUid + 1) to (-1 - slot)
+        }
+        return state.copy(
+            coins = state.coins + QTE_COINS,
+            stats = state.stats.copy(coinsEarned = state.stats.coinsEarned + QTE_COINS),
+        ) to null
     }
 
     // ---------- orders ----------
@@ -530,6 +546,7 @@ object GameEngine {
     fun autoFulfillOrder(
         state: GameState,
         orderId: Long,
+        nowMs: Long = 0,
     ): Pair<GameState, List<GameEvent>> {
         val order = state.orders.firstOrNull { it.id == orderId } ?: return state to emptyList()
         if (!canFulfillOrder(state, order)) {
@@ -552,7 +569,7 @@ object GameEngine {
             }
         }
         val next = state.copy(cells = cells, inventory = inventory)
-        val (done, events) = completeOrder(next, order)
+        val (done, events) = completeOrder(next, order, nowMs)
         return done to (listOf<GameEvent>(
             GameEvent.OrderDelivered(orderId),
             GameEvent.AutoFulfillFly(orderId, flown),
@@ -564,6 +581,7 @@ object GameEngine {
         orderId: Long,
         source: ItemSource,
         index: Int,
+        nowMs: Long = 0,
     ): Pair<GameState, List<GameEvent>> {
         val order = state.orders.firstOrNull { it.id == orderId } ?: return state to emptyList()
         val item = when (source) {
@@ -591,27 +609,42 @@ object GameEngine {
         val events = mutableListOf<GameEvent>(GameEvent.OrderDelivered(orderId))
 
         if (updated.isComplete) {
-            val (rewarded, rewardEvents) = completeOrder(next, updated)
+            val (rewarded, rewardEvents) = completeOrder(next, updated, nowMs)
             next = rewarded
             events += rewardEvents
         }
         return next to events
     }
 
-    private fun completeOrder(state: GameState, order: Order): Pair<GameState, List<GameEvent>> {
+    private fun completeOrder(
+        state: GameState,
+        order: Order,
+        nowMs: Long = 0,
+    ): Pair<GameState, List<GameEvent>> {
         val coinsGained = order.required.sumOf { ItemCatalog[it].sellPrice } * 3 / 2
         val xpGained = order.required.sumOf { ItemCatalog[it].tier * 2 } + 5
+
+        // Combo: consecutive completed orders inside the window build a chain;
+        // from the 3rd onward each pays a growing bonus.
+        val combo = if (nowMs < state.comboUntilMs) state.comboCount + 1 else 1
+        val comboCoins = if (combo >= COMBO_MIN) 10 * combo else 0
+        val comboXp = if (combo >= COMBO_MIN) 4 * combo else 0
         val events = mutableListOf<GameEvent>(
             GameEvent.OrderCompleted(order, coinsGained, xpGained)
         )
+        if (combo >= COMBO_MIN) {
+            events += GameEvent.ComboBonus(combo, comboCoins, comboXp)
+        }
 
         var next = state.copy(
             orders = state.orders.filterNot { it.id == order.id },
-            coins = state.coins + coinsGained,
-            xp = state.xp + xpGained,
+            coins = state.coins + coinsGained + comboCoins,
+            xp = state.xp + xpGained + comboXp,
+            comboCount = combo,
+            comboUntilMs = nowMs + COMBO_WINDOW_MS,
             stats = state.stats.copy(
                 ordersDone = state.stats.ordersDone + 1,
-                coinsEarned = state.stats.coinsEarned + coinsGained,
+                coinsEarned = state.stats.coinsEarned + coinsGained + comboCoins,
             ),
         )
 
@@ -663,13 +696,38 @@ object GameEngine {
     fun dailyReady(state: GameState, epochMs: Long): Boolean =
         epochMs - state.lastDailyClaimEpochMs >= DAILY_COOLDOWN_MS
 
-    fun claimDaily(state: GameState, epochMs: Long): Pair<GameState, List<GameEvent>> {
+    /** 0-based index into [DAILY_REWARDS] the next claim would grant. */
+    fun dailyDayIndex(state: GameState, epochMs: Long): Int = when {
+        state.lastDailyClaimEpochMs == 0L -> 0
+        epochMs - state.lastDailyClaimEpochMs < DAILY_STREAK_WINDOW_MS ->
+            (state.dailyStreak + 1) % DAILY_REWARDS.size
+        else -> 0
+    }
+
+    fun claimDaily(
+        state: GameState,
+        epochMs: Long,
+        random: Random = Random,
+    ): Pair<GameState, List<GameEvent>> {
         if (!dailyReady(state, epochMs)) return state to listOf(GameEvent.DailyNotReady)
-        return state.copy(
-            coins = state.coins + DAILY_COINS,
-            energy = minOf(ENERGY_CAP, state.energy + DAILY_ENERGY),
+        val day = dailyDayIndex(state, epochMs)
+        val (coins, energy) = DAILY_REWARDS[day]
+        var next = state.copy(
+            coins = state.coins + coins,
+            energy = minOf(ENERGY_CAP, state.energy + energy),
             lastDailyClaimEpochMs = epochMs,
-        ) to listOf(GameEvent.DailyClaimed(DAILY_COINS, DAILY_ENERGY))
+            dailyStreak = day,
+            stats = state.stats.copy(coinsEarned = state.stats.coinsEarned + coins),
+        )
+        val events = mutableListOf<GameEvent>(
+            GameEvent.DailyClaimed(day + 1, coins, energy, wildcard = day == DAILY_REWARDS.lastIndex)
+        )
+        if (day == DAILY_REWARDS.lastIndex) {
+            val (placed, cellIndex) = placeWildcard(next, random)
+            next = placed
+            if (cellIndex != null) events += GameEvent.WildcardSpawned(cellIndex)
+        }
+        return next to events
     }
 
     fun finishOnboarding(state: GameState): Pair<GameState, List<GameEvent>> =

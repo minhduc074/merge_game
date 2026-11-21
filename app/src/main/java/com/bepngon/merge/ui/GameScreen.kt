@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -138,6 +139,7 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 ready = GameEngine.dailyReady(ui.game, now),
                 msUntilReady = (GameEngine.DAILY_COOLDOWN_MS -
                     (now - ui.game.lastDailyClaimEpochMs)).coerceAtLeast(0),
+                nextDay = GameEngine.dailyDayIndex(ui.game, now),
                 onClaim = vm::claimDaily,
                 onClose = vm::closeDaily,
             )
@@ -382,12 +384,22 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 is GameEvent.DailyClaimed -> {
                     SoundManager.play(SoundManager.Sfx.Daily)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    levelBanner = "🎁 +${e.coins}🪙 +${e.energy}⚡"
+                    levelBanner = "🎁 Ngày ${e.day}: +${e.coins}🪙 +${e.energy}⚡" +
+                        if (e.wildcard) " +🪄" else ""
                     scope.launch {
                         kotlinx.coroutines.delay(1800)
                         levelBanner = null
                     }
                     vm.closeDaily()
+                }
+                is GameEvent.ComboBonus -> {
+                    SoundManager.play(SoundManager.Sfx.LevelUp)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    levelBanner = "🔥 COMBO x${e.combo}! +${e.coins}🪙 +${e.xp}XP"
+                    scope.launch {
+                        kotlinx.coroutines.delay(2000)
+                        levelBanner = null
+                    }
                 }
                 GameEvent.DailyNotReady -> {
                     SoundManager.play(SoundManager.Sfx.Error)
@@ -531,21 +543,28 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             )
         }
 
-        BoardGrid(
-            cells = ui.game.cells,
-            lockedCells = ui.game.lockedCells,
-            nowMs = ui.nowMs,
-            drag = drag,
-            hoverCell = hoverCell,
-            cellBounds = cellBounds,
-            onDragStart = onDragStart,
-            onDrag = onDrag,
-            onDragEnd = onDragEnd,
-            onTapGenerator = vm::tapGenerator,
-            onTapInfo = { infoItem = it },
-            onLongPressGen = { genListItem = it },
-            modifier = Modifier.weight(1f),
-        )
+        Box(Modifier.weight(1f)) {
+            BoardGrid(
+                cells = ui.game.cells,
+                lockedCells = ui.game.lockedCells,
+                nowMs = ui.nowMs,
+                drag = drag,
+                hoverCell = hoverCell,
+                cellBounds = cellBounds,
+                onDragStart = onDragStart,
+                onDrag = onDrag,
+                onDragEnd = onDragEnd,
+                onTapGenerator = vm::tapGenerator,
+                onTapInfo = { infoItem = it },
+                onLongPressGen = { genListItem = it },
+                modifier = Modifier,
+            )
+            val comboActive = ui.game.comboCount >= GameEngine.COMBO_MIN &&
+                ui.nowMs < ui.game.comboUntilMs
+            if (comboActive) {
+                ComboFlames(combo = ui.game.comboCount)
+            }
+        }
 
         InventoryBar(
             inventory = ui.game.inventory,
@@ -1508,6 +1527,60 @@ private fun QteBubble(
                 "$label • còn ${leftSec}s",
                 fontSize = 11.sp,
                 color = Cocoa.copy(alpha = 0.7f),
+            )
+        }
+    }
+}
+
+/** Flickering flame ring around the board while an order combo is hot. */
+@Composable
+private fun ComboFlames(combo: Int) {
+    val phase by rememberInfiniteTransition(label = "fire").animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(950)),
+        label = "phase",
+    )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val spots = buildList {
+            for (i in 0 until 7) add(i * 0.9f to Offset(w * (i + 0.5f) / 7, 6f))
+            for (i in 0 until 7) add(i * 1.3f + 0.4f to Offset(w * (i + 0.5f) / 7, h - 34f))
+            for (j in 1 until 4) {
+                add(j * 1.1f + 0.2f to Offset(-14f, h * j / 4.5f))
+                add(j * 1.4f + 0.7f to Offset(w - 20f, h * j / 4.5f))
+            }
+        }
+        spots.forEach { (seed, p) ->
+            val flicker = 0.8f + 0.35f * kotlin.math.sin(phase * 3 + seed)
+            Text(
+                "🔥",
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            p.x.roundToInt(),
+                            (p.y - 5f * kotlin.math.sin(phase * 4 + seed)).roundToInt(),
+                        )
+                    }
+                    .scale(flicker)
+                    .alpha(flicker.coerceAtMost(1f)),
+            )
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-14).dp)
+                .shadow(6.dp, RoundedCornerShape(12.dp))
+                .background(Color(0xFFFF5722), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 3.dp),
+        ) {
+            Text(
+                "🔥 COMBO x$combo",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
             )
         }
     }

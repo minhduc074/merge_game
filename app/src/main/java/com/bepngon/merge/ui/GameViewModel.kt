@@ -130,10 +130,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun finishOnboarding() = applyEngine { GameEngine.finishOnboarding(it) }
 
     fun deliverToOrder(orderId: Long, source: ItemSource, index: Int) =
-        applyEngine { GameEngine.deliverToOrder(it, orderId, source, index) }
+        applyEngine { GameEngine.deliverToOrder(it, orderId, source, index, nowMs()) }
 
     fun autoFulfillOrder(orderId: Long) =
-        applyEngine { GameEngine.autoFulfillOrder(it, orderId) }
+        applyEngine { GameEngine.autoFulfillOrder(it, orderId, nowMs()) }
 
     fun claimQte() = applyEngine { GameEngine.claimQte(it, nowMs()) }
 

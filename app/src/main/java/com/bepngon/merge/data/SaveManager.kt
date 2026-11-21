@@ -63,6 +63,7 @@ private data class SaveData(
     val onboardingDone: Boolean = false,
     val frenzyInMs: Long = 0,
     val nextQteInMs: Long = 0,
+    val dailyStreak: Int = 0,
 )
 
 @Serializable
@@ -122,6 +123,7 @@ class SaveManager(private val context: Context) {
             onboardingDone = state.onboardingDone,
             frenzyInMs = (state.frenzyUntilMs - nowMs).coerceAtLeast(0),
             nextQteInMs = (state.nextQteAtMs - nowMs).coerceAtLeast(0),
+            dailyStreak = state.dailyStreak,
         )
         context.saveStore.edit { it[keyV3] = json.encodeToString(data) }
     }
@@ -175,6 +177,7 @@ class SaveManager(private val context: Context) {
             } else {
                 nowMs + GameEngine.QTE_FIRST_MS
             },
+            dailyStreak = data.dailyStreak,
         )
     }.getOrNull()
 
