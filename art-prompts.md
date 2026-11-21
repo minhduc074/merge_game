@@ -231,4 +231,90 @@ a bakery game, mobile game art, high quality, white background,
 no text, no watermark
 ```
 
-→ Lưu `fx_flame.png` vào `app/src/main/res/drawable-nodpi/` — mình thay thế emoji 🔥 trong `ComboFlames` (giữ animation flicker scale/alpha hiện có).
+---
+
+## 7. Tiệm của bé — phòng, decor, thú cưng, mini game 🏠
+
+### `bg_room` — nền phòng (1080×1400, vùng phòng trong RoomScreen)
+
+Nền phòng trống để decor đặt lên — cần sàn rộng, tường đơn giản:
+
+```
+Cute cartoon empty cafe room interior for a mobile game, warm cream
+walls with a subtle wainscot line, light wooden plank floor taking the
+bottom third, soft warm daylight from an unseen window, a few very
+subtle wall details only (tiny shelf shadow lines), cozy pastel tones,
+hand-drawn style, thick outlines kept minimal, slightly desaturated so
+furniture placed on top will pop, mobile game background, vertical
+phone wallpaper, no characters, no furniture in the middle of the room,
+no text, no watermark
+```
+
+→ Lưu `bg_room.png` → `drawable-nodpi/` — mình wire vào `RoomScreen` thay gradient.
+
+### Decor sprites — PNG trong suốt, đặt theo `decor_*` id
+
+Dán kèm STYLE PREFIX + "isolated, transparent background":
+
+```
+decor_rug      → a cozy round woven rug with warm terracotta and cream
+                 zigzag pattern, seen from a slight top-down angle
+decor_plant    → a small potted monstera plant in a terracotta pot
+decor_painting → a framed flower painting with a light wooden frame,
+                 pastel sunflower art inside
+decor_clock    → a cute round wooden wall clock with a smiling sun face
+decor_lamp     → a red paper lantern with warm glow, hanging tassel
+decor_curtain  → a window with soft cream curtains tied back, morning
+                 light coming through, rounded cartoon window frame
+decor_table    → a small round wooden cafe table with two wooden stools,
+                 a tiny vase on top
+decor_shelf    → a wooden shelf filled with cute cakes and bread loaves
+decor_flowers  → a big pot of blooming sunflowers in a ceramic pot
+decor_counter  → a wooden cafe counter with an espresso machine and
+                 pastry display glass
+decor_oven     → a cute stone bread oven with a small warm fire glow
+                 inside, chimney on top
+decor_piano    → a small upright wooden piano with cream keys, a flower
+                 pot on top
+decor_aquarium → a round fishbowl aquarium with two tiny orange fish,
+                 pebbles and a mini coral
+decor_goldcat  → a golden maneki-neko lucky cat statue waving its paw,
+                 red collar with a gold coin
+```
+
+→ Lưu đúng tên `decor_*.png` vào `drawable-nodpi/` — `DecorRow` + room slots tự nhận.
+
+### Pet sprites — nâng cấp (hiện tái dùng `cust_*.png`)
+
+Các `cust_cat/dog/...` vốn là chibi đứng làm khách — cho phòng nên gen bản
+"pet" nhỏ hơn, pose ngồi/đi, đuôi vẫy. Nếu muốn gen mới:
+
+```
+pet_cat    → a tiny chibi black cat sitting and wagging its tail,
+             curious eyes, pet-size proportions (same style as the
+             customer avatars but smaller and cuter)
+pet_dog    → a tiny chibi golden puppy sitting with tongue out
+pet_rabbit → a tiny chibi cream bunny with long ears, holding a carrot
+pet_frog   → a tiny chibi green frog sitting cross-legged, happy
+pet_pig    → a tiny chibi pink piglet with a curly tail
+pet_fox    → a tiny chibi orange fox with a fluffy tail
+pet_koala  → a tiny chibi koala hugging a eucalyptus leaf
+pet_panda  → a tiny chibi panda sitting and munching bamboo
+```
+
+→ Lưu `pet_*.png` — mình sẽ đổi `PetSprite` dùng `pet_$id` với fallback `cust_$id`.
+Bonus nếu muốn walk cycle: gen sprite sheet 4 frame `pet_<id>_walk_sheet.png`
+(4 poses: stand → step left → stand → step right) như kiểu flame ở §6,
+mình cắt + animate khi thú đi lại.
+
+### `bg_mini` — nền mini game thả trái (optional)
+
+```
+a cute wooden barrel or woven basket container seen from the front,
+empty inside, warm cream background with subtle fruit doodles in the
+corners, cozy cartoon style, vertical phone wallpaper, no text
+```
+
+→ `bg_mini.png` — thay nền phẳng + viền nâu hiện tại của hộp chứa trái.
+
+> 💡 Option B của §6: lưu `fx_flame.png` vào `app/src/main/res/drawable-nodpi/` — mình thay thế emoji 🔥 trong `ComboFlames` (giữ animation flicker scale/alpha hiện có).

@@ -48,6 +48,7 @@ fun TopBar(
     onAchievements: () -> Unit,
     onDaily: () -> Unit,
     onGuide: () -> Unit,
+    onRoom: () -> Unit,
     onCoinBounds: (Rect) -> Unit,
     onStatTap: (String) -> Unit,
 ) {
@@ -144,6 +145,11 @@ fun TopBar(
                 26.dp,
                 emojiSize = 18.sp,
                 modifier = Modifier.clickable(onClick = onGuide).padding(horizontal = 4.dp),
+            )
+            Text(
+                "🏠",
+                fontSize = 20.sp,
+                modifier = Modifier.clickable(onClick = onRoom).padding(horizontal = 4.dp),
             )
         }
     }

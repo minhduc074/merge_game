@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-private const val ENERGY_REGEN_MS = 60_000L
 private const val ORDER_TICK_MS = 1_000L
 
 data class GameUiState(
@@ -28,6 +27,8 @@ data class GameUiState(
     val showAchievements: Boolean = false,
     val showDaily: Boolean = false,
     val showGuide: Boolean = false,
+    val showRoom: Boolean = false,
+    val showMiniGame: Boolean = false,
     val nowMs: Long = 0,
 ) {
     val showOnboarding: Boolean get() = !loading && !game.onboardingDone
@@ -54,7 +55,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             while (true) {
-                delay(ENERGY_REGEN_MS)
+                delay(GameEngine.energyRegenMs(_ui.value.game, nowMs()))
                 update { s ->
                     if (s.energy < GameEngine.ENERGY_CAP) s.copy(energy = s.energy + 1) else s
                 }
@@ -136,6 +137,41 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         applyEngine { GameEngine.autoFulfillOrder(it, orderId, nowMs()) }
 
     fun claimQte() = applyEngine { GameEngine.claimQte(it, nowMs()) }
+
+    fun openRoom() {
+        _ui.value = _ui.value.copy(showRoom = true)
+    }
+
+    fun closeRoom() {
+        _ui.value = _ui.value.copy(showRoom = false)
+    }
+
+    fun buyDecor(decorId: String) = applyEngine { GameEngine.buyDecor(it, decorId) }
+
+    fun adoptPet(petId: String) = applyEngine { GameEngine.adoptPet(it, petId, nowMs()) }
+
+    fun feedPetCoins() = applyEngine { GameEngine.feedPetCoins(it, nowMs()) }
+
+    fun feedPetItem(source: ItemSource, index: Int) =
+        applyEngine { GameEngine.feedPetItem(it, source, index, nowMs()) }
+
+    fun openMiniGame() {
+        val (next, events) = GameEngine.startMiniGame(_ui.value.game, nowMs())
+        if (next !== _ui.value.game) {
+            _ui.value = _ui.value.copy(game = next, showMiniGame = true)
+            viewModelScope.launch { saveManager.save(next, nowMs()) }
+        }
+        events.forEach { _events.tryEmit(it) }
+    }
+
+    fun finishMiniGame(score: Int) {
+        applyEngine { GameEngine.finishMiniGame(it, score, nowMs()) }
+        _ui.value = _ui.value.copy(showMiniGame = false)
+    }
+
+    fun closeMiniGame() {
+        _ui.value = _ui.value.copy(showMiniGame = false)
+    }
 
     fun askRestart() {
         _ui.value = _ui.value.copy(showRestartConfirm = true)

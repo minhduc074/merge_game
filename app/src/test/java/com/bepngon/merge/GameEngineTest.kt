@@ -2,6 +2,7 @@ package com.bepngon.merge
 
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
+import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
@@ -826,5 +827,134 @@ class GameEngineTest {
         }
         // ~20% expected with even odds; fixed seeds keep this deterministic.
         assertTrue(wild < 35)
+    }
+
+    // ---------- cafe room / pet / mini game ----------
+
+    @Test
+    fun `buying decor spends coins and marks owned`() {
+        val s = stateWith(coins = 100)
+        val (next, events) = GameEngine.buyDecor(s, "decor_rug")
+        assertEquals(50, next.coins)
+        assertTrue("decor_rug" in next.decorOwned)
+        assertTrue(events.any { it is GameEvent.DecorBought })
+    }
+
+    @Test
+    fun `decor rejects without coins or level`() {
+        // Not enough coins
+        val poor = stateWith(coins = 10)
+        assertEquals(poor, GameEngine.buyDecor(poor, "decor_rug").first)
+        // Level locked (decor_table needs Lv3)
+        val low = stateWith(coins = 999, level = 1)
+        assertEquals(low, GameEngine.buyDecor(low, "decor_table").first)
+        // Already owned
+        val owned = stateWith(coins = 999).let {
+            GameEngine.buyDecor(it, "decor_rug").first
+        }
+        assertEquals(owned, GameEngine.buyDecor(owned, "decor_rug").first)
+    }
+
+    @Test
+    fun `decor order-coins buff raises order payout`() {
+        // decor_counter grants +3% order coins
+        val s = stateWith(
+            0 to "fruit_1",
+            coins = 999,
+            level = 7,
+            orders = listOf(orderOf("fruit_1")),
+        ).let {
+            var st = it
+            DecorCatalog.ALL.forEach { d ->
+                st = GameEngine.buyDecor(st, d.id).first
+            }
+            st
+        }
+        val expectedPct = DecorCatalog.orderCoinsPct(s.decorOwned)
+        assertTrue(expectedPct > 0)
+        val (next, _) = GameEngine.autoFulfillOrder(s, 1, 0)
+        val base = ItemCatalog["fruit_1"].sellPrice * 5 / 4
+        assertEquals(s.coins + base * (100 + expectedPct) / 100, next.coins)
+    }
+
+    @Test
+    fun `adopting pet costs coins and starts fed`() {
+        val s = stateWith(coins = 250)
+        val (next, events) = GameEngine.adoptPet(s, "cat", 1000)
+        assertEquals(50, next.coins)
+        assertEquals("cat", next.pet?.defId)
+        assertTrue(next.pet!!.isFed(1000))
+        assertTrue(events.any { it is GameEvent.PetAdopted })
+    }
+
+    @Test
+    fun `fed pet buff boosts order coins while hungry pet does not`() {
+        val base = stateWith(
+            0 to "fruit_5", // sellPrice 10 → payout 12, big enough for int rounding
+            orders = listOf(orderOf("fruit_5")),
+        )
+        val withPet = GameEngine.adoptPet(base.copy(coins = 500), "fox", 0).first
+        val fedCoins = GameEngine.autoFulfillOrder(withPet, 1, 1_000).first.coins -
+            withPet.coins
+        // Hungry: same state, buff off → plain payout
+        val hungry = withPet.copy(pet = withPet.pet!!.copy(fedUntilMs = 0))
+        val baseCoins = GameEngine.autoFulfillOrder(hungry, 1, 1_000).first.coins -
+            hungry.coins
+        // fox = +8%
+        assertEquals(baseCoins * 108 / 100, fedCoins)
+        assertTrue(fedCoins > baseCoins)
+    }
+
+    @Test
+    fun `feed pet with item consumes it and feeds`() {
+        var s = stateWith(0 to "fruit_1", coins = 300)
+        s = GameEngine.adoptPet(s, "dog", 0).first
+        val hungry = s.copy(pet = s.pet!!.copy(fedUntilMs = 0))
+        val (fed, events) = GameEngine.feedPetItem(hungry, ItemSource.BOARD, 0, 5000)
+        assertNull(fed.cells[0])
+        assertTrue(fed.pet!!.isFed(5000))
+        assertTrue(events.any { it is GameEvent.PetFed })
+    }
+
+    @Test
+    fun `panda drops a gift item on tick when fed`() {
+        var s = stateWith(coins = 600)
+        s = GameEngine.adoptPet(s, "panda", 0).first
+        s = s.copy(pet = s.pet!!.copy(nextGiftAtMs = 1000))
+        val (next, events) = GameEngine.tick(s, 2000, Random(1))
+        assertTrue(events.any { it is GameEvent.PetGift })
+        assertTrue(next.cells.any { it != null })
+        assertEquals(2000 + GameEngine.PANDA_GIFT_MS, next.pet!!.nextGiftAtMs)
+    }
+
+    @Test
+    fun `mini game consumes a play and pays energy capped`() {
+        var s = stateWith(energy = 90)
+        val (started, _) = GameEngine.startMiniGame(s, 0)
+        assertEquals(2, started.miniPlaysLeft)
+        assertTrue(started.miniRefillAtMs > 0)
+
+        // score 50 -> 20 energy (cap) but energy cap 100 applies
+        val (done, events) = GameEngine.finishMiniGame(started, 50, 1000)
+        assertEquals(100, done.energy)
+        assertEquals(50, done.miniBest)
+        val fin = events.filterIsInstance<GameEvent.MiniGameFinished>().single()
+        assertEquals(20, fin.energy)
+    }
+
+    @Test
+    fun `mini game play refills on tick`() {
+        var s = stateWith().copy(miniPlaysLeft = 0, miniRefillAtMs = 1000)
+        val (next, _) = GameEngine.tick(s, 2000, Random(1))
+        assertEquals(1, next.miniPlaysLeft)
+        assertTrue(next.miniRefillAtMs > 0)
+    }
+
+    @Test
+    fun `mini game start rejected with no plays`() {
+        val s = stateWith().copy(miniPlaysLeft = 0)
+        val (next, events) = GameEngine.startMiniGame(s, 0)
+        assertEquals(s, next)
+        assertTrue(events.any { it is GameEvent.MiniGameNoPlays })
     }
 }

@@ -10,6 +10,7 @@ import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.Order
+import com.bepngon.merge.game.PetState
 import com.bepngon.merge.game.Stats
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -64,6 +65,13 @@ private data class SaveData(
     val frenzyInMs: Long = 0,
     val nextQteInMs: Long = 0,
     val dailyStreak: Int = 0,
+    val decorOwned: List<String> = emptyList(),
+    val petDefId: String? = null,
+    val petFedInMs: Long = 0,
+    val petNextGiftInMs: Long = 0,
+    val miniPlaysLeft: Int = 3,
+    val miniRefillInMs: Long = 0,
+    val miniBest: Int = 0,
 )
 
 @Serializable
@@ -124,6 +132,13 @@ class SaveManager(private val context: Context) {
             frenzyInMs = (state.frenzyUntilMs - nowMs).coerceAtLeast(0),
             nextQteInMs = (state.nextQteAtMs - nowMs).coerceAtLeast(0),
             dailyStreak = state.dailyStreak,
+            decorOwned = state.decorOwned.toList(),
+            petDefId = state.pet?.defId,
+            petFedInMs = ((state.pet?.fedUntilMs ?: 0) - nowMs).coerceAtLeast(0),
+            petNextGiftInMs = ((state.pet?.nextGiftAtMs ?: 0) - nowMs).coerceAtLeast(0),
+            miniPlaysLeft = state.miniPlaysLeft,
+            miniRefillInMs = (state.miniRefillAtMs - nowMs).coerceAtLeast(0),
+            miniBest = state.miniBest,
         )
         context.saveStore.edit { it[keyV3] = json.encodeToString(data) }
     }
@@ -178,6 +193,21 @@ class SaveManager(private val context: Context) {
                 nowMs + GameEngine.QTE_FIRST_MS
             },
             dailyStreak = data.dailyStreak,
+            decorOwned = data.decorOwned.toSet(),
+            pet = data.petDefId?.let {
+                PetState(
+                    defId = it,
+                    fedUntilMs = nowMs + data.petFedInMs,
+                    nextGiftAtMs = if (data.petNextGiftInMs > 0) {
+                        nowMs + data.petNextGiftInMs
+                    } else {
+                        0
+                    },
+                )
+            },
+            miniPlaysLeft = data.miniPlaysLeft,
+            miniRefillAtMs = if (data.miniRefillInMs > 0) nowMs + data.miniRefillInMs else 0,
+            miniBest = data.miniBest,
         )
     }.getOrNull()
 
