@@ -96,16 +96,15 @@ private const val STEP = 1f / 60f     // fixed physics step
 private const val MAX_STEPS = 4       // per frame; backlog beyond this is dropped
 private const val MAX_VY = 2600f      // terminal velocity; also prevents tunneling
 private const val REST = 0.12f        // wall / floor restitution
-private const val REST_BALL = 0.06f   // fruit-fruit restitution
+private const val REST_BALL = 0.25f   // fruit-fruit restitution (subak/Rapier value)
+private const val FRICTION = 0.35f    // tangential impulse cap (subak/Rapier value)
 private const val REST_VEL = 160f     // px/s closing speed below which contacts are
-                                      // inelastic (restitution slop) → no rest jitter
-private const val SLOP = 0.6f         // px of overlap left uncorrected (penetration slop)
-private const val POS_PERCENT = 0.6f  // fraction of overlap corrected per pass
-private const val MAX_SEP = 7f        // px cap per pass — covers one substep's
-                                      // max penetration so overlaps don't linger
-private const val RISE_V = 800f       // px/s upward-speed cap (impulse chains on a
-                                      // packed pile can launch a fruit)
-private const val FRICTION = 0.35f    // tangential impulse cap (Coulomb μ)
+                                      // inelastic → no rest jitter in the pile
+private const val LINEAR_DAMP = 0.2f  // /s exponential damping (Rapier linearDamping)
+private const val RISE_V = 400f       // px/s upward-speed cap — a shove may hop a
+                                      // fruit ~35px, never launch it out of the pile
+private const val WAKE_V = 140f       // px/s normal impact that wakes a settled
+                                      // fruit; gentler nudges leave it asleep
 private const val FLOOR_FRICTION = 6f // /s velocity scrub while touching the floor
 private const val SLEEP_V = 18f       // px/s below which a fruit counts as still
 private const val SLEEP_MS = 0.4f     // s of stillness → asleep (no integrate)
@@ -228,6 +227,9 @@ fun FruitDropGame(
                                     balls.forEach { b ->
                                         if (b.still >= SLEEP_MS) return@forEach
                                         b.vy = min(b.vy + GRAVITY * sdt, MAX_VY)
+                                        // linear damping like Rapier linearDamping
+                                        b.vx *= (1f - LINEAR_DAMP * sdt)
+                                        b.vy *= (1f - LINEAR_DAMP * sdt)
                                         b.x += b.vx * sdt
                                         b.y += b.vy * sdt
                                         if (b.x < WALL_PAD + b.r) {
@@ -290,47 +292,90 @@ fun FruitDropGame(
                                                 } else {
                                                     val nx = dx / d
                                                     val ny = dy / d
-                                                    val ma = a.r * a.r
-                                                    val mc = c.r * c.r
+                                                    // mass ∝ r³ (volume): the biggest fruit
+                                                    // is ~20× a cherry → it gets the small
+                                                    // share of every separation
+                                                    val ma = a.r * a.r * a.r
+                                                    val mc = c.r * c.r * c.r
                                                     val tot = ma + mc
-                                                    // positional split by mass with slop +
-                                                    // partial correction: leave a sliver of
-                                                    // overlap so resting piles stop oscillating
-                                                    val sep = ((minD - d - SLOP)
-                                                        .coerceAtLeast(0f) * POS_PERCENT)
-                                                        .coerceAtMost(MAX_SEP)
-                                                    if (sep > 0f) {
-                                                        a.x -= nx * sep * (mc / tot)
-                                                        a.y -= ny * sep * (mc / tot)
-                                                        c.x += nx * sep * (ma / tot)
-                                                        c.y += ny * sep * (ma / tot)
-                                                        a.still = 0f; c.still = 0f // displaced → wake
-                                                    }
-
-                                                    // impulse along the contact normal; only
-                                                    // hard-enough hits restitute
                                                     val rvx = a.vx - c.vx
                                                     val rvy = a.vy - c.vy
                                                     val vn = rvx * nx + rvy * ny
-                                                    if (vn < 0f) {
-                                                        val e = if (-vn > REST_VEL) REST_BALL else 0f
-                                                        val inv = 1f / ma + 1f / mc
-                                                        val jn = -(1f + e) * vn / inv
-                                                        a.vx -= nx * jn / ma
-                                                        a.vy -= ny * jn / ma
-                                                        c.vx += nx * jn / mc
-                                                        c.vy += ny * jn / mc
-                                                        // friction: tangential impulse capped by μ·jn
-                                                        val tx = -ny
-                                                        val ty = nx
-                                                        val vt = rvx * tx + rvy * ty
-                                                        val jt = (-vt / inv).coerceIn(-jn * FRICTION, jn * FRICTION)
-                                                        a.vx -= tx * jt / ma
-                                                        a.vy -= ty * jt / ma
-                                                        c.vx += tx * jt / mc
-                                                        c.vy += ty * jt / mc
-                                                        // squash along the contact normal; the
-                                                        // lighter fruit deforms more
+                                                    // anti-compression (ref: CryptoDragonLady/
+                                                    // fruit): undo the FULL overlap each pass
+                                                    // so fruits are never left interpenetrating
+                                                    val need = minD - d
+                                                    if (need > 0f) {
+                                                        var wa = mc / tot
+                                                        var wc = ma / tot
+                                                        val aSleep = a.still >= SLEEP_MS
+                                                        val cSleep = c.still >= SLEEP_MS
+                                                        // a settled fruit is a solid anchor —
+                                                        // the mover takes all the separation
+                                                        if (aSleep != cSleep) {
+                                                            wa = if (aSleep) 0f else 1f
+                                                            wc = if (cSleep) 0f else 1f
+                                                        }
+                                                        var ax = -nx * need * wa
+                                                        var ay = -ny * need * wa
+                                                        var cx = nx * need * wc
+                                                        var cy = ny * need * wc
+                                                        // a fruit pinned by wall/floor can't
+                                                        // be pushed through — its share goes
+                                                        // to the other fruit
+                                                        if (a.x + ax - a.r < WALL_PAD ||
+                                                            a.x + ax + a.r > w - WALL_PAD) {
+                                                            cx += ax; ax = 0f
+                                                        }
+                                                        if (c.x + cx - c.r < WALL_PAD ||
+                                                            c.x + cx + c.r > w - WALL_PAD) {
+                                                            ax += cx; cx = 0f
+                                                        }
+                                                        if (a.y + ay + a.r > h - WALL_PAD) {
+                                                            cy += ay; ay = 0f
+                                                        }
+                                                        if (c.y + cy + c.r > h - WALL_PAD) {
+                                                            ay += cy; cy = 0f
+                                                        }
+                                                        a.x += ax; a.y += ay
+                                                        c.x += cx; c.y += cy
+                                                        // impulse along the contact normal —
+                                                        // real momentum exchange like Rapier;
+                                                        // mass ∝ r³ so a small fruit barely
+                                                        // moves a big one
+                                                        if (vn < 0f) {
+                                                            val e = if (-vn > REST_VEL) REST_BALL else 0f
+                                                            val inv = 1f / ma + 1f / mc
+                                                            val jn = -(1f + e) * vn / inv
+                                                            a.vx -= nx * jn / ma
+                                                            a.vy -= ny * jn / ma
+                                                            c.vx += nx * jn / mc
+                                                            c.vy += ny * jn / mc
+                                                            // friction capped by μ·jn
+                                                            val tx = -ny
+                                                            val ty = nx
+                                                            val vt = rvx * tx + rvy * ty
+                                                            val jt = (-vt / inv).coerceIn(-jn * FRICTION, jn * FRICTION)
+                                                            a.vx -= tx * jt / ma
+                                                            a.vy -= ty * jt / ma
+                                                            c.vx += tx * jt / mc
+                                                            c.vy += ty * jt / mc
+                                                            // a sleeper that only got grazed
+                                                            // stays anchored despite impulses
+                                                            if (aSleep && -vn <= WAKE_V) {
+                                                                a.vx = 0f; a.vy = 0f
+                                                            }
+                                                            if (cSleep && -vn <= WAKE_V) {
+                                                                c.vx = 0f; c.vy = 0f
+                                                            }
+                                                        }
+                                                        // only a real hit wakes a settled
+                                                        // fruit — grazes/rolls leave it asleep
+                                                        if (-vn > WAKE_V) {
+                                                            a.still = 0f; c.still = 0f
+                                                        }
+                                                        // squash on hard hits; the lighter
+                                                        // fruit deforms more
                                                         val impact = -vn
                                                         if (impact > 300f) {
                                                             val dep = (impact / 2200f).coerceIn(0.04f, 0.25f)
