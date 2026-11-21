@@ -67,6 +67,7 @@ private class Ball(
     r: Float,
     spawnMs: Long = 0L,
     popStart: Float = 0.2f,
+    val targetR: Float = r,
 ) {
     var id by mutableIntStateOf(id)
     var tier by mutableIntStateOf(tier)
@@ -94,12 +95,16 @@ private const val GRAVITY = 2200f
 private const val STEP = 1f / 60f     // fixed physics step
 private const val MAX_STEPS = 4       // per frame; backlog beyond this is dropped
 private const val MAX_VY = 2600f      // terminal velocity; also prevents tunneling
-private const val REST = 0.25f        // wall / floor restitution
-private const val REST_BALL = 0.2f    // fruit-fruit restitution
-private const val REST_VEL = 140f     // px/s closing speed below which contacts are
+private const val REST = 0.12f        // wall / floor restitution
+private const val REST_BALL = 0.06f   // fruit-fruit restitution
+private const val REST_VEL = 160f     // px/s closing speed below which contacts are
                                       // inelastic (restitution slop) → no rest jitter
 private const val SLOP = 0.6f         // px of overlap left uncorrected (penetration slop)
 private const val POS_PERCENT = 0.6f  // fraction of overlap corrected per pass
+private const val MAX_SEP = 5f        // px cap per pass — deep overlaps ooze out
+                                      // over frames instead of popping sky-high
+private const val RISE_V = 800f       // px/s upward-speed cap (impulse chains on a
+                                      // packed pile can launch a fruit)
 private const val FRICTION = 0.35f    // tangential impulse cap (Coulomb μ)
 private const val FLOOR_FRICTION = 6f // /s velocity scrub while touching the floor
 private const val SLEEP_V = 18f       // px/s below which a fruit counts as still
@@ -226,8 +231,8 @@ fun FruitDropGame(
                                         if (b.x < WALL_PAD + b.r) {
                                             b.x = WALL_PAD + b.r
                                             val impact = abs(b.vx)
-                                            if (impact > 200f) {
-                                                val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
+                                            if (impact > 350f) {
+                                                val dep = (impact / 2200f).coerceIn(0.05f, 0.22f)
                                                 b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
                                             }
                                             b.vx = if (impact > REST_VEL) -b.vx * REST else 0f
@@ -235,8 +240,8 @@ fun FruitDropGame(
                                         if (b.x > w - WALL_PAD - b.r) {
                                             b.x = w - WALL_PAD - b.r
                                             val impact = abs(b.vx)
-                                            if (impact > 200f) {
-                                                val dep = (impact / 1500f).coerceIn(0.08f, 0.35f)
+                                            if (impact > 350f) {
+                                                val dep = (impact / 2200f).coerceIn(0.05f, 0.22f)
                                                 b.squashX = 1f - dep; b.squashY = 1f + dep * 0.8f
                                             }
                                             b.vx = if (impact > REST_VEL) -b.vx * REST else 0f
@@ -244,11 +249,11 @@ fun FruitDropGame(
                                         if (b.y > h - WALL_PAD - b.r) {
                                             b.y = h - WALL_PAD - b.r
                                             val impact = abs(b.vy)
-                                            if (impact > 180f) {
-                                                val dep = (impact / 1500f).coerceIn(0.10f, 0.42f)
+                                            if (impact > 320f) {
+                                                val dep = (impact / 2200f).coerceIn(0.06f, 0.28f)
                                                 b.squashX = 1f + dep * 1.2f; b.squashY = 1f - dep
-                                                if (impact > 650f) {
-                                                    puffs += Puff(b.x, h - WALL_PAD - 2f, b.r * 0.7f, 0.5f)
+                                                if (impact > 850f) {
+                                                    puffs += Puff(b.x, h - WALL_PAD - 2f, b.r * 0.55f, 0.3f)
                                                 }
                                             }
                                             b.vy = if (impact > REST_VEL) -b.vy * REST else 0f
@@ -289,7 +294,9 @@ fun FruitDropGame(
                                                     // positional split by mass with slop +
                                                     // partial correction: leave a sliver of
                                                     // overlap so resting piles stop oscillating
-                                                    val sep = (minD - d - SLOP).coerceAtLeast(0f) * POS_PERCENT
+                                                    val sep = ((minD - d - SLOP)
+                                                        .coerceAtLeast(0f) * POS_PERCENT)
+                                                        .coerceAtMost(MAX_SEP)
                                                     if (sep > 0f) {
                                                         a.x -= nx * sep * (mc / tot)
                                                         a.y -= ny * sep * (mc / tot)
@@ -323,8 +330,8 @@ fun FruitDropGame(
                                                         // squash along the contact normal; the
                                                         // lighter fruit deforms more
                                                         val impact = -vn
-                                                        if (impact > 180f) {
-                                                            val dep = (impact / 1500f).coerceIn(0.06f, 0.4f)
+                                                        if (impact > 300f) {
+                                                            val dep = (impact / 2200f).coerceIn(0.04f, 0.25f)
                                                             val dA = dep * (2f * mc / tot)
                                                             val dC = dep * (2f * ma / tot)
                                                             if (abs(ny) > abs(nx)) {
@@ -341,6 +348,9 @@ fun FruitDropGame(
                                         }
                                         balls.forEach(::clampIn)
                                     }
+                                    // upward-speed cap: impulse chains on a packed
+                                    // pile can launch the last fruit sky-high
+                                    balls.forEach { if (it.vy < -RISE_V) it.vy = -RISE_V }
                                 }
 
                                 // fixed timestep: identical step sizes keep friction and
@@ -364,11 +374,17 @@ fun FruitDropGame(
                                     if (b.still >= SLEEP_MS) { b.vx = 0f; b.vy = 0f }
                                     // squash & stretch: elongate while falling fast, spring back
                                     val flying = b.y < h - WALL_PAD - b.r - 2f && abs(b.vy) > 550f
-                                    val tx = if (flying) 0.85f else 1f
-                                    val ty = if (flying) 1.18f else 1f
+                                    val tx = if (flying) 0.92f else 1f
+                                    val ty = if (flying) 1.10f else 1f
                                     b.squashX += (tx - b.squashX) * min(1f, dt * 9)
                                     b.squashY += (ty - b.squashY) * min(1f, dt * 9)
                                     b.pop += (1f - b.pop) * min(1f, dt * 11)
+                                    // merged fruit grows into its new radius instead
+                                    // of instantly overlapping neighbors — top cause
+                                    // of pop-ups on a full pile
+                                    if (b.r < b.targetR) {
+                                        b.r += (b.targetR - b.r) * min(1f, dt * 10)
+                                    }
                                 }
                                 // wake sleepers whose support disappeared (fruit below merged)
                                 balls.forEach { b ->
@@ -387,21 +403,30 @@ fun FruitDropGame(
                                 // apply merges
                                 if (pendingMerges.isNotEmpty()) {
                                     balls.removeAll { it.id < 0 }
-                                    // a merge removes a support point → wake the pile
-                                    balls.forEach { it.still = 0f }
                                     pendingMerges.forEach { (mx, my, t) ->
+                                        // a merge removes a support point — wake
+                                        // fruits near it, not the whole pile
+                                        val wakeR = unit * 3f
+                                        balls.forEach { b ->
+                                            val dx = b.x - mx
+                                            val dy = b.y - my
+                                            if (dx * dx + dy * dy < wakeR * wakeR) {
+                                                b.still = 0f
+                                            }
+                                        }
                                         val nt = t + 1
-                                        puffs += Puff(mx, my, radiusFor(min(t, TIERS.lastIndex), unit))
+                                        puffs += Puff(mx, my, radiusFor(min(t, TIERS.lastIndex), unit) * 0.8f, 0.6f)
                                         if (nt <= TIERS.lastIndex) {
                                             balls += Ball(
                                                 id = uid++,
                                                 tier = nt,
                                                 x = mx.coerceIn(radiusFor(nt, unit), w - radiusFor(nt, unit)),
                                                 y = my,
-                                                vy = -120f,
-                                                r = radiusFor(nt, unit),
+                                                vy = -80f,
+                                                r = radiusFor(t, unit),
+                                                targetR = radiusFor(nt, unit),
                                                 spawnMs = frame,
-                                                popStart = 1.5f,
+                                                popStart = 1.3f,
                                             )
                                         }
                                         score += (nt + 1) * 2
@@ -459,12 +484,12 @@ fun FruitDropGame(
                 // merge/impact ring bursts
                 puffs.forEach { p ->
                     val t = p.age / 0.4f
-                    val pr = p.r * (1f + t * 2.2f)
+                    val pr = p.r * (1f + t * 1.5f)
                     Box(
                         Modifier
                             .offset { IntOffset((p.x - pr).roundToInt(), (p.y - pr).roundToInt()) }
                             .size(with(density) { (pr * 2).toDp() })
-                            .border(3.dp, Color(0xFFFFB74D).copy(alpha = (1f - t) * p.alpha), CircleShape),
+                            .border(2.dp, Color(0xFFFFB74D).copy(alpha = (1f - t) * p.alpha), CircleShape),
                     )
                 }
 
@@ -516,7 +541,7 @@ fun FruitDropGame(
                                                 r = r0,
                                                 spawnMs = nowT,
                                             )
-                                            puffs += Puff(dropX, r0 + 12f, r0 * 0.8f)
+                                            puffs += Puff(dropX, r0 + 12f, r0 * 0.8f, 0.5f)
                                             previewPop = 0.4f
                                             nextTier = nextDropTier()
                                         }
@@ -542,7 +567,7 @@ fun FruitDropGame(
                                             r = r0,
                                             spawnMs = nowT,
                                         )
-                                        puffs += Puff(dropX, r0 + 12f, r0 * 0.8f)
+                                        puffs += Puff(dropX, r0 + 12f, r0 * 0.8f, 0.5f)
                                         previewPop = 0.4f
                                         nextTier = nextDropTier()
                                     }
