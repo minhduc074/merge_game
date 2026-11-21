@@ -27,7 +27,7 @@ object GameEngine {
         50 to 10, 60 to 12, 75 to 15, 90 to 18, 110 to 22, 140 to 28, 200 to 40,
     )
 
-    const val COMBO_WINDOW_MS = 60_000L
+    const val COMBO_WINDOW_MS = 30_000L
     const val COMBO_MIN = 3
 
     // Quick-time event: a claimable bonus appears for a short window.
