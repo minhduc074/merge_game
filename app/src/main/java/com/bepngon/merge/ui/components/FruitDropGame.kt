@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +56,7 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 
 /** Physics ball: a fruit tier bouncing inside the container.
- *  Position/velocity are Compose state so ball movement triggers re-layout. */
+ *  Position/velocity/deform are Compose state so every frame re-layouts. */
 private class Ball(
     id: Int,
     tier: Int,
@@ -64,6 +66,7 @@ private class Ball(
     vy: Float = 0f,
     r: Float,
     spawnMs: Long = 0L,
+    popStart: Float = 0.2f,
 ) {
     var id by mutableIntStateOf(id)
     var tier by mutableIntStateOf(tier)
@@ -73,6 +76,15 @@ private class Ball(
     var vy by mutableFloatStateOf(vy)
     var r by mutableFloatStateOf(r)
     var spawnMs by mutableLongStateOf(spawnMs)
+    // Juice: spawn/merge pop-in (eases to 1) and squash&stretch deform.
+    var pop by mutableFloatStateOf(popStart)
+    var squashX by mutableFloatStateOf(1f)
+    var squashY by mutableFloatStateOf(1f)
+}
+
+/** Merge/impact ring burst: expands and fades over ~0.4s. */
+private class Puff(val x: Float, val y: Float, val r: Float) {
+    var age by mutableFloatStateOf(0f)
 }
 
 private val TIERS = listOf("fruit_1", "fruit_2", "fruit_3", "fruit_4", "fruit_5", "fruit_6")
@@ -99,7 +111,9 @@ fun FruitDropGame(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val started = remember { System.currentTimeMillis() }
     val balls = remember { mutableStateListOf<Ball>() }
+    val puffs = remember { mutableStateListOf<Puff>() }
     var uid by remember { mutableIntStateOf(0) }
+    var previewPop by remember { mutableFloatStateOf(1f) }
     val pendingMerges = remember { mutableStateListOf<Triple<Float, Float, Int>>() }
 
     Box(
@@ -177,15 +191,34 @@ fun FruitDropGame(
                                     b.vy += GRAVITY * dt
                                     b.x += b.vx * dt
                                     b.y += b.vy * dt
-                                    if (b.x < b.r) { b.x = b.r; b.vx = -b.vx * REST }
-                                    if (b.x > w - b.r) { b.x = w - b.r; b.vx = -b.vx * REST }
+                                    if (b.x < b.r) {
+                                        b.x = b.r
+                                        if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
+                                        b.vx = -b.vx * REST
+                                    }
+                                    if (b.x > w - b.r) {
+                                        b.x = w - b.r
+                                        if (abs(b.vx) > 260f) { b.squashX = 0.72f; b.squashY = 1.22f }
+                                        b.vx = -b.vx * REST
+                                    }
                                     if (b.y > h - b.r) {
                                         b.y = h - b.r
+                                        if (abs(b.vy) > 220f) { b.squashX = 1.35f; b.squashY = 0.6f }
                                         b.vy = -b.vy * REST
                                         b.vx *= 0.9f
                                         if (abs(b.vy) < 40f) b.vy = 0f
                                     }
+                                    // squash & stretch: elongate while falling fast, spring back after.
+                                    val flying = b.y < h - b.r - 2f && abs(b.vy) > 550f
+                                    val tx = if (flying) 0.85f else 1f
+                                    val ty = if (flying) 1.18f else 1f
+                                    b.squashX += (tx - b.squashX) * min(1f, dt * 9)
+                                    b.squashY += (ty - b.squashY) * min(1f, dt * 9)
+                                    b.pop += (1f - b.pop) * min(1f, dt * 11)
                                 }
+                                puffs.forEach { it.age += dt }
+                                puffs.removeAll { it.age > 0.4f }
+                                previewPop += (1f - previewPop) * min(1f, dt * 12)
 
                                 // pairwise collisions
                                 for (i in balls.indices) {
@@ -213,6 +246,11 @@ fun FruitDropGame(
                                                 a.y -= ny * overlap
                                                 c.x += nx * overlap
                                                 c.y += ny * overlap
+                                                val relV = abs(a.vx - c.vx) + abs(a.vy - c.vy)
+                                                if (relV > 320f) {
+                                                    a.squashX = 1.22f; a.squashY = 0.78f
+                                                    c.squashX = 1.22f; c.squashY = 0.78f
+                                                }
                                                 val push = 40f
                                                 a.vx -= nx * push * dt
                                                 a.vy -= ny * push * dt
@@ -228,6 +266,7 @@ fun FruitDropGame(
                                     balls.removeAll { it.id < 0 }
                                     pendingMerges.forEach { (mx, my, t) ->
                                         val nt = t + 1
+                                        puffs += Puff(mx, my, radiusFor(min(t, TIERS.lastIndex), unit))
                                         if (nt <= TIERS.lastIndex) {
                                             balls += Ball(
                                                 id = uid++,
@@ -237,6 +276,7 @@ fun FruitDropGame(
                                                 vy = -120f,
                                                 r = radiusFor(nt, unit),
                                                 spawnMs = frame,
+                                                popStart = 1.5f,
                                             )
                                         }
                                         score += (nt + 1) * 2
@@ -270,7 +310,7 @@ fun FruitDropGame(
                         .background(Color(0x88E53935)),
                 )
 
-                // balls
+                // balls (graphicsLayer last so squash warps the whole circle)
                 val density = LocalDensity.current
                 balls.forEach { b ->
                     Box(
@@ -278,12 +318,29 @@ fun FruitDropGame(
                             .offset { IntOffset((b.x - b.r).roundToInt(), (b.y - b.r).roundToInt()) }
                             .size(with(density) { (b.r * 2).toDp() })
                             .clip(CircleShape)
-                            .background(CellWhite),
+                            .background(CellWhite)
+                            .graphicsLayer {
+                                scaleX = b.pop * b.squashX
+                                scaleY = b.pop * b.squashY
+                                transformOrigin = TransformOrigin(0.5f, 1f)
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         GameArt(TIERS[b.tier], ItemCatalog[TIERS[b.tier]].emoji,
                             with(density) { (b.r * 1.7f).toDp() })
                     }
+                }
+
+                // merge/impact ring bursts
+                puffs.forEach { p ->
+                    val t = p.age / 0.4f
+                    val pr = p.r * (1f + t * 2.2f)
+                    Box(
+                        Modifier
+                            .offset { IntOffset((p.x - pr).roundToInt(), (p.y - pr).roundToInt()) }
+                            .size(with(density) { (pr * 2).toDp() })
+                            .border(3.dp, Color(0xFFFFB74D).copy(alpha = 1f - t), CircleShape),
+                    )
                 }
 
                 // aim guide + next fruit preview
@@ -295,7 +352,11 @@ fun FruitDropGame(
                             .offset { IntOffset((ax - r).roundToInt(), 6) }
                             .size(with(density) { (r * 2).toDp() })
                             .clip(CircleShape)
-                            .background(CellWhite.copy(alpha = 0.8f)),
+                            .background(CellWhite.copy(alpha = 0.8f))
+                            .graphicsLayer {
+                                scaleX = previewPop
+                                scaleY = previewPop
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         GameArt(TIERS[nextTier], ItemCatalog[TIERS[nextTier]].emoji,
@@ -321,14 +382,17 @@ fun FruitDropGame(
                                                 radiusFor(nextTier, unit),
                                                 w - radiusFor(nextTier, unit),
                                             )
+                                            val r0 = radiusFor(nextTier, unit)
                                             balls += Ball(
                                                 id = uid++,
                                                 tier = nextTier,
                                                 x = dropX,
-                                                y = radiusFor(nextTier, unit) + 12f,
-                                                r = radiusFor(nextTier, unit),
+                                                y = r0 + 12f,
+                                                r = r0,
                                                 spawnMs = nowT,
                                             )
+                                            puffs += Puff(dropX, r0 + 12f, r0 * 0.8f)
+                                            previewPop = 0.4f
                                             nextTier = nextDropTier()
                                         }
                                     },
@@ -339,17 +403,22 @@ fun FruitDropGame(
                                     val nowT = System.currentTimeMillis()
                                     if (nowT - lastDrop > DROP_CD_MS) {
                                         lastDrop = nowT
+                                        val dropX = pos.x.coerceIn(
+                                            radiusFor(nextTier, unit),
+                                            w - radiusFor(nextTier, unit),
+                                        )
+                                        val r0 = radiusFor(nextTier, unit)
+                                        aimX = dropX
                                         balls += Ball(
                                             id = uid++,
                                             tier = nextTier,
-                                            x = pos.x.coerceIn(
-                                                radiusFor(nextTier, unit),
-                                                w - radiusFor(nextTier, unit),
-                                            ),
-                                            y = radiusFor(nextTier, unit) + 12f,
-                                            r = radiusFor(nextTier, unit),
+                                            x = dropX,
+                                            y = r0 + 12f,
+                                            r = r0,
                                             spawnMs = nowT,
                                         )
+                                        puffs += Puff(dropX, r0 + 12f, r0 * 0.8f)
+                                        previewPop = 0.4f
                                         nextTier = nextDropTier()
                                     }
                                 }
