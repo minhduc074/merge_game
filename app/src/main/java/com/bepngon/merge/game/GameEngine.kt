@@ -633,7 +633,7 @@ object GameEngine {
         order: Order,
         nowMs: Long = 0,
     ): Pair<GameState, List<GameEvent>> {
-        val coinsGained = order.required.sumOf { ItemCatalog[it].sellPrice } * 3 / 2
+        val coinsGained = order.required.sumOf { ItemCatalog[it].sellPrice } * 5 / 4
         val xpGained = order.required.sumOf { ItemCatalog[it].tier * 2 } + 5
 
         // Combo: consecutive completed orders inside the window build a chain;

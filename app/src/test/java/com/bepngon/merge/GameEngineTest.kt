@@ -732,8 +732,8 @@ class GameEngineTest {
         assertEquals(3, bonus.combo)
         assertEquals(30, bonus.coins)
         assertEquals(12, bonus.xp)
-        // Order pays sellPrice*3/2 for fruit_3 (=7) plus the combo bonus.
-        assertEquals(s.coins + 7 + 30, s3.coins)
+        // Order pays sellPrice*5/4 for fruit_3 (=6) plus the combo bonus.
+        assertEquals(s.coins + 6 + 30, s3.coins)
         assertEquals(3, s3.comboCount)
         assertEquals(10_000 + GameEngine.COMBO_WINDOW_MS, s3.comboUntilMs)
     }

@@ -196,3 +196,39 @@ bg_topbar     → a horizontal strip of warm wooden planks with a cream paper
   code thay emoji ngay.
 - **Nếu AI hay thêm chữ**: thêm `no text, no words, no letters` vào prompt,
   hoặc negative prompt `text, watermark, signature, blurry, realistic`.
+
+---
+
+## 6. Combo fire animation 🔥
+
+### Option A — sprite sheet (animation thật, khuyên dùng)
+
+Gemini gen 1 ảnh nhiều frame, mình cắt từng frame bằng `tools/slice_sheet.py`:
+
+```
+Cute cartoon fire flame animation sprite sheet for a mobile merge game,
+6 frames arranged in a single horizontal row, evenly spaced, each frame
+shows THE SAME flame character at a different flicker pose
+(frame 1 tall stretched flame, frame 2 leaning left, frame 3 short round
+flame, frame 4 leaning right, frame 5 tall again with small sparks,
+frame 6 mid flicker), kawaii hand-drawn style, thick dark-brown outlines,
+soft cel shading, warm orange core fading to red-orange tips with a
+bright yellow inner glow, tiny cartoon sparkle accents, consistent size
+and baseline across all frames, white background, no text, no watermark,
+no letters, mobile game art
+```
+
+→ Lưu `fx_flame_sheet.png` bỏ vào `art_out/`, mình sẽ cắt 6 frame → `fx_flame_0..5.png` và wire vào `ComboFlames` (cycle frames theo thời gian).
+
+### Option B — flame đơn (đơn giản, thay emoji luôn được)
+
+```
+Cute cartoon fire flame game asset, a single kawaii flame character,
+hand-drawn style, thick dark-brown outlines, soft cel shading, warm
+bright yellow core fading to vivid orange and soft red tips, subtle
+inner glow, a few tiny floating spark dots, cozy cartoon look matching
+a bakery game, mobile game art, high quality, white background,
+no text, no watermark
+```
+
+→ Lưu `fx_flame.png` vào `app/src/main/res/drawable-nodpi/` — mình thay thế emoji 🔥 trong `ComboFlames` (giữ animation flicker scale/alpha hiện có).
