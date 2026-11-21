@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.Subak
 import com.bepngon.merge.game.SubakEngine
+import com.bepngon.merge.ui.theme.CellBorder
+import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
 import com.bepngon.merge.ui.theme.CreamBg
 import com.bepngon.merge.ui.theme.Gold
@@ -67,11 +69,12 @@ private val FRUIT_EMOJI = listOf(
 )
 private fun fruitRes(i: Int) = "subak_${Subak.FRUIT_NAMES[i]}"
 
-// subak design tokens
-private val CBorder = Color(0x1A000000)       // hsla(0,0%,0%,0.1)
-private val CBorderLight = Color(0x13000000)  // hsla(0,0%,0%,0.075)
-private val CBgDark = Color(0xFFE6E6E6)       // hsl(0,0%,90%)
-private val CText = Color(0xFF333333)         // hsl(0,0%,20%)
+// board tokens — subak layout, Bếp Ngon palette
+private val CBorder = Color(0x1A6D4C41)       // cocoa 10%
+private val CBorderLight = Color(0x136D4C41)  // cocoa ~7.5%
+private val CText = Color(0xFF6D4C41)         // Cocoa
+private val CDanger = Color(0xFFEF5350)       // WarnRed
+private val CRing = Color(0xFFFFB300)         // Gold
 
 @Composable
 private fun FruitSprite(index: Int, sizeDp: androidx.compose.ui.unit.Dp, alpha: Float = 1f) {
@@ -140,7 +143,8 @@ fun FruitDropGame(
                         Modifier
                             .padding(top = 4.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(CBgDark)
+                            .background(CellWhite)
+                            .border(2.dp, CellBorder, RoundedCornerShape(20.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         FruitSprite(engine.nextFruitIndex, 30.dp)
@@ -155,12 +159,13 @@ fun FruitDropGame(
                     Text(
                         "${engine.score}",
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.ExtraBold,
                         color = CText,
                         modifier = Modifier
                             .padding(top = 4.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, CBorderLight, RoundedCornerShape(10.dp))
+                            .background(CellWhite)
+                            .border(2.dp, CellBorder, RoundedCornerShape(10.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
@@ -169,7 +174,8 @@ fun FruitDropGame(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, CBorder, RoundedCornerShape(20.dp))
+                        .background(CellWhite)
+                        .border(2.dp, CellBorder, RoundedCornerShape(20.dp))
                         .padding(vertical = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -188,13 +194,15 @@ fun FruitDropGame(
                 }
             }
 
-            // gameplay area — subak's .gameplay-area: aspect 2:3, light gray
+            // gameplay area — warm cream tub with a cocoa border, like the
+            // merge board: keeps subak's 2:3 field but in the game's palette
             BoxWithConstraints(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(CBgDark),
+                    .background(CellWhite)
+                    .border(3.dp, Cocoa, RoundedCornerShape(16.dp)),
             ) {
                 val w = constraints.maxWidth.toFloat()
                 val h = constraints.maxHeight.toFloat()
@@ -235,31 +243,42 @@ fun FruitDropGame(
                         )
                         c += step
                     }
-                    drawLine(CBorderLight, Offset(0f, dangerPx), Offset(w, dangerPx), 1f)
+                    // danger line — the game's warn-red, dashed
+                    val dash = 14f
+                    var dx = 0f
+                    while (dx < w) {
+                        drawLine(
+                            CDanger.copy(alpha = 0.65f),
+                            Offset(dx, dangerPx),
+                            Offset(min(dx + dash * 0.6f, w), dangerPx),
+                            strokeWidth = 4f,
+                        )
+                        dx += dash
+                    }
 
-                    // drop guide line at aim x (1px, border-light)
+                    // drop guide line at aim x
                     if (!finished) {
                         val ax = aimX
                         if (ax != null) {
                             drawLine(
-                                CBorderLight,
+                                CBorder,
                                 Offset(ax, 0f),
                                 Offset(ax, h),
-                                strokeWidth = 1f,
+                                strokeWidth = 2f,
                             )
                         }
                     }
 
-                    // merge effects: ring expands r → 5r, fades out over 1s
+                    // merge effects: gold ring expands r → 5r, fades out over 1s
                     engine.mergeEffects.forEach { e ->
                         val t = ((engine.engineMs - e.startMs).toFloat() /
                             Subak.MERGE_EFFECT_MS).coerceIn(0f, 1f)
                         val ease = 1f - (1f - t).let { it * it * it * it * it }
                         drawCircle(
-                            Color.Black.copy(alpha = (1f - ease) * 0.25f),
+                            CRing.copy(alpha = (1f - ease) * 0.55f),
                             radius = m(e.radius) * (1f + ease * 4f),
                             center = Offset(m(e.x), m(e.y)),
-                            style = Stroke(width = 1f),
+                            style = Stroke(width = 3f),
                         )
                     }
 
@@ -268,13 +287,13 @@ fun FruitDropGame(
                         val gf = engine.fruits.firstOrNull { it.id == engine.gameOverFruitId }
                         if (gf != null) {
                             drawCircle(
-                                Color(0xFFFF69B4),
+                                CDanger,
                                 radius = m(gf.radius) + 10f,
                                 center = Offset(
                                     m(gf.body.position.x),
                                     m(gf.body.position.y),
                                 ),
-                                style = Stroke(width = 3f),
+                                style = Stroke(width = 4f),
                             )
                         }
                     }
