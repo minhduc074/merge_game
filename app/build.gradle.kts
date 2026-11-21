@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.jbox2d)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
 }
