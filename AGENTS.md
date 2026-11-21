@@ -42,6 +42,7 @@ proguard rules giữ kotlinx.serialization serializers.
 2. `adb shell monkey -p com.bepngon.merge -c android.intent.category.LAUNCHER 1` → `adb exec-out screencap -p > shot.png` để verify bằng mắt.
 3. Hiệu ứng khó trigger (combo x3, lên cấp...) → tạm patch điều kiện hiển thị, chụp màn hình, rồi revert + build lại bản sạch trước khi báo xong.
 4. Xoá file screenshot/preview tạm sau khi verify xong.
+5. Sau mỗi lần fix xong + verify OK thì commit luôn (user yêu cầu).
 
 ### adb
 
