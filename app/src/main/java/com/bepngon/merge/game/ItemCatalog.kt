@@ -174,4 +174,19 @@ object ItemCatalog {
     /** The lower-tier def that merges into [defId], null for tier-1 items. */
     fun previousOf(defId: String): ItemDef? =
         defs.values.firstOrNull { it.mergeResult == defId }
+
+    /** Full merge chain containing [defId], ordered tier-1 -> max. */
+    fun chainOf(defId: String): List<ItemDef> {
+        var first = get(defId)
+        while (true) {
+            first = previousOf(first.id) ?: break
+        }
+        val out = mutableListOf<ItemDef>()
+        var cur: ItemDef? = first
+        while (cur != null) {
+            out += cur
+            cur = cur.mergeResult?.let { get(it) }
+        }
+        return out
+    }
 }

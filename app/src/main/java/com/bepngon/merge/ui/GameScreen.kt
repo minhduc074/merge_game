@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -199,6 +200,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
     var floaterId by remember { mutableStateOf(0L) }
     var levelBanner by remember { mutableStateOf<String?>(null) }
     var infoItem by remember { mutableStateOf<BoardItem?>(null) }
+    var genListItem by remember { mutableStateOf<BoardItem?>(null) }
     var coinBounds by remember { mutableStateOf<Rect?>(null) }
     var flies by remember { mutableStateOf(listOf<FlyAnim>()) }
     var flyId by remember { mutableStateOf(0L) }
@@ -456,6 +458,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDragEnd = onDragEnd,
             onTapGenerator = vm::tapGenerator,
             onTapInfo = { infoItem = it },
+            onLongPressGen = { genListItem = it },
             modifier = Modifier.weight(1f),
         )
 
@@ -471,6 +474,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onDrag = onDrag,
             onDragEnd = onDragEnd,
             onTapInfo = { infoItem = it },
+            onLongPressGen = { genListItem = it },
             onOpenBag = vm::openBag,
         )
     }
@@ -498,6 +502,23 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 item = item,
                 nowMs = ui.nowMs,
                 onDismiss = { infoItem = null },
+            )
+        }
+    }
+    genListItem?.let { item ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { genListItem = null },
+            )
+            GenSpawnListCard(
+                item = item,
+                nowMs = ui.nowMs,
+                onDismiss = { genListItem = null },
             )
         }
     }
@@ -555,6 +576,7 @@ private fun BoardGrid(
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
     onTapInfo: (BoardItem) -> Unit,
+    onLongPressGen: (BoardItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -597,6 +619,7 @@ private fun BoardGrid(
                         onDragEnd = onDragEnd,
                         onTapGenerator = onTapGenerator,
                         onTapInfo = onTapInfo,
+                        onLongPressGen = onLongPressGen,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -621,6 +644,7 @@ private fun CellBox(
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
     onTapInfo: (BoardItem) -> Unit,
+    onLongPressGen: (BoardItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
@@ -663,6 +687,7 @@ private fun CellBox(
                 onDragEnd = onDragEnd,
                 onTapGenerator = onTapGenerator,
                 onTapInfo = onTapInfo,
+                onLongPressGen = onLongPressGen,
             )
         }
     }
@@ -681,6 +706,7 @@ private fun InventoryBar(
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onTapInfo: (BoardItem) -> Unit,
+    onLongPressGen: (BoardItem) -> Unit,
     onOpenBag: () -> Unit,
 ) {
     Row(
@@ -757,6 +783,7 @@ private fun InventoryBar(
                         onDragEnd = onDragEnd,
                         onTapGenerator = {},
                         onTapInfo = onTapInfo,
+                        onLongPressGen = onLongPressGen,
                     )
                 }
             }
@@ -777,6 +804,7 @@ private fun ItemTile(
     onDragEnd: () -> Unit,
     onTapGenerator: (Int) -> Unit,
     onTapInfo: (BoardItem) -> Unit,
+    onLongPressGen: (BoardItem) -> Unit,
 ) {
     val def = ItemCatalog[item.defId]
     val scope = rememberCoroutineScope()
@@ -788,6 +816,7 @@ private fun ItemTile(
     val currentOnDragEnd by androidx.compose.runtime.rememberUpdatedState(onDragEnd)
     val currentBounds by androidx.compose.runtime.rememberUpdatedState(cellBoundsInWindow)
     val currentOnTapInfo by androidx.compose.runtime.rememberUpdatedState(onTapInfo)
+    val currentOnLongPressGen by androidx.compose.runtime.rememberUpdatedState(onLongPressGen)
     val currentItem by androidx.compose.runtime.rememberUpdatedState(item)
     val currentNowMs by androidx.compose.runtime.rememberUpdatedState(nowMs)
 
@@ -807,7 +836,14 @@ private fun ItemTile(
             }
             .scale(scale.value * (0.6f + 0.4f * pop.value))
             .pointerInput(item.uid, source, item.frozen) {
-                detectTapGestures {
+                detectTapGestures(
+                    onLongPress = {
+                        val it = currentItem
+                        if (ItemCatalog[it.defId].isGenerator) {
+                            currentOnLongPressGen(it)
+                        }
+                    },
+                ) {
                     val it = currentItem
                     val d = ItemCatalog[it.defId]
                     val dep = d.isGenerator &&
@@ -1147,6 +1183,117 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                 fontSize = 12.sp,
                 color = Cocoa.copy(alpha = 0.8f),
             )
+        }
+    }
+}
+
+@Composable
+private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
+    val def = ItemCatalog[item.defId]
+    LaunchedEffect(item.uid) {
+        kotlinx.coroutines.delay(10_000)
+        onDismiss()
+    }
+
+    Column(
+        Modifier
+            .padding(top = 150.dp, start = 24.dp, end = 24.dp)
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(16.dp))
+            .background(CellWhite, RoundedCornerShape(16.dp))
+            .border(2.dp, Color(0xFFE8D5B7), RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {}
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .background(Color(def.family.tint), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                GameArt(item.defId, def.emoji, 44.dp, emojiSize = 30.sp)
+            }
+            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                Text(def.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Cocoa)
+                val cooling = item.cooldownUntilMs > nowMs
+                Text(
+                    if (cooling) {
+                        "💤 Hồi sau ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s"
+                    } else {
+                        "🔋 Lượt: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}"
+                    },
+                    fontSize = 12.sp,
+                    color = if (cooling) WarnRed else MergeGreen,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                "✕",
+                fontSize = 18.sp,
+                color = Cocoa.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(6.dp),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text("🎯 Có thể sinh ra:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
+
+        val total = def.spawnTable.sumOf { it.weight }
+        def.spawnTable.forEach { entry ->
+            val sd = ItemCatalog[entry.itemId]
+            Row(
+                Modifier.padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .background(Color(sd.family.tint), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GameArt(sd.id, sd.emoji, 30.dp, emojiSize = 18.sp)
+                }
+                Column(Modifier.padding(start = 8.dp).weight(1f)) {
+                    Text(sd.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Cocoa)
+                    Text("Tier ${sd.tier}", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.6f))
+                }
+                Text(
+                    "${entry.weight * 100 / total}%",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MergeGreen,
+                )
+            }
+        }
+
+        val chain = def.spawnTable.firstOrNull()?.let { ItemCatalog.chainOf(it.itemId) }
+        if (chain != null && chain.size > 1) {
+            Spacer(Modifier.height(10.dp))
+            Text("🔗 Chuỗi merge:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
+            Row(
+                Modifier
+                    .padding(top = 4.dp)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
+                chain.forEach { cd ->
+                    Box(
+                        Modifier
+                            .padding(end = 4.dp)
+                            .size(30.dp)
+                            .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GameArt(cd.id, cd.emoji, 24.dp, emojiSize = 15.sp)
+                    }
+                }
+            }
         }
     }
 }
