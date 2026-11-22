@@ -72,6 +72,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 3, orders hỏi với `RARE_ORDER_WEIGHT`.
 - `GameEngine` là pure functions: `(GameState, args) -> Pair<GameState, List<GameEvent>>`; UI animate dựa trên `GameEvent` qua SharedFlow.
 - Callbacks truyền vào `pointerInput` phải đi qua `rememberUpdatedState` — pointerInput coroutine capture lambda cũ, không tự refresh.
+- UI đọc `var` thường của engine (`SubakEngine.score`/`nextFruitIndex`...) KHÔNG tự recompose → phải đọc `tick` trong CÙNG lambda innermost chứa dòng đọc đó (lambda memoization skip cả scope cha — đặt `tick` ở cha không đủ). Ví dụ: `tick` trong pill NEXT/Column SCORE của `FruitDropGame`.
 - Tọa độ drag/drop tính trong window coords qua `boundsInWindow()` của từng cell. `PointerInputChange.position` trong `detectDragGestures.onDrag` là LOCAL coords của tile — phải cộng `bounds.topLeft` trước khi hit-test.
 - Orders/XP/inventory sống trong `GameEngine` (order spawn theo timer trong ViewModel, reward level-up map ở `rewardForLevel`). Drag phân biệt nguồn bằng `ItemSource` (BOARD/INVENTORY) trong `DragState`.
 
