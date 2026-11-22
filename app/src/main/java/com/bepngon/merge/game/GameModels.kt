@@ -5,6 +5,8 @@ data class BoardItem(
     val defId: String,
     val charges: Int = -1,
     val cooldownUntilMs: Long = 0,
+    /** Deadline for the next +1 charge while a generator is partially used. */
+    val rechargeAtMs: Long = 0,
     val frozen: Boolean = false,
 ) {
     val isCoolingDown: Boolean get() = cooldownUntilMs > 0

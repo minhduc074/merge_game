@@ -1372,7 +1372,12 @@ private fun ItemInfoCard(
                 if (cooling) {
                     "💤 Hết lượt — hồi sau ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s"
                 } else {
-                    "🔋 Lượt sinh: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}"
+                    "🔋 Lượt sinh: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}" +
+                        if (item.rechargeAtMs > nowMs) {
+                            " • +1 sau ${(item.rechargeAtMs - nowMs) / 1000 + 1}s"
+                        } else {
+                            ""
+                        }
                 },
                 fontSize = 12.sp,
                 color = if (cooling) WarnRed else MergeGreen,
@@ -1543,7 +1548,12 @@ private fun GenSpawnListCard(
                     if (cooling) {
                         "💤 Hồi sau ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s"
                     } else {
-                        "🔋 Lượt: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}"
+                        "🔋 Lượt: ${if (item.charges < 0) def.maxCharges else item.charges}/${def.maxCharges}" +
+                            if (item.rechargeAtMs > nowMs) {
+                                " • +1 sau ${(item.rechargeAtMs - nowMs) / 1000 + 1}s"
+                            } else {
+                                ""
+                            }
                     },
                     fontSize = 12.sp,
                     color = if (cooling) WarnRed else MergeGreen,

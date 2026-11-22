@@ -154,6 +154,70 @@ class GameEngineTest {
     }
 
     @Test
+    fun `partially used generator regains one charge per regen interval`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        repeat(2) {
+            s = GameEngine.tapGenerator(s, 0, 1000).first
+            // free spawned items so board never fills
+            val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
+            s = s.copy(cells = cells)
+        }
+        val gen = s.cells[0]!!
+        assertEquals(6, gen.charges)
+        assertEquals(1000 + GameEngine.GEN_REGEN_MS, gen.rechargeAtMs)
+
+        // first interval -> +1, next interval armed, not full yet
+        val (t1, ev1) = GameEngine.tick(s, 1000 + GameEngine.GEN_REGEN_MS)
+        assertEquals(7, t1.cells[0]?.charges)
+        assertEquals(1000 + 2 * GameEngine.GEN_REGEN_MS, t1.cells[0]?.rechargeAtMs)
+        assertTrue(ev1.none { it is GameEvent.GeneratorReady })
+
+        // second interval -> full, timer cleared, ready event
+        val (t2, ev2) = GameEngine.tick(t1, 1000 + 2 * GameEngine.GEN_REGEN_MS)
+        assertEquals(8, t2.cells[0]?.charges)
+        assertEquals(0L, t2.cells[0]?.rechargeAtMs)
+        assertTrue(ev2.any { it is GameEvent.GeneratorReady })
+    }
+
+    @Test
+    fun `gen regen catches up on multiple elapsed intervals`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        repeat(3) {
+            s = GameEngine.tapGenerator(s, 0, 1000).first
+            val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
+            s = s.copy(cells = cells)
+        }
+        // 5/8 charged, deadline long past -> +3 to full in a single tick
+        val (t, _) = GameEngine.tick(s, 1000 + 4 * GameEngine.GEN_REGEN_MS)
+        assertEquals(8, t.cells[0]?.charges)
+        assertEquals(0L, t.cells[0]?.rechargeAtMs)
+    }
+
+    @Test
+    fun `drained generator clears regen timer in favor of cooldown`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        repeat(8) {
+            s = GameEngine.tapGenerator(s, 0, 1000).first
+            val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
+            s = s.copy(cells = cells)
+        }
+        val gen = s.cells[0]!!
+        assertEquals(0, gen.charges)
+        assertEquals(0L, gen.rechargeAtMs)
+        assertEquals(1000 + GameEngine.GEN_COOLDOWN_MS, gen.cooldownUntilMs)
+    }
+
+    @Test
+    fun `old save with partial charges arms the regen timer on tick`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        s = s.copy(cells = s.cells.map { it?.copy(charges = 4) })
+        val (t, ev) = GameEngine.tick(s, 50_000)
+        assertEquals(4, t.cells[0]?.charges)
+        assertEquals(50_000 + GameEngine.GEN_REGEN_MS, t.cells[0]?.rechargeAtMs)
+        assertTrue(ev.none { it is GameEvent.GeneratorReady })
+    }
+
+    @Test
     fun `generator tap with no energy emits NoEnergy`() {
         val s = stateWith(0 to "gen_fruit_1", energy = 0)
         val (_, events) = GameEngine.tapGenerator(s, 0, 1000)

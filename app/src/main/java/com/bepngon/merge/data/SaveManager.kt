@@ -34,6 +34,7 @@ private data class CellData(
     val defId: String,
     val charges: Int = -1,
     val cooldownInMs: Long = 0,
+    val rechargeInMs: Long = 0,
     val frozen: Boolean = false,
 )
 
@@ -179,6 +180,7 @@ class SaveManager(private val context: Context) {
                         defId = item.defId,
                         charges = item.charges,
                         cooldownInMs = (item.cooldownUntilMs - nowMs).coerceAtLeast(0),
+                        rechargeInMs = (item.rechargeAtMs - nowMs).coerceAtLeast(0),
                         frozen = item.frozen,
                     )
                 }
@@ -250,6 +252,7 @@ class SaveManager(private val context: Context) {
                         defId = it.defId,
                         charges = it.charges,
                         cooldownUntilMs = if (it.cooldownInMs > 0) nowMs + it.cooldownInMs else 0,
+                        rechargeAtMs = if (it.rechargeInMs > 0) nowMs + it.rechargeInMs else 0,
                         frozen = it.frozen,
                     )
                 }

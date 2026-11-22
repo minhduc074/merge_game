@@ -20,6 +20,9 @@ object GameEngine {
     const val MAX_ORDER_TIER = 8
     const val RARE_ORDER_WEIGHT = 2
     const val GEN_COOLDOWN_MS = 45_000L
+    /** Partially-used generators regain +1 charge per interval; draining to
+     *  zero triggers the full [GEN_COOLDOWN_MS] reset instead. */
+    const val GEN_REGEN_MS = 120_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
@@ -351,7 +354,7 @@ object GameEngine {
         // Gen that finished cooling (or old save without charges) is fully charged.
         var genItem = item
         if (item.cooldownUntilMs in 1..nowMs || item.charges < 0) {
-            genItem = item.copy(charges = def.maxCharges, cooldownUntilMs = 0)
+            genItem = item.copy(charges = def.maxCharges, cooldownUntilMs = 0, rechargeAtMs = 0)
         }
 
         val adjacent = empty.filter { isAdjacent(it, cellIndex) }
@@ -364,6 +367,11 @@ object GameEngine {
             charges = charges,
             cooldownUntilMs =
                 if (!frenzy && charges == 0) nowMs + GEN_COOLDOWN_MS else 0,
+            rechargeAtMs = when {
+                frenzy -> genItem.rechargeAtMs
+                charges in 1 until def.maxCharges -> nowMs + GEN_REGEN_MS
+                else -> 0
+            },
         )
 
         val cells = state.cells.toMutableList()
@@ -387,18 +395,36 @@ object GameEngine {
         var next = state
 
         val cells = next.cells.toMutableList()
-        var recharged = false
+        var cellsChanged = false
         cells.forEachIndexed { i, it ->
-            if (it != null && it.cooldownUntilMs in 1..nowMs) {
-                cells[i] = it.copy(
-                    charges = ItemCatalog[it.defId].maxCharges,
-                    cooldownUntilMs = 0,
-                )
-                events += GameEvent.GeneratorReady(i)
-                recharged = true
+            if (it == null || !ItemCatalog[it.defId].isGenerator) return@forEachIndexed
+            val max = ItemCatalog[it.defId].maxCharges
+            val cur = when {
+                // Depleted gen finished cooling -> back to full (unchanged).
+                it.cooldownUntilMs in 1..nowMs ->
+                    it.copy(charges = max, cooldownUntilMs = 0, rechargeAtMs = 0)
+                // Partially used, timer disarmed (old save) -> start regen.
+                it.charges in 1 until max && it.rechargeAtMs <= 0 ->
+                    it.copy(rechargeAtMs = nowMs + GEN_REGEN_MS)
+                // Partially used -> +1 per interval, catching up if behind.
+                it.charges in 1 until max && it.rechargeAtMs <= nowMs -> {
+                    var ch = it.charges
+                    var at = it.rechargeAtMs
+                    while (at <= nowMs && ch < max) {
+                        ch += 1
+                        at += GEN_REGEN_MS
+                    }
+                    it.copy(charges = ch, rechargeAtMs = if (ch < max) at else 0)
+                }
+                else -> it
+            }
+            if (cur != it) {
+                cells[i] = cur
+                cellsChanged = true
+                if (cur.charges == max) events += GameEvent.GeneratorReady(i)
             }
         }
-        if (recharged) next = next.copy(cells = cells)
+        if (cellsChanged) next = next.copy(cells = cells)
 
         val (afterOrders, orderEvents) = maybeSpawnOrder(next, nowMs, random)
         val (afterQte, qteEvents) = qteStep(afterOrders, nowMs, random)
@@ -476,6 +502,7 @@ object GameEngine {
                         cells[i] = it.copy(
                             charges = ItemCatalog[it.defId].maxCharges,
                             cooldownUntilMs = 0,
+                            rechargeAtMs = 0,
                         )
                     }
                 }
@@ -973,6 +1000,7 @@ object GameEngine {
             defId = nextId,
             charges = ItemCatalog[nextId].maxCharges,
             cooldownUntilMs = 0,
+            rechargeAtMs = 0,
         )
         val next = when {
             cellIdx >= 0 -> state.copy(
