@@ -86,8 +86,26 @@ class GameEngineTest {
     }
 
     @Test
-    fun `drag onto different item is rejected`() {
+    fun `drag onto different item swaps them`() {
         val s = stateWith(0 to "fruit_1", 1 to "fruit_2")
+        val (next, events) = GameEngine.moveOrMerge(s, 0, 1)
+        assertEquals("fruit_2", next.cells[0]?.defId)
+        assertEquals("fruit_1", next.cells[1]?.defId)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun `inventory item swaps with different board item`() {
+        val s = stateWith(5 to "fruit_2", inventory = listOf("fruit_1", null, null, null, null, null, null, null))
+        val (next, events) = GameEngine.inventoryToBoard(s, 0, 5)
+        assertEquals("fruit_1", next.cells[5]?.defId)
+        assertEquals("fruit_2", next.inventory[0]?.defId)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun `different items do not swap with frozen`() {
+        val s = stateWith(0 to "fruit_1", 1 to "fruit_2", frozenCells = setOf(1))
         val (next, events) = GameEngine.moveOrMerge(s, 0, 1)
         assertEquals("fruit_1", next.cells[0]?.defId)
         assertEquals("fruit_2", next.cells[1]?.defId)
@@ -98,7 +116,7 @@ class GameEngineTest {
     fun `max tier items cannot merge`() {
         val s = stateWith(0 to "fruit_11", 1 to "fruit_11")
         val (_, events) = GameEngine.moveOrMerge(s, 0, 1)
-        assertEquals(listOf(GameEvent.InvalidDrop), events)
+        assertTrue(events.none { it is GameEvent.Merged })
     }
 
     @Test

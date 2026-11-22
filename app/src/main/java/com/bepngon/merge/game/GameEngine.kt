@@ -182,7 +182,12 @@ object GameEngine {
             canMerge(dragged, target)
         }
         if (!okToMerge) {
-            return state to listOf(GameEvent.InvalidDrop)
+            // Different items swap places (frozen items stay put).
+            if (target.frozen) return state to listOf(GameEvent.InvalidDrop)
+            val cells = state.cells.toMutableList()
+            cells[from] = target
+            cells[to] = dragged
+            return state.copy(cells = cells) to emptyList()
         }
 
         return doMerge(state, dragged, target, sourceIndex = from, targetIndex = to)
@@ -258,7 +263,13 @@ object GameEngine {
             canMerge(dragged, target)
         }
         if (!okToMerge) {
-            return state to listOf(GameEvent.InvalidDrop)
+            // Different items swap places (frozen items stay put).
+            if (target.frozen) return state to listOf(GameEvent.InvalidDrop)
+            val cells = state.cells.toMutableList()
+            val inventory = state.inventory.toMutableList()
+            cells[to] = dragged
+            inventory[slot] = target
+            return state.copy(cells = cells, inventory = inventory) to emptyList()
         }
         return doMerge(state, dragged, target, sourceIndex = null, targetIndex = to, sourceInventorySlot = slot)
     }
