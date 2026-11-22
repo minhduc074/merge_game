@@ -554,11 +554,23 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
                     pushFloater("Không đủ vàng! 🪙", Offset(300f, 1400f), WarnRed)
                 }
+                GameEvent.NoEnergy -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    pushFloater("Hết năng lượng! ⚡", Offset(300f, 1400f), WarnRed)
+                }
+                GameEvent.BoardFull -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    pushFloater("Bàn đầy rồi!", Offset(300f, 1400f), WarnRed)
+                }
+                GameEvent.InventoryFull -> {
+                    SoundManager.play(SoundManager.Sfx.Error)
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    pushFloater("Kho đầy rồi!", Offset(300f, 1400f), WarnRed)
+                }
                 GameEvent.GeneratorEmpty,
                 GameEvent.DeliverRejected,
-                GameEvent.NoEnergy,
-                GameEvent.BoardFull,
-                GameEvent.InventoryFull,
                 GameEvent.InvalidDrop -> {
                     SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
