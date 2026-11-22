@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -175,6 +176,13 @@ private fun StatChip(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GameArt(resName, emoji, 22.dp, emojiSize = 15.sp)
-        Text(value, color = Cocoa, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(
+            value,
+            color = Cocoa,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 15.sp),
+        )
     }
 }
