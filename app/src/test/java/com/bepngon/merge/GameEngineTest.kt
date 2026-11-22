@@ -906,14 +906,16 @@ class GameEngineTest {
     }
 
     @Test
-    fun `feed pet with item consumes it and feeds`() {
-        var s = stateWith(0 to "fruit_1", coins = 300)
+    fun `feed pet with coins spends coins and feeds`() {
+        var s = stateWith(coins = 600)
         s = GameEngine.adoptPet(s, "dog", 0).first
         val hungry = s.copy(pet = s.pet!!.copy(fedUntilMs = 0))
-        val (fed, events) = GameEngine.feedPetItem(hungry, ItemSource.BOARD, 0, 5000)
-        assertNull(fed.cells[0])
+        val (fed, events) = GameEngine.feedPetCoins(hungry, 5000)
+        assertEquals(hungry.coins - GameEngine.PET_FEED_COINS, fed.coins)
         assertTrue(fed.pet!!.isFed(5000))
         assertTrue(events.any { it is GameEvent.PetFed })
+        // board items are untouched — pets only eat bought food
+        assertEquals(hungry.cells, fed.cells)
     }
 
     @Test

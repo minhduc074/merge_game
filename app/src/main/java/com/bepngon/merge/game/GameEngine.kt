@@ -909,36 +909,6 @@ object GameEngine {
         ) to listOf(GameEvent.PetFed(nowMs + feedMs(state, nowMs)))
     }
 
-    /** Feed any board/inventory item to the pet; the item is consumed. */
-    fun feedPetItem(
-        state: GameState,
-        source: ItemSource,
-        index: Int,
-        nowMs: Long,
-    ): Pair<GameState, List<GameEvent>> {
-        val pet = state.pet ?: return state to emptyList()
-        val cells = state.cells.toMutableList()
-        val inventory = state.inventory.toMutableList()
-        when (source) {
-            ItemSource.BOARD -> {
-                if (cells.getOrNull(index) == null) return state to emptyList()
-                cells[index] = null
-            }
-            ItemSource.INVENTORY -> {
-                if (index >= state.inventoryCap || inventory.getOrNull(index) == null) {
-                    return state to emptyList()
-                }
-                inventory[index] = null
-            }
-        }
-        val fedUntil = nowMs + feedMs(state, nowMs)
-        return state.copy(
-            cells = cells,
-            inventory = inventory,
-            pet = pet.copy(fedUntilMs = fedUntil),
-        ) to listOf(GameEvent.PetFed(fedUntil))
-    }
-
     private fun petStep(
         state: GameState,
         nowMs: Long,

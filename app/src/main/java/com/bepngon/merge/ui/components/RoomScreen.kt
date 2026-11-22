@@ -68,7 +68,7 @@ fun RoomScreen(
     onBuyDecor: (String) -> Unit,
     onAdoptPet: (String) -> Unit,
     onFeedPetCoins: () -> Unit,
-    onFeedPetItem: (ItemSource, Int) -> Unit,
+
     onOpenMiniGame: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -169,7 +169,7 @@ fun RoomScreen(
                     nowMs = nowMs,
                     onAdoptPet = onAdoptPet,
                     onFeedPetCoins = onFeedPetCoins,
-                    onFeedPetItem = onFeedPetItem,
+
                 )
                 RoomPanel.NONE -> {}
             }
@@ -293,7 +293,7 @@ private fun PetPanel(
     nowMs: Long,
     onAdoptPet: (String) -> Unit,
     onFeedPetCoins: () -> Unit,
-    onFeedPetItem: (ItemSource, Int) -> Unit,
+
 ) {
     Column(
         Modifier
@@ -334,24 +334,7 @@ private fun PetPanel(
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip("🍽️ Cho ăn 🪙${GameEngine.PET_FEED_COINS}") { onFeedPetCoins() }
-                Text(
-                    "hoặc bấm món bên dưới để cho ăn",
-                    fontSize = 11.sp,
-                    color = Cocoa,
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                )
-            }
-            // Item picker: any item on board or in the bag can be fed to the pet.
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                game.cells.forEachIndexed { i, it ->
-                    if (it != null) FeedIcon(it.defId) { onFeedPetItem(ItemSource.BOARD, i) }
-                }
-                game.inventory.forEachIndexed { i, it ->
-                    if (it != null) FeedIcon(it.defId) { onFeedPetItem(ItemSource.INVENTORY, i) }
-                }
-            }
+            Chip("🍽️ Mua đồ ăn 🪙${GameEngine.PET_FEED_COINS}") { onFeedPetCoins() }
             Text(
                 "🔄 Đổi thú khác:",
                 fontSize = 12.sp,
@@ -362,22 +345,6 @@ private fun PetPanel(
             PetCatalog.ALL.filter { it.id != pet.defId }
                 .forEach { p -> PetRow(p, game, onAdoptPet) }
         }
-    }
-}
-
-@Composable
-private fun FeedIcon(defId: String, onClick: () -> Unit) {
-    val def = ItemCatalog[defId]
-    Box(
-        Modifier
-            .padding(3.dp)
-            .size(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(CreamBg)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        GameArt(defId, def.emoji, 30.dp)
     }
 }
 

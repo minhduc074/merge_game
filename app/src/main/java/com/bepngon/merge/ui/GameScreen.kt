@@ -145,7 +145,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 onBuyDecor = vm::buyDecor,
                 onAdoptPet = vm::adoptPet,
                 onFeedPetCoins = vm::feedPetCoins,
-                onFeedPetItem = vm::feedPetItem,
                 onOpenMiniGame = vm::openMiniGame,
                 onClose = vm::closeRoom,
             )
