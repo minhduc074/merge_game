@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -143,15 +147,15 @@ private fun OrderCard(
                             .padding(2.dp),
                     )
                     if (done) {
-                        Text(
-                            "✓",
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
                             modifier = Modifier
-                                .align(Alignment.BottomEnd)
+                                .align(Alignment.TopEnd)
+                                .size(12.dp)
                                 .background(MergeGreen, CircleShape)
-                                .padding(horizontal = 3.dp, vertical = 1.dp),
+                                .padding(1.5.dp),
                         )
                     }
                 }
