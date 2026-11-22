@@ -81,6 +81,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
+import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
@@ -91,6 +92,7 @@ import com.bepngon.merge.sound.SoundManager
 import com.bepngon.merge.ui.components.AchievementsScreen
 import com.bepngon.merge.ui.components.BagScreen
 import com.bepngon.merge.ui.components.DailyRewardDialog
+import com.bepngon.merge.ui.components.DecorScreen
 import com.bepngon.merge.ui.components.GameArt
 import com.bepngon.merge.ui.components.FruitDropGame
 import com.bepngon.merge.ui.components.OnboardingScreen
@@ -150,7 +152,33 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 onAdoptPet = vm::adoptPet,
                 onFeedPetCoins = vm::feedPetCoins,
                 onOpenMiniGame = vm::openMiniGame,
+                onOpenDecor = vm::openDecor,
                 onClose = vm::closeRoom,
+            )
+        }
+
+        if (ui.showDecor) {
+            DecorScreen(
+                game = ui.game,
+                roomId = DecorEngine.DEFAULT_ROOM,
+                canUndo = ui.decorUndoDepth > 0,
+                canRedo = ui.decorRedoDepth > 0,
+                onPlace = { itemId, variantId, gx, gy, rot ->
+                    vm.decorPlace(DecorEngine.DEFAULT_ROOM, itemId, variantId, gx, gy, rot)
+                },
+                onMove = { uid, gx, gy, rot ->
+                    vm.decorMove(DecorEngine.DEFAULT_ROOM, uid, gx, gy, rot)
+                },
+                onRemove = { uid -> vm.decorRemove(DecorEngine.DEFAULT_ROOM, uid) },
+                onRotate = { uid -> vm.decorRotate(DecorEngine.DEFAULT_ROOM, uid) },
+                onFlip = { uid -> vm.decorFlip(DecorEngine.DEFAULT_ROOM, uid) },
+                onSetVariant = { uid, variantId ->
+                    vm.decorSetVariant(DecorEngine.DEFAULT_ROOM, uid, variantId)
+                },
+                onPaint = { variantId -> vm.decorPaint(DecorEngine.DEFAULT_ROOM, variantId) },
+                onUndo = vm::undoDecor,
+                onRedo = vm::redoDecor,
+                onClose = vm::closeDecor,
             )
         }
 
@@ -526,6 +554,19 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
                     pushFloater("Hết lượt chơi! ⏳", Offset(300f, 1400f), WarnRed)
+                }
+                is GameEvent.VariantBought -> {
+                    SoundManager.play(SoundManager.Sfx.Coin)
+                }
+                is GameEvent.DecorPlaced -> {
+                    SoundManager.play(SoundManager.Sfx.Spawn)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                is GameEvent.DecorRemoved -> {
+                    SoundManager.play(SoundManager.Sfx.Tap)
+                }
+                is GameEvent.PaintApplied -> {
+                    SoundManager.play(SoundManager.Sfx.Unlock)
                 }
                 GameEvent.OnboardingFinished -> {
                     SoundManager.play(SoundManager.Sfx.Complete)

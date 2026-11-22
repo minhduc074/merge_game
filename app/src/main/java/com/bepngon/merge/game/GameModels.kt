@@ -117,6 +117,7 @@ data class GameState(
     /** EMA of ms between completed orders — drives adaptive spawn pacing. */
     val orderPaceMs: Long = 0,
     val lastOrderDoneAtMs: Long = 0,
+    val decor: DecorState = DecorState(),
 ) {
     fun metricOf(metric: Metric): Int = when (metric) {
         Metric.MERGES -> stats.merges
@@ -214,4 +215,8 @@ sealed interface GameEvent {
     data class PetGift(val cellIndex: Int) : GameEvent
     data class MiniGameFinished(val score: Int, val energy: Int) : GameEvent
     data object MiniGameNoPlays : GameEvent
+    data class VariantBought(val variantId: String, val cost: Int) : GameEvent
+    data class DecorPlaced(val roomId: String, val uid: Long) : GameEvent
+    data class DecorRemoved(val roomId: String, val uid: Long) : GameEvent
+    data class PaintApplied(val roomId: String) : GameEvent
 }

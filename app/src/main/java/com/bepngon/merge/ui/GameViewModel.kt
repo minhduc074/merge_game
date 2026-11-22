@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.data.SaveManager
+import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemSource
+import com.bepngon.merge.game.RoomSave
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,9 @@ data class GameUiState(
     val showGuide: Boolean = false,
     val showRoom: Boolean = false,
     val showMiniGame: Boolean = false,
+    val showDecor: Boolean = false,
+    val decorUndoDepth: Int = 0,
+    val decorRedoDepth: Int = 0,
     val nowMs: Long = 0,
 ) {
     val showOnboarding: Boolean get() = !loading && !game.onboardingDone
@@ -164,6 +169,86 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeMiniGame() {
         _ui.value = _ui.value.copy(showMiniGame = false)
+    }
+
+    // ---------- decor editor ----------
+
+    /** Session-only undo/redo: snapshots of each edited [RoomSave] —
+     *  rooms are a few KB, so copying beats inverse commands for safety. */
+    private val decorUndo = ArrayDeque<Pair<String, RoomSave>>()
+    private val decorRedo = ArrayDeque<Pair<String, RoomSave>>()
+
+    fun openDecor() {
+        decorUndo.clear()
+        decorRedo.clear()
+        syncDecorDepth()
+        _ui.value = _ui.value.copy(showDecor = true)
+    }
+
+    fun closeDecor() {
+        _ui.value = _ui.value.copy(showDecor = false)
+    }
+
+    fun decorPlace(roomId: String, itemId: String, variantId: String, gx: Int, gy: Int, rot: Int) =
+        decorOp(roomId) { DecorEngine.placeItem(it, roomId, itemId, variantId, gx, gy, rot) }
+
+    fun decorMove(roomId: String, uid: Long, gx: Int, gy: Int, rot: Int) =
+        decorOp(roomId) { DecorEngine.movePlaced(it, roomId, uid, gx, gy, rot) }
+
+    fun decorRemove(roomId: String, uid: Long) =
+        decorOp(roomId) { DecorEngine.removePlaced(it, roomId, uid) }
+
+    fun decorRotate(roomId: String, uid: Long) =
+        decorOp(roomId) { DecorEngine.rotatePlaced(it, roomId, uid) }
+
+    fun decorFlip(roomId: String, uid: Long) =
+        decorOp(roomId) { DecorEngine.flipPlaced(it, roomId, uid) }
+
+    fun decorSetVariant(roomId: String, uid: Long, variantId: String) =
+        decorOp(roomId) { DecorEngine.setVariant(it, roomId, uid, variantId) }
+
+    fun decorPaint(roomId: String, variantId: String) =
+        decorOp(roomId) { DecorEngine.setPaint(it, roomId, variantId) }
+
+    fun undoDecor() {
+        val (roomId, snap) = decorUndo.removeLastOrNull() ?: return
+        _ui.value.game.decor.rooms[roomId]?.let { decorRedo.addLast(roomId to it) }
+        applyEngine { s ->
+            s.copy(
+                decor = s.decor.copy(rooms = s.decor.rooms + (roomId to snap)),
+            ) to emptyList()
+        }
+        syncDecorDepth()
+    }
+
+    fun redoDecor() {
+        val (roomId, snap) = decorRedo.removeLastOrNull() ?: return
+        _ui.value.game.decor.rooms[roomId]?.let { decorUndo.addLast(roomId to it) }
+        applyEngine { s ->
+            s.copy(
+                decor = s.decor.copy(rooms = s.decor.rooms + (roomId to snap)),
+            ) to emptyList()
+        }
+        syncDecorDepth()
+    }
+
+    private fun decorOp(roomId: String, op: (GameState) -> Pair<GameState, List<GameEvent>>) {
+        val before = _ui.value.game.decor.rooms[roomId] ?: return
+        applyEngine(op)
+        val after = _ui.value.game.decor.rooms[roomId]
+        if (after !== before) {
+            decorUndo.addLast(roomId to before)
+            decorRedo.clear()
+            if (decorUndo.size > 50) decorUndo.removeFirst()
+            syncDecorDepth()
+        }
+    }
+
+    private fun syncDecorDepth() {
+        _ui.value = _ui.value.copy(
+            decorUndoDepth = decorUndo.size,
+            decorRedoDepth = decorRedo.size,
+        )
     }
 
     /** Debug cheat — coin chip tapped 10×; no-op in release builds. */

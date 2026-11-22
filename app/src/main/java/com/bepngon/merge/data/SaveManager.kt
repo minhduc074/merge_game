@@ -6,11 +6,15 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
+import com.bepngon.merge.game.DecorEngine
+import com.bepngon.merge.game.DecorState
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.Order
 import com.bepngon.merge.game.PetState
+import com.bepngon.merge.game.PlacedDecor
+import com.bepngon.merge.game.RoomSave
 import com.bepngon.merge.game.Stats
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -40,6 +44,32 @@ private data class StatsData(
     val ordersDone: Int = 0,
     val coinsEarned: Int = 0,
     val maxTier: Int = 0,
+)
+
+@Serializable
+private data class PlacedDecorData(
+    val uid: Long,
+    val itemId: String,
+    val variantId: String,
+    val gx: Int,
+    val gy: Int,
+    val rot: Int = 0,
+    val flip: Boolean = false,
+)
+
+@Serializable
+private data class RoomSaveData(
+    val version: Int = 1,
+    val placed: List<PlacedDecorData> = emptyList(),
+    val floorPaint: String? = null,
+    val wallPaint: String? = null,
+)
+
+@Serializable
+private data class DecorSaveData(
+    val rooms: Map<String, RoomSaveData> = emptyMap(),
+    val ownedVariants: List<String> = emptyList(),
+    val nextPlacedUid: Long = 1,
 )
 
 @Serializable
@@ -73,6 +103,7 @@ private data class SaveData(
     val miniBest: Int = 0,
     val orderPaceMs: Long = 0,
     val orderDoneAgoMs: Long = 0,
+    val decor: DecorSaveData? = null,
 )
 
 @Serializable
@@ -89,6 +120,27 @@ private data class SaveDataV2(
     val xp: Int,
     val level: Int,
     val nextUid: Long,
+)
+
+/** Saved decor blob -> state. Rooms written by a newer save version are
+ *  dropped (fresh empty room) rather than half-loaded. */
+private fun DecorSaveData.toState(): DecorState = DecorState(
+    rooms = rooms.mapValues { (_, r) ->
+        if (r.version != DecorEngine.DECOR_SAVE_VERSION) {
+            RoomSave()
+        } else {
+            RoomSave(
+                version = r.version,
+                placed = r.placed.map {
+                    PlacedDecor(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip)
+                },
+                floorPaint = r.floorPaint,
+                wallPaint = r.wallPaint,
+            )
+        }
+    }.ifEmpty { mapOf(DecorEngine.DEFAULT_ROOM to RoomSave()) },
+    ownedVariants = ownedVariants.toSet(),
+    nextPlacedUid = maxOf(nextPlacedUid, 1),
 )
 
 class SaveManager(private val context: Context) {
@@ -158,6 +210,20 @@ class SaveManager(private val context: Context) {
             miniBest = state.miniBest,
             orderPaceMs = state.orderPaceMs,
             orderDoneAgoMs = (nowMs - state.lastOrderDoneAtMs).coerceAtLeast(0),
+            decor = DecorSaveData(
+                rooms = state.decor.rooms.mapValues { (_, r) ->
+                    RoomSaveData(
+                        version = DecorEngine.DECOR_SAVE_VERSION,
+                        placed = r.placed.map {
+                            PlacedDecorData(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip)
+                        },
+                        floorPaint = r.floorPaint,
+                        wallPaint = r.wallPaint,
+                    )
+                },
+                ownedVariants = state.decor.ownedVariants.toList(),
+                nextPlacedUid = state.decor.nextPlacedUid,
+            ),
         )
         context.saveStore.edit { it[keyV3] = json.encodeToString(data) }
     }
@@ -237,6 +303,7 @@ class SaveManager(private val context: Context) {
             } else {
                 0
             },
+            decor = data.decor?.toState() ?: DecorState(),
         )
     }.getOrNull()
 

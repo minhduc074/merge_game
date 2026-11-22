@@ -63,6 +63,7 @@ fun RoomScreen(
     onFeedPetCoins: () -> Unit,
 
     onOpenMiniGame: () -> Unit,
+    onOpenDecor: () -> Unit,
     onClose: () -> Unit,
 ) {
     var panel by remember { mutableStateOf(RoomPanel.NONE) }
@@ -136,6 +137,7 @@ fun RoomScreen(
                     .padding(top = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Chip("🛋️ Trang trí") { onOpenDecor() }
                 Chip("🐾 Thú cưng") { panel = RoomPanel.PET }
                 Chip("🍉 Thả trái") { onOpenMiniGame() }
             }

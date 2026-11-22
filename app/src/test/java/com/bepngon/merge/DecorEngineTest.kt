@@ -1,0 +1,236 @@
+package com.bepngon.merge
+
+import com.bepngon.merge.game.DecorCatalog
+import com.bepngon.merge.game.DecorEngine
+import com.bepngon.merge.game.DecorState
+import com.bepngon.merge.game.GameEngine
+import com.bepngon.merge.game.GameEvent
+import com.bepngon.merge.game.GameState
+import com.bepngon.merge.game.PlacedDecor
+import com.bepngon.merge.game.RoomSave
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import kotlin.random.Random
+
+private fun stateWith(
+    coins: Int = 0,
+    level: Int = 1,
+    owned: Set<String> = emptySet(),
+    placed: List<PlacedDecor> = emptyList(),
+): GameState {
+    val decor = DecorState(
+        rooms = mapOf(DecorEngine.DEFAULT_ROOM to RoomSave(placed = placed)),
+        ownedVariants = owned,
+        nextPlacedUid = (placed.maxOfOrNull { it.uid } ?: 0) + 1,
+    )
+    return GameEngine.initialState(Random(1)).copy(
+        coins = coins,
+        level = level,
+        decor = decor,
+    )
+}
+
+private fun placed(
+    uid: Long,
+    itemId: String,
+    gx: Int,
+    gy: Int,
+    rot: Int = 0,
+    variantId: String = DecorCatalog[itemId].variants.first().id,
+) = PlacedDecor(uid, itemId, variantId, gx, gy, rot)
+
+class DecorEngineTest {
+
+    private val room = DecorEngine.DEFAULT_ROOM
+    private val def = DecorCatalog.room(room)
+
+    @Test
+    fun `canPlace rejects out-of-bounds and wrong zones`() {
+        val state = stateWith()
+        // chair 1x1 — fine on the floor
+        assertTrue(DecorEngine.canPlace(state.decor, room, "chair_wood", 0, def.wallRows, 0))
+        assertTrue(
+            DecorEngine.canPlace(
+                state.decor, room, "chair_wood", def.cols - 1, def.rows - 1, 0,
+            ),
+        )
+        // outside the grid
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", -1, def.wallRows, 0))
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", def.cols, def.wallRows, 0))
+        // floor item inside the wall band
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", 0, 0, 0))
+        // wall item below the wall band
+        assertFalse(DecorEngine.canPlace(state.decor, room, "wall_art", 0, def.wallRows, 0))
+        assertTrue(DecorEngine.canPlace(state.decor, room, "wall_art", 0, 0, 0))
+        // sofa 3x2 sticking out the right edge
+        assertFalse(
+            DecorEngine.canPlace(
+                state.decor, room, "sofa", def.cols - 2, def.wallRows, 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `same layer collides but rug fits under furniture`() {
+        val state = stateWith(
+            placed = listOf(placed(1, "sofa", 0, 4)),
+        )
+        // overlapping the sofa with a table -> no
+        assertFalse(DecorEngine.canPlace(state.decor, room, "table_cafe", 0, 4, 0))
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", 2, 5, 0))
+        // right next to it -> yes
+        assertTrue(DecorEngine.canPlace(state.decor, room, "table_cafe", 3, 4, 0))
+        // rug overlapping furniture is a different layer -> yes
+        assertTrue(DecorEngine.canPlace(state.decor, room, "rug_big", 0, 4, 0))
+    }
+
+    @Test
+    fun `placeItem buys and places atomically`() {
+        val v = DecorCatalog["armchair"].variantOf("armchair_mint")
+        val state = stateWith(coins = v.priceCoins + 10, level = v.unlockLevel)
+        val (next, events) = DecorEngine.placeItem(
+            state, room, "armchair", v.id, 0, def.wallRows, 0,
+        )
+        assertEquals(10, next.coins)
+        assertTrue(v.id in next.decor.ownedVariants)
+        val roomSave = next.decor.rooms.getValue(room)
+        assertEquals(1, roomSave.placed.size)
+        assertEquals(v.id, roomSave.placed[0].variantId)
+        assertTrue(events.any { it is GameEvent.VariantBought })
+        assertTrue(events.any { it is GameEvent.DecorPlaced })
+    }
+
+    @Test
+    fun `placeItem with free variant costs nothing`() {
+        val v = DecorCatalog["chair_wood"].variantOf("chair_wood_nau")
+        val state = stateWith(coins = 0)
+        val (next, events) = DecorEngine.placeItem(
+            state, room, "chair_wood", v.id, 0, def.wallRows, 0,
+        )
+        assertEquals(0, next.coins)
+        assertEquals(1, next.decor.rooms.getValue(room).placed.size)
+        assertTrue(events.none { it is GameEvent.VariantBought })
+    }
+
+    @Test
+    fun `placeItem fails without coins or on invalid spot`() {
+        val v = DecorCatalog["armchair"].variantOf("armchair_be")
+        var state = stateWith(coins = v.priceCoins - 1)
+        var (next, events) = DecorEngine.placeItem(
+            state, room, "armchair", v.id, 0, def.wallRows, 0,
+        )
+        assertEquals(listOf(GameEvent.NotEnoughCoins), events)
+        assertEquals(state, next)
+
+        // enough coins but overlapping an existing sofa
+        state = stateWith(
+            coins = 999,
+            placed = listOf(placed(1, "sofa", 0, 4)),
+        )
+        val (next2, events2) = DecorEngine.placeItem(
+            state, room, "armchair", v.id, 0, 4, 0,
+        )
+        assertEquals(listOf(GameEvent.InvalidDrop), events2)
+        assertEquals(state, next2)
+    }
+
+    @Test
+    fun `movePlaced validates and keeps position on invalid drop`() {
+        val p = placed(1, "chair_wood", 0, 4)
+        val state = stateWith(placed = listOf(p, placed(2, "table_cafe", 3, 4)))
+        // valid move
+        val (next, _) = DecorEngine.movePlaced(state, room, 1, 0, 5, 0)
+        assertEquals(5, next.decor.rooms.getValue(room).placed[0].gy)
+        // moving onto the table -> rejected, state untouched
+        val (next2, events2) = DecorEngine.movePlaced(next, room, 1, 3, 4, 0)
+        assertEquals(listOf(GameEvent.InvalidDrop), events2)
+        assertEquals(5, next2.decor.rooms.getValue(room).placed[0].gy)
+    }
+
+    @Test
+    fun `rotate swaps footprint and respects collisions`() {
+        // armchair 2x1 at (0,4); a table sitting where rotation would reach
+        val p = placed(1, "armchair", 0, 4)
+        val state = stateWith(placed = listOf(p, placed(2, "table_cafe", 0, 5)))
+        val (blocked, ev) = DecorEngine.rotatePlaced(state, room, 1)
+        assertEquals(listOf(GameEvent.InvalidDrop), ev)
+        assertEquals(0, blocked.decor.rooms.getValue(room).placed[0].rot)
+
+        val free = stateWith(placed = listOf(p))
+        val (rotated, ev2) = DecorEngine.rotatePlaced(free, room, 1)
+        assertTrue(ev2.any { it is GameEvent.DecorPlaced })
+        assertEquals(90, rotated.decor.rooms.getValue(room).placed[0].rot)
+    }
+
+    @Test
+    fun `removePlaced drops the item`() {
+        val state = stateWith(placed = listOf(placed(1, "chair_wood", 0, 4)))
+        val (next, events) = DecorEngine.removePlaced(state, room, 1)
+        assertTrue(next.decor.rooms.getValue(room).placed.isEmpty())
+        assertTrue(events.any { it is GameEvent.DecorRemoved })
+    }
+
+    @Test
+    fun `setVariant buys and swaps the look`() {
+        val v = DecorCatalog["chair_wood"].variantOf("chair_wood_trang")
+        val p = placed(1, "chair_wood", 0, 4)
+        val state = stateWith(coins = v.priceCoins, placed = listOf(p))
+        val (next, events) = DecorEngine.setVariant(state, room, 1, v.id)
+        assertEquals(0, next.coins)
+        assertEquals(v.id, next.decor.rooms.getValue(room).placed[0].variantId)
+        assertTrue(events.any { it is GameEvent.VariantBought })
+    }
+
+    @Test
+    fun `setPaint covers the right surface`() {
+        val wall = DecorCatalog["paint_wall"].variantOf("paint_wall_mint")
+        val floor = DecorCatalog["paint_floor"].variantOf("paint_floor_da")
+        var state = stateWith(coins = wall.priceCoins + floor.priceCoins, level = 6)
+        val (s1, e1) = DecorEngine.setPaint(state, room, wall.id)
+        assertEquals(wall.id, s1.decor.rooms.getValue(room).wallPaint)
+        assertEquals(floor.priceCoins, s1.coins)
+        assertTrue(e1.any { it is GameEvent.PaintApplied })
+        val (s2, _) = DecorEngine.setPaint(s1, room, floor.id)
+        assertEquals(floor.id, s2.decor.rooms.getValue(room).floorPaint)
+        assertEquals(0, s2.coins)
+
+        // tint falls back to defaults when unpainted
+        state = stateWith()
+        assertEquals(def.defaultWall, DecorEngine.wallTint(state.decor, room))
+        assertEquals(def.defaultFloor, DecorEngine.floorTint(state.decor, room))
+        assertEquals(
+            DecorCatalog.variant("paint_floor_da").tint,
+            DecorEngine.floorTint(s2.decor, room),
+        )
+    }
+
+    @Test
+    fun `level-gated variant cannot be bought early`() {
+        val v = DecorCatalog["lamp"].variantOf("lamp_neon")
+        assertTrue(v.unlockLevel > 1)
+        val state = stateWith(coins = 999, level = 1)
+        val (next, events) = DecorEngine.placeItem(
+            state, room, "lamp", v.id, 0, def.wallRows, 0,
+        )
+        assertEquals(listOf(GameEvent.InvalidDrop), events)
+        assertEquals(state, next)
+    }
+
+    @Test
+    fun `placed uid counter never collides`() {
+        var state = stateWith(coins = 0)
+        repeat(3) {
+            val (next, _) = DecorEngine.placeItem(
+                state, room, "chair_wood", "chair_wood_nau", it, def.wallRows, 0,
+            )
+            state = next
+        }
+        val uids = state.decor.rooms.getValue(room).placed.map { it.uid }
+        assertEquals(uids.size, uids.distinct().size)
+        assertTrue(state.decor.nextPlacedUid > uids.max())
+        assertNotEquals(uids[0], uids[1])
+    }
+}

@@ -53,6 +53,17 @@ adb shell input swipe x1 y1 x2 y2 1500   # kéo item merge/bán
 adb exec-out screencap -p > shot.png     # chụp màn hình
 ```
 
+## Decor editor
+
+- `game/DecorModels.kt` + `DecorCatalog.kt` (DSL giống ItemCatalog: thêm đồ = 1 `item()` + `V()` variants) + `DecorEngine.kt` (pure, mọi op đi qua `GameState.decor`) — test `DecorEngineTest.kt`.
+- Mở từ chip "🛋️ Trang trí" trong `RoomScreen` → flag `showDecor` → `ui/components/DecorScreen.kt`.
+- Phòng = grid `RoomDef.cols`×`rows`, `wallRows` đầu là vùng treo tường (WALL item). Va chạy chỉ trong cùng `DecorLayer` → thảm nằm dưới bàn OK. Paint = `Placement.PAINT`, mua là phủ cả mặt (`wallPaint`/`floorPaint`, màu = `variant.tint`).
+- Variant `priceCoins = 0` = starter (luôn dùng được); còn lại vào `ownedVariants` khi mua — `placeItem`/`setVariant`/`setPaint` mua+áp dụng atomic (trừ coin 1 lần).
+- Art MVP = emoji + tile nền `variant.tint`; sprite thật gắn sau qua `variant.artName` (`decor_<id>` png → drawable-nodpi).
+- Undo/redo = snapshot `RoomSave` trong `GameViewModel` (session-only, 50 bước; undo KHÔNG hoàn coin đã mua variant — ownership giữ lại).
+- Save trong `SaveData.decor`; `RoomSave.version` riêng để migrate (version lạ → reset phòng đó về trống).
+- Phase sau chưa có: surface decor trên bàn (`hostUid`), brief/rating thưởng, sell, camera zoom/pan, room thứ 2.
+
 ## Code conventions
 
 - Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 3, orders hỏi với `RARE_ORDER_WEIGHT`.
