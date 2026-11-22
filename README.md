@@ -94,3 +94,7 @@ Generation prompts: `art-prompts.md`. AI-sheet slicer: `tools/slice_sheet.py`.
 DEBUG builds: tap the **Lv.xx** badge 10 times → jump to Lv30, all cells
 unlocked, +99,999🪙, full energy/inventory (silent, no UI). Reset run: ↻ top
 right.
+
+## License
+
+[The Unlicense](LICENSE) — public domain, free for any use.

@@ -86,3 +86,7 @@ defId (`fruit_4.png`, `gen_bakery_2.png`, `rare_viet_1.png`, `cust_koala.png`).
 
 Build DEBUG: bấm badge **Lv.xx** 10 lần → nhảy Lv30, mở hết ô, +99,999🪙,
 full energy/inventory (đếm lặng, không hiện UI). Reset game: nút ↻ góc trên.
+
+## License
+
+[The Unlicense](LICENSE) — public domain, dùng tự do cho mọi mục đích.
