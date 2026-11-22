@@ -813,6 +813,15 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             }
         }
     }
+
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomEnd) {
+        Text(
+            "v${BuildConfig.VERSION_NAME}${if (BuildConfig.DEBUG) "-dev" else ""}",
+            fontSize = 10.sp,
+            color = Cocoa.copy(alpha = 0.45f),
+            modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
+        )
+    }
 }
 
 private fun Color.darken(f: Float): Color = Color(red * f, green * f, blue * f, alpha)
