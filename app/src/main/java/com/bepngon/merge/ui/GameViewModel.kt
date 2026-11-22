@@ -204,8 +204,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun decorSetVariant(roomId: String, uid: Long, variantId: String) =
         decorOp(roomId) { DecorEngine.setVariant(it, roomId, uid, variantId) }
 
-    fun decorPaint(roomId: String, variantId: String) =
-        decorOp(roomId) { DecorEngine.setPaint(it, roomId, variantId) }
+    fun decorPaint(roomId: String, variantId: String, wallSide: Int? = null) =
+        decorOp(roomId) { DecorEngine.setPaint(it, roomId, variantId, wallSide) }
 
     fun undoDecor() {
         val (roomId, snap) = decorUndo.removeLastOrNull() ?: return

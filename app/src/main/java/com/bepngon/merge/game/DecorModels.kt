@@ -84,6 +84,11 @@ data class RoomSave(
     val placed: List<PlacedDecor> = emptyList(),
     val floorPaint: String? = null,
     val wallPaint: String? = null,
+    /** Per-side overrides: left/right wall resolve to these when set,
+     *  otherwise fall back to the shared [wallPaint] (old saves, and the
+     *  value written when painting both walls at once). */
+    val wallPaintL: String? = null,
+    val wallPaintR: String? = null,
     val skyPaint: String? = null,
 )
 

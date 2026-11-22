@@ -26,9 +26,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import android.graphics.BitmapFactory
 import androidx.compose.ui.Alignment
@@ -229,7 +231,7 @@ fun DecorScreen(
     onRemove: (uid: Long) -> Unit,
     onRotate: (uid: Long) -> Unit,
     onSetVariant: (uid: Long, variantId: String) -> Unit,
-    onPaint: (variantId: String) -> Unit,
+    onPaint: (variantId: String, wallSide: Int?) -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onClose: () -> Unit,
@@ -609,16 +611,18 @@ private fun RoomShell(decor: DecorState, roomId: String) {
     val def = DecorCatalog.room(roomId)
     val room = DecorEngine.roomOf(decor, roomId)
     val iso = remember(def) { IsoMap(def.cols, def.floorRows, def.wallRows) }
-    val wallV = DecorEngine.wallVariant(room, def)
+    val wallVL = DecorEngine.wallVariant(room, def, 1) // left wall
+    val wallVR = DecorEngine.wallVariant(room, def, 0) // right wall
     val floorV = DecorEngine.floorVariant(room, def)
     val skyV = DecorEngine.skyVariant(room, def)
-    val wallItem = DecorCatalog.itemOfVariant(wallV.id)
+    val wallItemL = DecorCatalog.itemOfVariant(wallVL.id)
+    val wallItemR = DecorCatalog.itemOfVariant(wallVR.id)
     val floorItem = DecorCatalog.itemOfVariant(floorV.id)
     val skyType = DecorCatalog.itemOfVariant(skyV.id).tex ?: "day"
-    val wallTex = rememberTex(wallItem.tex?.takeIf { wallItem.layer == DecorLayer.WALL_PAINT })
+    val wallTexL = rememberTex(wallItemL.tex?.takeIf { wallItemL.layer == DecorLayer.WALL_PAINT })
+    val wallTexR = rememberTex(wallItemR.tex?.takeIf { wallItemR.layer == DecorLayer.WALL_PAINT })
     val floorTex = rememberTex(floorItem.tex?.takeIf { floorItem.layer == DecorLayer.FLOOR_PAINT })
     val panelTex = rememberTex("wtex_panel")
-    val wallTint = Color(wallV.tint)
     val floorTint = Color(floorV.tint)
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width
@@ -641,8 +645,8 @@ private fun RoomShell(decor: DecorState, roomId: String) {
             shade(floorTint, 0.62f),
         )
         // walls, then the floor face on top of the skirt seam
-        drawWall(iso, 1, wallTint, wallTex, if (wallItem.panel) panelTex else null)
-        drawWall(iso, 0, wallTint, wallTex, if (wallItem.panel) panelTex else null)
+        drawWall(iso, 1, Color(wallVL.tint), wallTexL, if (wallItemL.panel) panelTex else null)
+        drawWall(iso, 0, Color(wallVR.tint), wallTexR, if (wallItemR.panel) panelTex else null)
         val floor = iso.path(iso.floorPath(), cw, ch)
         drawPath(floor, floorTint)
         floorTex?.let { tilePath(floor, it, cw * 0.13f) }
@@ -1033,7 +1037,7 @@ private fun CatalogTray(
     onTab: (String) -> Unit,
     pickedVariant: Map<String, String>,
     onPickVariant: (String, String) -> Unit,
-    onPaint: (String) -> Unit,
+    onPaint: (String, Int?) -> Unit,
     onDragStart: (DecorItem, Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
@@ -1107,26 +1111,56 @@ private fun RoomStyleTray(
     roomId: String,
     pickedVariant: Map<String, String>,
     onPickVariant: (String, String) -> Unit,
-    onPaint: (String) -> Unit,
+    onPaint: (String, Int?) -> Unit,
 ) {
     val def = DecorCatalog.room(roomId)
     val room = DecorEngine.roomOf(game.decor, roomId)
+    // wall target: -1 = both walls, 0 = right wall, 1 = left wall
+    var wallSide by rememberSaveable { mutableIntStateOf(-1) }
+    val wallVL = DecorEngine.wallVariant(room, def, 1)
+    val wallVR = DecorEngine.wallVariant(room, def, 0)
     val sections = listOf(
-        Triple("Tường", DecorLayer.WALL_PAINT, DecorEngine.wallVariant(room, def)),
+        Triple("Tường", DecorLayer.WALL_PAINT, null as DecorVariant?),
         Triple("Sàn", DecorLayer.FLOOR_PAINT, DecorEngine.floorVariant(room, def)),
         Triple("Trời", DecorLayer.SKY_PAINT, DecorEngine.skyVariant(room, def)),
     )
     Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-        sections.forEach { (label, layer, appliedV) ->
+        sections.forEach { (label, layer, sectionV) ->
+            val isWall = layer == DecorLayer.WALL_PAINT
+            val appliedV = if (isWall) when (wallSide) {
+                0 -> wallVR
+                else -> wallVL
+            } else sectionV!!
             val appliedItem = DecorCatalog.itemOfVariant(appliedV.id)
+            val appliedItemR = DecorCatalog.itemOfVariant(wallVR.id)
             val appliedSuffix = appliedV.id.removePrefix("${appliedItem.id}_")
             val items = DecorCatalog.inCategory("room").filter { it.layer == layer }
-            Text(
-                label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Cocoa.copy(alpha = 0.65f),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Cocoa.copy(alpha = 0.65f),
+                )
+                if (isWall) {
+                    listOf("Trái" to 1, "Cả 2" to -1, "Phải" to 0).forEach { (sideLabel, side) ->
+                        Text(
+                            sideLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (wallSide == side) Color.White else Cocoa.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (wallSide == side) Cocoa else Color(0x146D4C41),
+                                )
+                                .clickable { wallSide = side }
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1142,12 +1176,19 @@ private fun RoomStyleTray(
                             it.id.removePrefix("${item.id}_") == appliedSuffix
                         }
                         ?: item.variants.first()
+                    val applied = if (isWall && wallSide < 0) {
+                        item.id == appliedItem.id && item.id == appliedItemR.id
+                    } else {
+                        item.id == appliedItem.id
+                    }
                     SurfaceCard(
                         item = item,
                         variant = targetV,
                         game = game,
-                        applied = item.id == appliedItem.id,
-                        onClick = { onPaint(targetV.id) },
+                        applied = applied,
+                        onClick = {
+                            onPaint(targetV.id, wallSide.takeIf { isWall && it >= 0 })
+                        },
                     )
                 }
             }
@@ -1173,7 +1214,7 @@ private fun RoomStyleTray(
                                 )
                                 .clickable {
                                     onPickVariant(appliedItem.id, v.id)
-                                    onPaint(v.id)
+                                    onPaint(v.id, wallSide.takeIf { isWall && it >= 0 })
                                 },
                         )
                     }
@@ -1265,7 +1306,7 @@ private fun CatalogCard(
     game: GameState,
     variant: DecorVariant,
     onPickVariant: (String) -> Unit,
-    onPaint: (String) -> Unit,
+    onPaint: (String, Int?) -> Unit,
     onDragStart: (DecorItem, Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
@@ -1281,7 +1322,7 @@ private fun CatalogCard(
             .onGloballyPositioned { origin = it.positionInWindow() }
             .then(
                 if (isPaint) {
-                    Modifier.clickable { onPaint(variant.id) }
+                    Modifier.clickable { onPaint(variant.id, null) }
                 } else {
                     Modifier.pointerInput(item.id) {
                         detectDragGestures(

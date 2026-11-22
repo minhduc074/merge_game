@@ -174,7 +174,9 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 onSetVariant = { uid, variantId ->
                     vm.decorSetVariant(DecorEngine.DEFAULT_ROOM, uid, variantId)
                 },
-                onPaint = { variantId -> vm.decorPaint(DecorEngine.DEFAULT_ROOM, variantId) },
+                onPaint = { variantId, wallSide ->
+                    vm.decorPaint(DecorEngine.DEFAULT_ROOM, variantId, wallSide)
+                },
                 onUndo = vm::undoDecor,
                 onRedo = vm::redoDecor,
                 onClose = vm::closeDecor,

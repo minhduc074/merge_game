@@ -35,6 +35,14 @@ object DecorEngine {
     fun wallVariant(room: RoomSave, def: RoomDef): DecorVariant =
         paintVariant(room.wallPaint, def.defaultWall)
 
+    /** [side]: 0 = right wall, 1 = left wall — same encoding as the IsoMap
+     *  and placed-item rot. Per-side paint wins over the shared wallPaint. */
+    fun wallVariant(room: RoomSave, def: RoomDef, side: Int): DecorVariant =
+        paintVariant(
+            (if (side == 0) room.wallPaintR else room.wallPaintL) ?: room.wallPaint,
+            def.defaultWall,
+        )
+
     fun floorVariant(room: RoomSave, def: RoomDef): DecorVariant =
         paintVariant(room.floorPaint, def.defaultFloor)
 
@@ -264,6 +272,7 @@ object DecorEngine {
         state: GameState,
         roomId: String,
         variantId: String,
+        wallSide: Int? = null,
     ): Pair<GameState, List<GameEvent>> {
         val item = DecorCatalog.itemOfVariant(variantId)
         if (item.placement != Placement.PAINT) return state to emptyList()
@@ -273,7 +282,13 @@ object DecorEngine {
         var next = acquire(state, v, events)
         val room = roomOf(next.decor, roomId)
         val nextRoom = when (item.layer) {
-            DecorLayer.WALL_PAINT -> room.copy(wallPaint = variantId)
+            // wallSide null = both walls: keep the shared field as the
+            // base and clear per-side overrides
+            DecorLayer.WALL_PAINT -> when (wallSide) {
+                0 -> room.copy(wallPaintR = variantId)
+                1 -> room.copy(wallPaintL = variantId)
+                else -> room.copy(wallPaint = variantId, wallPaintL = null, wallPaintR = null)
+            }
             DecorLayer.SKY_PAINT -> room.copy(skyPaint = variantId)
             else -> room.copy(floorPaint = variantId)
         }

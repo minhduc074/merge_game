@@ -225,6 +225,35 @@ class DecorEngineTest {
     }
 
     @Test
+    fun `setPaint can target each wall side`() {
+        val floral = DecorCatalog["wall_floral"].variants.first()
+        val gingham = DecorCatalog["wall_gingham"].variants.first()
+        var state = stateWith(coins = floral.priceCoins + gingham.priceCoins, level = 30)
+
+        // paint only the left wall — the right one keeps the default
+        val (s1, _) = DecorEngine.setPaint(state, room, floral.id, wallSide = 1)
+        val r1 = s1.decor.rooms.getValue(room)
+        assertEquals(floral.id, r1.wallPaintL)
+        assertEquals(floral.id, DecorEngine.wallVariant(r1, def, 1).id)
+        assertEquals(def.defaultWall, DecorEngine.wallVariant(r1, def, 0).id)
+
+        // paint the right wall differently — left is untouched
+        val (s2, _) = DecorEngine.setPaint(s1, room, gingham.id, wallSide = 0)
+        val r2 = s2.decor.rooms.getValue(room)
+        assertEquals(gingham.id, DecorEngine.wallVariant(r2, def, 0).id)
+        assertEquals(floral.id, DecorEngine.wallVariant(r2, def, 1).id)
+
+        // painting both clears the per-side overrides
+        val (s3, _) = DecorEngine.setPaint(s2, room, floral.id)
+        val r3 = s3.decor.rooms.getValue(room)
+        assertEquals(floral.id, r3.wallPaint)
+        assertEquals(null, r3.wallPaintL)
+        assertEquals(null, r3.wallPaintR)
+        assertEquals(floral.id, DecorEngine.wallVariant(r3, def, 0).id)
+        assertEquals(floral.id, DecorEngine.wallVariant(r3, def, 1).id)
+    }
+
+    @Test
     fun `setPaint covers the sky surface too`() {
         val night = DecorCatalog["sky_night"].variants.first()
         var state = stateWith(coins = night.priceCoins + 50)

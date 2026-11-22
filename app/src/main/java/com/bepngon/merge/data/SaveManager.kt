@@ -63,6 +63,8 @@ private data class RoomSaveData(
     val placed: List<PlacedDecorData> = emptyList(),
     val floorPaint: String? = null,
     val wallPaint: String? = null,
+    val wallPaintL: String? = null,
+    val wallPaintR: String? = null,
     val skyPaint: String? = null,
 )
 
@@ -137,6 +139,8 @@ private fun DecorSaveData.toState(): DecorState = DecorState(
                 },
                 floorPaint = r.floorPaint,
                 wallPaint = r.wallPaint,
+                wallPaintL = r.wallPaintL,
+                wallPaintR = r.wallPaintR,
                 skyPaint = r.skyPaint,
             )
         }
@@ -221,6 +225,8 @@ class SaveManager(private val context: Context) {
                         },
                         floorPaint = r.floorPaint,
                         wallPaint = r.wallPaint,
+                        wallPaintL = r.wallPaintL,
+                        wallPaintR = r.wallPaintR,
                         skyPaint = r.skyPaint,
                     )
                 },
