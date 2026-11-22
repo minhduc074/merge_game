@@ -96,7 +96,6 @@ import com.bepngon.merge.ui.components.GameArt
 import com.bepngon.merge.ui.components.FruitDropGame
 import com.bepngon.merge.ui.components.OnboardingScreen
 import com.bepngon.merge.ui.components.OrderBar
-import com.bepngon.merge.ui.components.RoomScreen
 import com.bepngon.merge.ui.components.TopBar
 import com.bepngon.merge.ui.theme.CellWhite
 import com.bepngon.merge.ui.theme.Cocoa
@@ -141,15 +140,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 game = ui.game,
                 onClaim = vm::claimAchievement,
                 onClose = vm::closeAchievements,
-            )
-        }
-
-        if (ui.showRoom) {
-            RoomScreen(
-                game = ui.game,
-                onOpenMiniGame = vm::openMiniGame,
-                onOpenDecor = vm::openDecor,
-                onClose = vm::closeRoom,
             )
         }
 
@@ -617,7 +607,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             onAchievements = vm::openAchievements,
             onDaily = vm::openDaily,
             onGuide = vm::openGuide,
-            onRoom = vm::openRoom,
+            onRoom = vm::openDecor,
             onCoinBounds = { coinBounds = it },
             onStatTap = { kind -> statInfo = kind },
             onLevelTap = {
@@ -767,7 +757,11 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         indication = null,
                     ) { statInfo = null },
             )
-            StatInfoCard(kind = kind, onDismiss = { statInfo = null })
+            StatInfoCard(
+                kind = kind,
+                onDismiss = { statInfo = null },
+                onPlayMiniGame = { statInfo = null; vm.openMiniGame() },
+            )
         }
     }
 
@@ -1636,7 +1630,11 @@ private data class StatInfo(
 )
 
 @Composable
-private fun StatInfoCard(kind: String, onDismiss: () -> Unit) {
+private fun StatInfoCard(
+    kind: String,
+    onDismiss: () -> Unit,
+    onPlayMiniGame: () -> Unit = {},
+) {
     LaunchedEffect(kind) {
         kotlinx.coroutines.delay(8_000)
         onDismiss()
@@ -1704,6 +1702,22 @@ private fun StatInfoCard(kind: String, onDismiss: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Text("🎯 Cách kiếm:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
         Text(info.earn, fontSize = 13.sp, color = Cocoa)
+        if (kind == "energy") {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "🍉 Chơi Thả trái kiếm ⚡",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MergeGreen)
+                    .clickable(onClick = onPlayMiniGame)
+                    .padding(vertical = 9.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

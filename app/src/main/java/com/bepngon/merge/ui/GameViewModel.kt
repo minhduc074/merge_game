@@ -30,7 +30,6 @@ data class GameUiState(
     val showAchievements: Boolean = false,
     val showDaily: Boolean = false,
     val showGuide: Boolean = false,
-    val showRoom: Boolean = false,
     val showMiniGame: Boolean = false,
     val showDecor: Boolean = false,
     val decorUndoDepth: Int = 0,
@@ -144,13 +143,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun claimQte() = applyEngine { GameEngine.claimQte(it, nowMs()) }
 
-    fun openRoom() {
-        _ui.value = _ui.value.copy(showRoom = true)
-    }
-
-    fun closeRoom() {
-        _ui.value = _ui.value.copy(showRoom = false)
-    }
 
 
     fun upgradeGenerator(uid: Long) = applyEngine { GameEngine.upgradeGenerator(it, uid) }
