@@ -1,6 +1,6 @@
 # Bếp Ngon Merge
 
-Merge game (kiểu Merge Mansion / Travel Town) cho Android: board 7x9, tap generator để spawn item, kéo 2 item giống nhau để merge lên tier cao hơn, kéo xuống sell zone để bán lấy coins. Theme trái cây + đồ ăn, phong cách cute.
+Merge game (kiểu Merge Mansion / Travel Town) cho Android: board 5x7, tap generator để spawn item, kéo 2 item giống nhau để merge lên tier cao hơn, kéo xuống sell zone để bán lấy coins. Theme trái cây + đồ ăn, phong cách cute.
 
 ## Stack
 
@@ -32,7 +32,7 @@ proguard rules giữ kotlinx.serialization serializers.
 
 ## Debug gameplay
 
-- Cheat: bấm badge `Lv.xx` trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv20, mở hết ô, +99,999🪙,
+- Cheat: bấm badge `Lv.xx` trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv30, mở hết ô, +99,999🪙,
   full energy/kho/onboarding). Đếm lặng, không hiện UI — đủ 10 tự kích hoạt.
   Chỉ hoạt động trong build DEBUG (`BuildConfig.DEBUG`).
 - Minigame thả trái: không giới hạn lượt; thưởng = `min(20, score/10)` ⚡ (`finishMiniGame`).

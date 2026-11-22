@@ -283,24 +283,25 @@ class GameEngineTest {
 
     @Test
     fun `big order completion triggers level up and reward`() {
-        // fruit_5 x2 + fruit_4 → xp = (10+10+8)+5 = 33 ≥ xpNeeded(1)=32
+        // fruit_5 x2 + fruit_4 → xp = (10+10+8)+5 = 33; +30 base = 63 ≥ xpNeeded(1)=42
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5", 2 to "fruit_4",
             orders = listOf(orderOf("fruit_5", "fruit_5", "fruit_4")),
+            xp = 30,
         )
         var cur = s
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 0).also { cur = it.first }
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 1).also { cur = it.first }
         val (next, events) = GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 2)
         assertEquals(2, next.level)
-        assertEquals(1, next.xp)
+        assertEquals(21, next.xp)
         assertTrue(next.orders.isEmpty())
         assertTrue(events.any { it is GameEvent.LevelUp && it.level == 2 })
     }
 
     @Test
     fun `level 3 reward grants drink generator and inventory slot`() {
-        // level 2 + 40xp; order fruit_5 x2 → +25xp = 65 ≥ xpNeeded(2)=44
+        // level 2 + 40xp; order fruit_5 x2 → +25xp = 65 ≥ xpNeeded(2)=62
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5",
             orders = listOf(orderOf("fruit_5", "fruit_5")),
@@ -551,7 +552,7 @@ class GameEngineTest {
         val s = stateWith(
             0 to "fruit_5",
             orders = listOf(orderOf("fruit_5", "fruit_5")),
-            xp = 40, level = 2,
+            xp = 55, level = 2,
             lockedCells = GameEngine.INITIAL_LOCKED.toSet(),
         )
         var cur = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0).first

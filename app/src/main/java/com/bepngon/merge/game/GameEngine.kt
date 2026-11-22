@@ -59,9 +59,8 @@ object GameEngine {
         idx(6, 1), idx(6, 2), idx(6, 3), idx(6, 4),
     )
 
-    private val UNLOCK_SCHEDULE: Map<Int, Int> = mapOf(
-        2 to 2, 3 to 3, 4 to 3, 5 to 4,
-    )
+    // one locked cell per level — Lv2..13 covers all 12
+    private val UNLOCK_SCHEDULE: Map<Int, Int> = (2..13).associateWith { 1 }
 
     /** Frozen high-tier items hidden under locked cells (revealed on level-up)
      *  plus a few on the open board at start. */
@@ -797,7 +796,8 @@ object GameEngine {
     fun finishOnboarding(state: GameState): Pair<GameState, List<GameEvent>> =
         state.copy(onboardingDone = true) to listOf(GameEvent.OnboardingFinished)
 
-    fun xpNeededForLevel(level: Int): Int = 20 + level * 12
+    /** Quadratic curve: each level costs noticeably more than the last. */
+    fun xpNeededForLevel(level: Int): Int = 30 + level * 8 + level * level * 4
 
     fun rewardForLevel(level: Int): LevelReward {
         val unlock = UNLOCK_SCHEDULE[level] ?: 0
@@ -814,7 +814,11 @@ object GameEngine {
                 inventoryCapBonus = 1,
                 unlockCells = unlock,
             )
-            else -> LevelReward(coins = 20 + level * 10, unlockCells = unlock)
+            else -> LevelReward(
+                coins = 20 + level * 10,
+                unlockCells = unlock,
+                inventoryCapBonus = if (level % 5 == 0) 1 else 0,
+            )
         }
     }
 
@@ -824,7 +828,7 @@ object GameEngine {
         if (pos < 0) return null
         var need = pos + 1
         var level = 2
-        while (level <= 20) {
+        while (level <= 30) {
             need -= UNLOCK_SCHEDULE[level] ?: 0
             if (need <= 0) return level
             level++
@@ -985,7 +989,7 @@ object GameEngine {
     /** Debug cheat (tap coin chip 10×): jump to max level — every level reward
      *  applies, so all cells unlock and reward generators get granted — plus a
      *  fat wallet, full energy and max inventory for testing. */
-    const val DEBUG_LEVEL = 20
+    const val DEBUG_LEVEL = 30
     const val DEBUG_COINS = 99_999
 
     fun debugMaxOut(state: GameState): Pair<GameState, List<GameEvent>> {
