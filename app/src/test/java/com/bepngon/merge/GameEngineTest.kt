@@ -569,6 +569,23 @@ class GameEngineTest {
     }
 
     @Test
+    fun `locked cells derive from level and heal stale saves`() {
+        assertEquals(GameEngine.INITIAL_LOCKED.toSet(), GameEngine.lockedCellsForLevel(1))
+        // 1 cell per level: Lv5 -> 4 unlocks -> 8 still locked
+        assertEquals(
+            GameEngine.INITIAL_LOCKED.drop(4).toSet(),
+            GameEngine.lockedCellsForLevel(5),
+        )
+        assertTrue(GameEngine.lockedCellsForLevel(13).isEmpty())
+        // migrated saves honor the old faster schedule: Lv5 had all unlocked
+        assertTrue(GameEngine.lockedCellsForLevel(5, legacy = true).isEmpty())
+        assertEquals(
+            GameEngine.INITIAL_LOCKED.drop(2).toSet(),
+            GameEngine.lockedCellsForLevel(2, legacy = true),
+        )
+    }
+
+    @Test
     fun `merge resets generator charges`() {
         // drain a gen to 3 charges, then merge with fresh one
         var s = stateWith(0 to "gen_fruit_1", 1 to "gen_fruit_1")

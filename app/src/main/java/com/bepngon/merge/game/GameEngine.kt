@@ -64,6 +64,21 @@ object GameEngine {
     // one locked cell per level — Lv2..13 covers all 12
     private val UNLOCK_SCHEDULE: Map<Int, Int> = (2..13).associateWith { 1 }
 
+    // Legacy 7×9 schedule — only for honoring unlocks earned in migrated saves.
+    private val LEGACY_UNLOCK_SCHEDULE: Map<Int, Int> = mapOf(
+        2 to 2, 3 to 3, 4 to 3, 5 to 4, 6 to 4, 7 to 4,
+    )
+
+    /** Cells that should still be locked at [level] — the locked set is fully
+     *  determined by the schedule, so this also repairs saves whose stored
+     *  lockedCells drifted from the current layout. */
+    fun lockedCellsForLevel(level: Int, legacy: Boolean = false): Set<Int> {
+        val schedule = if (legacy) LEGACY_UNLOCK_SCHEDULE else UNLOCK_SCHEDULE
+        val unlocks = (2..level).sumOf { schedule[it] ?: 0 }
+            .coerceAtMost(INITIAL_LOCKED.size)
+        return INITIAL_LOCKED.drop(unlocks).toSet()
+    }
+
     /** Frozen high-tier items hidden under locked cells (revealed on level-up)
      *  plus a few on the open board at start. */
     private val FROZEN_SEEDS: Map<Int, String> = mapOf(

@@ -115,16 +115,6 @@ class SaveManager(private val context: Context) {
         return out as List<T>
     }
 
-    private fun remapIndex(i: Int, legacyCols: Int = 7): Int? {
-        val r = i / legacyCols
-        val c = i % legacyCols
-        return if (r < GameEngine.ROWS && c < GameEngine.COLS) {
-            r * GameEngine.COLS + c
-        } else {
-            null
-        }
-    }
-
     suspend fun save(state: GameState, nowMs: Long) {
         val data = SaveData(
             cells = state.cells.map {
@@ -209,7 +199,12 @@ class SaveManager(private val context: Context) {
             xp = data.xp,
             level = data.level,
             nextUid = maxOf(data.nextUid, 30_000L),
-            lockedCells = data.lockedCells.mapNotNull { remapIndex(it) }.toSet(),
+            // The locked set is derived from level, never stored positions —
+            // remapping saved indices mangled them and unlocked bottom cells.
+            lockedCells = GameEngine.lockedCellsForLevel(
+                data.level,
+                legacy = data.cells.size != GameEngine.CELLS,
+            ),
             stats = data.stats.let {
                 Stats(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
             },
