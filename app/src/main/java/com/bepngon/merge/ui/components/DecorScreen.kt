@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
@@ -1834,7 +1835,6 @@ private fun SurfaceCard(
                 )
             }
         }
-        Text(item.name, fontSize = 9.sp, color = Cocoa, fontWeight = FontWeight.Bold)
         Text(
             when {
                 applied -> "Đang dùng"
@@ -1880,14 +1880,16 @@ private fun CatalogCard(
                 } else {
                     Modifier
                         // tap = drop it into the room near the center;
-                        // drag = place it on the exact cell
+                        // drag = place it on the exact cell. Vertical-only
+                        // detection: horizontal swipes fall through to the
+                        // row's horizontalScroll instead of picking the item
                         .pointerInput(item.id) {
                             detectTapGestures { onTapPlace() }
                         }
                         .pointerInput(item.id) {
-                            detectDragGestures(
+                            detectVerticalDragGestures(
                                 onDragStart = { start -> onDragStart(item, origin + start) },
-                                onDrag = { change, _ -> onDragPos(origin + change.position) },
+                                onVerticalDrag = { change, _ -> onDragPos(origin + change.position) },
                                 onDragEnd = onDrop,
                                 onDragCancel = onDrop,
                             )
@@ -1907,7 +1909,6 @@ private fun CatalogCard(
         } else {
             DecorArt(item.id, variant.tint, 40.dp, item.emoji)
         }
-        Text(item.name, fontSize = 10.sp, color = Cocoa, fontWeight = FontWeight.Bold)
         Text(
             when {
                 isPaint -> "Chạm để dùng"
