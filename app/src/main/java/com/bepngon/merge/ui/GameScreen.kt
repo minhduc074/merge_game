@@ -84,6 +84,7 @@ import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
+import com.bepngon.merge.game.ItemDef
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.LevelReward
 import com.bepngon.merge.game.QteReward
@@ -1392,6 +1393,15 @@ private fun ItemInfoCard(
                     )
                 }
             }
+            def.spawnTable.firstOrNull { ItemCatalog[it.itemId].isRare }?.let { rare ->
+                Text(
+                    "✨ Chuỗi hiếm:",
+                    fontSize = 11.sp,
+                    color = Gold,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                MergeChainStrip(rare.itemId)
+            }
             val nextGen = def.mergeResult?.let { ItemCatalog[it] }
             if (nextGen != null && !item.frozen) {
                 Text(
@@ -1566,42 +1576,19 @@ private fun GenSpawnListCard(
                 )
             }
         }
-        val chain = def.spawnTable.firstOrNull()?.let { ItemCatalog.chainOf(it.itemId) }
-        if (chain != null && chain.size > 1) {
-            Text("🔗 Chuỗi merge:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
-            chain.chunked(6).forEach { rowItems ->
-                Row(Modifier.padding(top = 6.dp)) {
-                    rowItems.forEachIndexed { i, cd ->
-                        val gi = chain.indexOf(cd)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                Modifier
-                                    .size(38.dp)
-                                    .background(Color(cd.family.tint), RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                GameArt(cd.id, cd.emoji, 32.dp, emojiSize = 19.sp)
-                            }
-                            Text(
-                                cd.name,
-                                fontSize = 8.sp,
-                                color = Cocoa.copy(alpha = 0.7f),
-                                maxLines = 1,
-                            )
-                        }
-                        if (gi < chain.lastIndex) {
-                            Text(
-                                "→",
-                                fontSize = 13.sp,
-                                color = Cocoa.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .align(Alignment.Top)
-                                    .padding(top = 10.dp, start = 2.dp, end = 4.dp),
-                            )
-                        }
-                    }
-                }
-            }
+        val chains = def.spawnTable
+            .map { ItemCatalog.chainOf(it.itemId) }
+            .distinctBy { it.first().id }
+            .filter { it.size > 1 }
+        chains.forEachIndexed { idx, chain ->
+            val rare = chain.first().isRare
+            Text(
+                if (rare) "✨ Chuỗi hiếm:" else "🔗 Chuỗi merge:",
+                fontSize = 12.sp,
+                color = if (rare) Gold else Cocoa.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = if (idx == 0) 0.dp else 8.dp),
+            )
+            SpawnChainRows(chain)
         }
         val nextGen = def.mergeResult?.let { ItemCatalog[it] }
         if (nextGen != null && !item.frozen) {
@@ -1617,6 +1604,49 @@ private fun GenSpawnListCard(
                     .clickable { onUpgrade?.invoke() }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
+        }
+    }
+}
+
+/** Chunked rows (6/row) of a merge chain with "→" separators; rare items get a gold border. */
+@Composable
+private fun SpawnChainRows(chain: List<ItemDef>) {
+    chain.chunked(6).forEach { rowItems ->
+        Row(Modifier.padding(top = 6.dp)) {
+            rowItems.forEachIndexed { i, cd ->
+                val gi = chain.indexOf(cd)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .background(Color(cd.family.tint), RoundedCornerShape(8.dp))
+                            .border(
+                                1.5.dp,
+                                if (cd.isRare) Gold else Color.Transparent,
+                                RoundedCornerShape(8.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GameArt(cd.id, cd.emoji, 32.dp, emojiSize = 19.sp)
+                    }
+                    Text(
+                        cd.name,
+                        fontSize = 8.sp,
+                        color = Cocoa.copy(alpha = 0.7f),
+                        maxLines = 1,
+                    )
+                }
+                if (gi < chain.lastIndex) {
+                    Text(
+                        "→",
+                        fontSize = 13.sp,
+                        color = Cocoa.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .align(Alignment.Top)
+                            .padding(top = 10.dp, start = 2.dp, end = 4.dp),
+                    )
+                }
+            }
         }
     }
 }
