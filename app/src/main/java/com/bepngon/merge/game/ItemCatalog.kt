@@ -139,61 +139,63 @@ object ItemCatalog {
             Triple("🦞", "Tôm hùm bơ tỏi", 250 to 300),
         )
 
+        // Spawn tables: tier-1 always dominates; higher gen tiers stretch the
+        // tail upward (gen_3 reaches tier-6) instead of shifting the band.
         generator(
             "gen_fruit_1", 1, "🧺", "Giỏ trái cây", "gen_fruit_2", 25,
-            "fruit_1" to 75, "fruit_2" to 20, "fruit_3" to 5, "rare_fruit_1" to 3,
+            "fruit_1" to 60, "fruit_2" to 30, "fruit_3" to 10, "rare_fruit_1" to 5,
         )
         generator(
             "gen_fruit_2", 2, "🛒", "Xe trái cây", "gen_fruit_3", 60,
-            "fruit_1" to 40, "fruit_2" to 35, "fruit_3" to 20, "fruit_4" to 5,
-            "rare_fruit_1" to 3,
+            "fruit_1" to 40, "fruit_2" to 30, "fruit_3" to 15, "fruit_4" to 5,
+            "fruit_5" to 5, "rare_fruit_1" to 5,
         )
         generator(
             "gen_fruit_3", 3, "🚚", "Xe tải trái cây", null, 150,
-            "fruit_2" to 40, "fruit_3" to 35, "fruit_4" to 20, "fruit_5" to 5,
-            "rare_fruit_1" to 3,
+            "fruit_1" to 30, "fruit_2" to 25, "fruit_3" to 18, "fruit_4" to 12,
+            "fruit_5" to 8, "fruit_6" to 2, "rare_fruit_1" to 5,
         )
         generator(
             "gen_bakery_1", 1, "📦", "Hộp bánh", "gen_bakery_2", 25,
-            "bakery_1" to 75, "bakery_2" to 20, "bakery_3" to 5, "rare_bakery_1" to 3,
+            "bakery_1" to 60, "bakery_2" to 30, "bakery_3" to 10, "rare_bakery_1" to 5,
         )
         generator(
             "gen_bakery_2", 2, "🏪", "Tiệm bánh", "gen_bakery_3", 60,
-            "bakery_1" to 40, "bakery_2" to 35, "bakery_3" to 20, "bakery_4" to 5,
-            "rare_bakery_1" to 3,
+            "bakery_1" to 40, "bakery_2" to 30, "bakery_3" to 15, "bakery_4" to 5,
+            "bakery_5" to 5, "rare_bakery_1" to 5,
         )
         generator(
             "gen_bakery_3", 3, "🏭", "Nhà máy bánh", null, 150,
-            "bakery_2" to 40, "bakery_3" to 35, "bakery_4" to 20, "bakery_5" to 5,
-            "rare_bakery_1" to 3,
+            "bakery_1" to 30, "bakery_2" to 25, "bakery_3" to 18, "bakery_4" to 12,
+            "bakery_5" to 8, "bakery_6" to 2, "rare_bakery_1" to 5,
         )
         generator(
             "gen_drink_1", 1, "🧃", "Máy pha chế", "gen_drink_2", 30,
-            "drink_1" to 70, "drink_2" to 25, "drink_3" to 5, "rare_drink_1" to 3,
+            "drink_1" to 60, "drink_2" to 30, "drink_3" to 10, "rare_drink_1" to 5,
         )
         generator(
             "gen_drink_2", 2, "🧊", "Tủ lạnh mini", "gen_drink_3", 70,
-            "drink_1" to 35, "drink_2" to 40, "drink_3" to 20, "drink_4" to 5,
-            "rare_drink_1" to 3,
+            "drink_1" to 40, "drink_2" to 30, "drink_3" to 15, "drink_4" to 5,
+            "drink_5" to 5, "rare_drink_1" to 5,
         )
         generator(
             "gen_drink_3", 3, "🍶", "Quầy bar", null, 160,
-            "drink_2" to 40, "drink_3" to 35, "drink_4" to 20, "drink_5" to 5,
-            "rare_drink_1" to 3,
+            "drink_1" to 30, "drink_2" to 25, "drink_3" to 18, "drink_4" to 12,
+            "drink_5" to 8, "drink_6" to 2, "rare_drink_1" to 5,
         )
         generator(
             "gen_viet_1", 1, "🍳", "Bếp nhỏ", "gen_viet_2", 40,
-            "viet_1" to 70, "viet_2" to 25, "viet_3" to 5, "rare_viet_1" to 3,
+            "viet_1" to 60, "viet_2" to 30, "viet_3" to 10, "rare_viet_1" to 5,
         )
         generator(
             "gen_viet_2", 2, "🔥", "Bếp lớn", "gen_viet_3", 90,
-            "viet_1" to 35, "viet_2" to 40, "viet_3" to 20, "viet_4" to 5,
-            "rare_viet_1" to 3,
+            "viet_1" to 40, "viet_2" to 30, "viet_3" to 15, "viet_4" to 5,
+            "viet_5" to 5, "rare_viet_1" to 5,
         )
         generator(
             "gen_viet_3", 3, "🏮", "Nhà hàng", null, 200,
-            "viet_2" to 40, "viet_3" to 35, "viet_4" to 20, "viet_5" to 5,
-            "rare_viet_1" to 3,
+            "viet_1" to 30, "viet_2" to 25, "viet_3" to 18, "viet_4" to 12,
+            "viet_5" to 8, "viet_6" to 2, "rare_viet_1" to 5,
         )
         put(
             "magic_wild",

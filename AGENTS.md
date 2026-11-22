@@ -69,8 +69,12 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 
 ## Code conventions
 
-- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 3, orders hỏi với `RARE_ORDER_WEIGHT`.
+- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 5, orders hỏi với `RARE_ORDER_WEIGHT` (=1).
+- **Spawn table convention**: tier 1 luôn weight cao nhất ở mọi gen tier; gen càng cao chỉ kéo dài đuôi (gen_2 thêm t4/t5, gen_3 chạm t6) chứ không dịch band. Pattern: gen_1 `60/30/10`, gen_2 `40/30/15/5/5`, gen_3 `30/25/18/12/8/2` + rare 5.
+- **Generator hồi lượt** (`GameEngine.tapGenerator`/`tick`): hết sạch (0 lượt) → `cooldownUntilMs` = `GEN_COOLDOWN_MS` (45s) → về full như cũ; còn dư → `rechargeAtMs` hồi +1 lượt mỗi `GEN_REGEN_MS` (2 phút, catch-up nhiều interval trong `tick`, gen save cũ tự arm timer). `rechargeAtMs` persist qua `rechargeInMs` trong `CellData`. Info card hiện "+1 sau Xs".
 - `GameEngine` là pure functions: `(GameState, args) -> Pair<GameState, List<GameEvent>>`; UI animate dựa trên `GameEvent` qua SharedFlow.
+- **Achievements**: `GameModels.Achievements` — 46 cái, 15 `CHAINS` (claim bậc N → lộ bậc N+1). Metric = state-derived (score/inventoryCap/dailyStreak/miniBest/decor placed/gen tier≥2) + counters `Stats` (merges/ordersDone/coinsEarned/maxTier + spawns/raresFound/qteClaimed/maxCombo — thêm counter = thêm field `Stats` + `StatsData` + chỗ increment). `checkAchievements` là PUBLIC — phải gọi ở MỌI path đổi metric (tap gen, claim QTE/daily, minigame, mua ô kho, nâng gen, wand-dup, decorOp trong VM) để unlock pop ngay.
+- Order XP = `tier*1 + 3` mỗi đơn, combo bonus `2*combo` (đã giảm ~1/2 từ `tier*2 + 5` / `4*combo`).
 - Callbacks truyền vào `pointerInput` phải đi qua `rememberUpdatedState` — pointerInput coroutine capture lambda cũ, không tự refresh.
 - UI đọc `var` thường của engine (`SubakEngine.score`/`nextFruitIndex`...) KHÔNG tự recompose → phải đọc `tick` trong CÙNG lambda innermost chứa dòng đọc đó (lambda memoization skip cả scope cha — đặt `tick` ở cha không đủ). Ví dụ: `tick` trong pill NEXT/Column SCORE của `FruitDropGame`.
 - Tọa độ drag/drop tính trong window coords qua `boundsInWindow()` của từng cell. `PointerInputChange.position` trong `detectDragGestures.onDrag` là LOCAL coords của tile — phải cộng `bounds.topLeft` trước khi hit-test.
