@@ -55,24 +55,6 @@ object DecorCatalog {
     private val items: Map<String, DecorItem> = buildMap {
         // ---- seating ----
         item(
-            "chair_wood", "Ghế gỗ", "🪑", "seating", Placement.FLOOR, DecorLayer.FURNITURE, 1, 1,
-            V("nau", "Nâu", 0xFFBC8A5F, 0),
-            V("trang", "Trắng", 0xFFF5F0E6, 80, style = DecorStyle.HIEN_DAI),
-            V("do", "Đỏ", 0xFFE57373, 120, 2),
-        )
-        item(
-            "armchair", "Ghế bành", "🛋️", "seating", Placement.FLOOR, DecorLayer.FURNITURE, 2, 1,
-            V("be", "Be", 0xFFE8D0A9, 150),
-            V("mint", "Xanh mint", 0xFFA5D6A7, 200, 2, DecorStyle.HIEN_DAI),
-            V("hong", "Hồng", 0xFFF8BBD0, 250, 3),
-        )
-        item(
-            "sofa", "Sofa dài", "🛋️", "seating", Placement.FLOOR, DecorLayer.FURNITURE, 3, 2,
-            V("kem", "Kem", 0xFFFFF1D6, 400, 2),
-            V("xanh", "Xanh dương", 0xFF90CAF9, 550, 3, DecorStyle.HIEN_DAI),
-            V("vang", "Vàng royal", 0xFFFFD54F, 900, 5, DecorStyle.CO_DIEN, rare = true),
-        )
-        item(
             "sofa_mint", "Sofa mây", "🛋️", "seating", Placement.FLOOR, DecorLayer.FURNITURE, 3, 2,
             V("mint", "Mint", 0xFFB2DFDB, 500, 3, DecorStyle.HIEN_DAI),
             V("xanh", "Xanh", 0xFF90CAF9, 650, 4),
@@ -188,12 +170,6 @@ object DecorCatalog {
             V("go", "Gỗ", 0xFFA9825A, 350, 2),
             V("dahoa", "Đá hoa", 0xFFCFD8DC, 500, 4, DecorStyle.HIEN_DAI),
             V("hong", "Hồng kem", 0xFFF8BBD0, 650, 6),
-        )
-        item(
-            "shelf", "Kệ đồ", "🗄️", "table", Placement.FLOOR, DecorLayer.FURNITURE, 1, 2,
-            V("go", "Gỗ", 0xFFBC8A5F, 220),
-            V("trang", "Trắng", 0xFFF5F0E6, 300, style = DecorStyle.HIEN_DAI),
-            V("xanh", "Xanh", 0xFF80CBC4, 380, 3),
         )
         item(
             "table_peach", "Bàn tròn đào", "🍽️", "table", Placement.FLOOR, DecorLayer.FURNITURE, 2, 2,
@@ -460,34 +436,6 @@ object DecorCatalog {
         )
         // ---- wall ----
         item(
-            "wall_art", "Tranh treo", "🖼️", "wall", Placement.WALL, DecorLayer.WALL_DECOR, 2, 1,
-            V("hoa", "Hoa", 0xFFF8BBD0, 100),
-            V("canh", "Phong cảnh", 0xFFA5D6A7, 160),
-            V("meo", "Mèo", 0xFFFFCC80, 280, 4, rare = true),
-            canRotate = false, canFlip = true,
-        )
-        item(
-            "clock", "Đồng hồ", "🕰️", "wall", Placement.WALL, DecorLayer.WALL_DECOR, 1, 1,
-            V("go", "Gỗ", 0xFFBC8A5F, 90),
-            V("vang", "Vàng", 0xFFFFD54F, 150, 2, DecorStyle.CO_DIEN),
-            V("neon", "Neon", 0xFF80DEEA, 320, 5, DecorStyle.HIEN_DAI, rare = true),
-            canRotate = false,
-        )
-        item(
-            "shelf_wall", "Kệ treo", "📚", "wall", Placement.WALL, DecorLayer.WALL_DECOR, 2, 1,
-            V("go", "Gỗ", 0xFFBC8A5F, 140),
-            V("trang", "Trắng", 0xFFF5F0E6, 220, style = DecorStyle.HIEN_DAI),
-            V("cauvong", "Cầu vồng", 0xFFFFAB91, 350, 6),
-            canRotate = false,
-        )
-        item(
-            "window", "Rèm cửa sổ", "🪟", "wall", Placement.WALL, DecorLayer.WALL_DECOR, 2, 2,
-            V("xanh", "Xanh", 0xFF90CAF9, 200, 2),
-            V("hong", "Hồng", 0xFFF8BBD0, 260, 3),
-            V("vang", "Vàng", 0xFFFFE082, 340, 4),
-            canRotate = false,
-        )
-        item(
             "door_wood", "Cửa gỗ", "🚪", "wall", Placement.WALL, DecorLayer.WALL_DECOR, 2, 3,
             V("go", "Gỗ", 0xFFBC8A5F, 350, 3),
             V("trang", "Trắng", 0xFFF5F0E6, 480, 5, DecorStyle.HIEN_DAI),
@@ -688,49 +636,6 @@ object DecorCatalog {
             V("xam", "Xám", 0xFFDAD2C8, 140),
             canRotate = false, tex = "ftex_parquet",
         )
-        // Skies: `tex` carries the sky type key (day/sunset/night) — the
-        // renderer draws gradients + clouds/stars, no bitmap needed.
-        item(
-            "sky_garden", "Vườn", "🌳", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
-            V("xanh", "Sân vườn", 0xFFA9D98E, 0),
-            canRotate = false, tex = "garden",
-        )
-        item(
-            "sky_day", "Trời xanh", "☀️", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
-            V("xanh", "Ban ngày", 0xFFBFE0F5, 0),
-            canRotate = false, tex = "day",
-        )
-        item(
-            "sky_sunset", "Hoàng hôn", "🌇", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
-            V("cam", "Hoàng hôn", 0xFFF6C9B8, 300),
-            canRotate = false, tex = "sunset",
-        )
-        item(
-            "sky_night", "Đêm sao", "🌙", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
-            V("dem", "Đêm", 0xFF3D4A78, 500),
-            canRotate = false, tex = "night",
-        )
-        // Ground: the outdoor band under/around the room (grass, dirt...).
-        // Tint-only paints — the renderer fills the ground band with it.
-        item(
-            "ground_grass", "Cỏ", "🌿", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
-            V("xanh", "Cỏ xanh", 0xFF9CCC65, 0),
-            V("vang", "Cỏ nắng", 0xFFCED36B, 200),
-            V("mint", "Cỏ non", 0xFF9FD8A4, 200),
-            canRotate = false,
-        )
-        item(
-            "ground_dirt", "Đất", "🟤", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
-            V("nau", "Đất nâu", 0xFFC09A76, 250),
-            V("do", "Đất đỏ", 0xFFC9897B, 250),
-            canRotate = false,
-        )
-        item(
-            "ground_stone", "Đá sân", "⬜", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
-            V("xam", "Đá xám", 0xFFBCC4C9, 350),
-            V("kem", "Đá kem", 0xFFDDD4BC, 350),
-            canRotate = false,
-        )
         // ---- legacy paint ids kept so old saves still resolve ----
         item(
             "paint_wall", "Sơn tường", "🎨", "legacy", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
@@ -759,8 +664,6 @@ object DecorCatalog {
             wallRows = 3,
             defaultWall = "wall_floral_tim",
             defaultFloor = "floor_wood_sang",
-            defaultSky = "sky_garden_xanh",
-            defaultGround = "ground_grass_xanh",
         ),
     )
 
@@ -776,6 +679,8 @@ object DecorCatalog {
 
     operator fun get(itemId: String): DecorItem =
         items[itemId] ?: error("Unknown decor id: $itemId")
+
+    operator fun contains(itemId: String): Boolean = itemId in items
 
     fun room(roomId: String): RoomDef =
         rooms[roomId] ?: error("Unknown room id: $roomId")

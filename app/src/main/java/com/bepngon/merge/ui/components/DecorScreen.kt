@@ -888,46 +888,36 @@ private fun RoomShell(decor: DecorState, roomId: String) {
     val wallVL = DecorEngine.wallVariant(room, def, 1) // left wall
     val wallVR = DecorEngine.wallVariant(room, def, 0) // right wall
     val floorV = DecorEngine.floorVariant(room, def)
-    val skyV = DecorEngine.skyVariant(room, def)
     val wallItemL = DecorCatalog.itemOfVariant(wallVL.id)
     val wallItemR = DecorCatalog.itemOfVariant(wallVR.id)
     val floorItem = DecorCatalog.itemOfVariant(floorV.id)
-    val groundV = DecorEngine.groundVariant(room, def)
-    val skyType = DecorCatalog.itemOfVariant(skyV.id).tex ?: "day"
     val wallTexL = rememberTex(wallItemL.tex?.takeIf { wallItemL.layer == DecorLayer.WALL_PAINT })
     val wallTexR = rememberTex(wallItemR.tex?.takeIf { wallItemR.layer == DecorLayer.WALL_PAINT })
     val floorTex = rememberTex(floorItem.tex?.takeIf { floorItem.layer == DecorLayer.FLOOR_PAINT })
     val panelTex = rememberTex("wtex_panel")
-    // optional painted backdrop: drop bg_garden.png into drawable-nodpi
-    // and it replaces the procedural garden
+    // fixed garden backdrop — bg_garden.png replaces the procedural scene
     val gardenBg = rememberTex("bg_garden")
     val floorTint = Color(floorV.tint)
-    val groundTint = Color(groundV.tint)
     Canvas(Modifier.fillMaxSize()) {
         val rr = size.roomRect()
-        if (skyType == "garden") {
-            if (gardenBg != null) {
-                // cover-fit the canvas like CSS background-size: cover
-                val s = maxOf(
-                    size.width / gardenBg.width,
-                    size.height / gardenBg.height,
-                )
-                val w = gardenBg.width * s
-                val h = gardenBg.height * s
-                drawImage(
-                    gardenBg,
-                    dstOffset = IntOffset(
-                        ((size.width - w) / 2f).roundToInt(),
-                        ((size.height - h) / 2f).roundToInt(),
-                    ),
-                    dstSize = IntSize(w.roundToInt(), h.roundToInt()),
-                )
-            } else {
-                drawGarden(groundTint, rr)
-            }
+        if (gardenBg != null) {
+            // cover-fit the canvas like CSS background-size: cover
+            val s = maxOf(
+                size.width / gardenBg.width,
+                size.height / gardenBg.height,
+            )
+            val w = gardenBg.width * s
+            val h = gardenBg.height * s
+            drawImage(
+                gardenBg,
+                dstOffset = IntOffset(
+                    ((size.width - w) / 2f).roundToInt(),
+                    ((size.height - h) / 2f).roundToInt(),
+                ),
+                dstSize = IntSize(w.roundToInt(), h.roundToInt()),
+            )
         } else {
-            drawSky(skyType)
-            drawGroundBand(groundTint, rr)
+            drawGarden(rr = rr)
         }
         // floor thickness skirt under the two front edges
         val dy = 0.052f
@@ -975,15 +965,6 @@ private fun RoomShell(decor: DecorState, roomId: String) {
 }
 
 private fun shade(c: Color, f: Float) = Color(c.red * f, c.green * f, c.blue * f)
-
-private fun skyStops(type: String): List<Color> = when (type) {
-    "sunset" -> listOf(Color(0xFFF0B39B), Color(0xFFF9D6C6), Color(0xFFFBE9DC))
-    "night" -> listOf(Color(0xFF2B3660), Color(0xFF4B4378), Color(0xFF6A5C95))
-    "garden" -> listOf(
-        Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFA9D98E), Color(0xFF8CC473),
-    )
-    else -> listOf(Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFE4F3FC))
-}
 
 /** Tile [bmp] across a quad grid: each grid cell gets the bitmap
  *  perspective-mapped onto its own sub-quad via poly-to-poly, so the
@@ -1104,57 +1085,7 @@ private fun DrawScope.cloud(cx: Float, cy: Float, r: Float, color: Color) {
 
 /** Outdoor ground band wrapping the room from just under the wall/floor
  *  edges down to the frame bottom — painted with the chosen Đất variant. */
-private fun DrawScope.drawGroundBand(tint: Color, rr: Rect) {
-    val ch = size.height
-    val top = rr.top + rr.height * 0.61f
-    drawRect(
-        Brush.verticalGradient(
-            listOf(shade(tint, 1.08f), shade(tint, 0.82f)),
-            startY = top, endY = ch,
-        ),
-        Offset(0f, top),
-        Size(size.width, ch - top),
-    )
-}
 
-private fun DrawScope.drawSky(type: String) {
-    val cw = size.width
-    val ch = size.height
-    drawRect(Brush.verticalGradient(skyStops(type)))
-    when (type) {
-        "night" -> {
-            // stars (deterministic scatter) + pale moon with craters
-            val rnd = kotlin.random.Random(7)
-            repeat(42) {
-                drawCircle(
-                    Color.White.copy(alpha = 0.5f + rnd.nextFloat() * 0.4f),
-                    cw * (0.003f + rnd.nextFloat() * 0.004f),
-                    Offset(rnd.nextFloat() * cw, rnd.nextFloat() * ch),
-                )
-            }
-            val mc = Offset(cw * 0.76f, ch * 0.11f)
-            drawCircle(Color(0xFFF6ECD0), cw * 0.045f, mc)
-            drawCircle(Color(0xFFE3D6B8), cw * 0.011f, mc + Offset(cw * 0.012f, -cw * 0.008f))
-            drawCircle(Color(0xFFE3D6B8), cw * 0.008f, mc + Offset(-cw * 0.014f, cw * 0.006f))
-            cloud(cw * 0.18f, ch * 0.16f, cw * 0.04f, Color(0xFF8F86B8).copy(alpha = 0.7f))
-            cloud(cw * 0.55f, ch * 0.05f, cw * 0.05f, Color(0xFF8F86B8).copy(alpha = 0.7f))
-        }
-        "sunset" -> {
-            drawCircle(Color(0xFFFFB27D), cw * 0.05f, Offset(cw * 0.20f, ch * 0.30f))
-            cloud(cw * 0.22f, ch * 0.10f, cw * 0.055f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
-            cloud(cw * 0.65f, ch * 0.05f, cw * 0.045f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
-            cloud(cw * 0.88f, ch * 0.22f, cw * 0.05f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
-        }
-        else -> {
-            val sc = Offset(cw * 0.80f, ch * 0.09f)
-            drawCircle(Color(0xFFFFE9A8), cw * 0.048f, sc)
-            drawCircle(Color(0xFFFFF6D8), cw * 0.030f, sc)
-            cloud(cw * 0.20f, ch * 0.10f, cw * 0.055f, Color.White.copy(alpha = 0.95f))
-            cloud(cw * 0.58f, ch * 0.05f, cw * 0.042f, Color.White.copy(alpha = 0.95f))
-            cloud(cw * 0.90f, ch * 0.20f, cw * 0.048f, Color.White.copy(alpha = 0.95f))
-        }
-    }
-}
 
 /** Garden scenery behind the room (reference look): sky + clouds peeking
  *  over a grass field, white picket fence, trees at the top corners,
@@ -1745,8 +1676,6 @@ private fun RoomStyleTray(
     val sections = listOf(
         Triple("Tường", DecorLayer.WALL_PAINT, null as DecorVariant?),
         Triple("Sàn", DecorLayer.FLOOR_PAINT, DecorEngine.floorVariant(room, def)),
-        Triple("Trời", DecorLayer.SKY_PAINT, DecorEngine.skyVariant(room, def)),
-        Triple("Đất", DecorLayer.GROUND_PAINT, DecorEngine.groundVariant(room, def)),
     )
     Column(
         Modifier
@@ -1884,15 +1813,9 @@ private fun SurfaceCard(
             Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .then(
-                    if (item.layer == DecorLayer.SKY_PAINT) {
-                        Modifier.background(Brush.verticalGradient(skyStops(item.tex ?: "day")))
-                    } else {
-                        Modifier.background(Color(variant.tint))
-                    },
-                ),
+                .background(Color(variant.tint)),
         ) {
-            item.tex?.takeIf { item.layer != DecorLayer.SKY_PAINT }
+            item.tex
                 ?.let { artRes(ctx, it) }
                 ?.takeIf { it != 0 }
                 ?.let { res ->

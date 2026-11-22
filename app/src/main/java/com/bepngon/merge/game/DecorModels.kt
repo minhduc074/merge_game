@@ -6,7 +6,7 @@ enum class Placement { FLOOR, WALL, PAINT }
 
 /** Draw order + collision group: items collide only inside their own layer,
  *  so a rug slides under furniture and wall art never blocks the sofa. */
-enum class DecorLayer { FLOOR_PAINT, WALL_PAINT, SKY_PAINT, GROUND_PAINT, RUG, FURNITURE, WALL_DECOR, SURFACE_DECOR }
+enum class DecorLayer { FLOOR_PAINT, WALL_PAINT, RUG, FURNITURE, WALL_DECOR, SURFACE_DECOR }
 
 enum class DecorStyle { AM_CUNG, HIEN_DAI, CO_DIEN }
 
@@ -41,8 +41,7 @@ data class DecorItem(
      *  everything else "Xoay" mirrors it horizontally instead. */
     val topDown: Boolean = false,
     /** PAINT items: drawable name of the seamless line-art tile covering
-     *  the surface (null = tint only). For SKY_PAINT this is the sky type
-     *  key instead ("day" | "sunset" | "night"). */
+     *  the surface (null = tint only). */
     val tex: String? = null,
     /** PAINT wall items: draw the wainscot band along the wall bottom. */
     val panel: Boolean = false,
@@ -74,8 +73,6 @@ data class RoomDef(
      *  + tint come from the variant's item, so defaults are data-driven. */
     val defaultWall: String,
     val defaultFloor: String,
-    val defaultSky: String,
-    val defaultGround: String,
     val priceCoins: Int = 0,
     val unlockLevel: Int = 1,
 ) {
@@ -92,6 +89,7 @@ data class RoomSave(
      *  value written when painting both walls at once). */
     val wallPaintL: String? = null,
     val wallPaintR: String? = null,
+    /** Kept only so old saves decode; the outdoor backdrop is fixed now. */
     val skyPaint: String? = null,
     val groundPaint: String? = null,
 )

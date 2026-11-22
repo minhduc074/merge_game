@@ -21,8 +21,13 @@ object DecorEngine {
      *  top, so items stack visibly instead of sinking behind others. */
     fun sortKey(p: PlacedDecor): Int = DecorCatalog[p.itemId].layer.ordinal
 
-    fun roomOf(decor: DecorState, roomId: String): RoomSave =
-        decor.rooms.getValue(roomId)
+    fun roomOf(decor: DecorState, roomId: String): RoomSave {
+        val room = decor.rooms.getValue(roomId)
+        // items dropped from the catalog (old saves) are filtered out so
+        // lookups by id never crash; the next room op persists the clean list
+        val kept = room.placed.filter { it.itemId in DecorCatalog }
+        return if (kept.size == room.placed.size) room else room.copy(placed = kept)
+    }
 
     /** Saved paint variant, or the room's default when unpainted. Variant
      *  ids saved by older versions resolve through the legacy catalog
@@ -43,12 +48,6 @@ object DecorEngine {
 
     fun floorVariant(room: RoomSave, def: RoomDef): DecorVariant =
         paintVariant(room.floorPaint, def.defaultFloor)
-
-    fun skyVariant(room: RoomSave, def: RoomDef): DecorVariant =
-        paintVariant(room.skyPaint, def.defaultSky)
-
-    fun groundVariant(room: RoomSave, def: RoomDef): DecorVariant =
-        paintVariant(room.groundPaint, def.defaultGround)
 
     fun wallTint(decor: DecorState, roomId: String): Long {
         val def = DecorCatalog.room(roomId)
@@ -366,8 +365,6 @@ object DecorEngine {
                 1 -> room.copy(wallPaintL = variantId)
                 else -> room.copy(wallPaint = variantId, wallPaintL = null, wallPaintR = null)
             }
-            DecorLayer.SKY_PAINT -> room.copy(skyPaint = variantId)
-            DecorLayer.GROUND_PAINT -> room.copy(groundPaint = variantId)
             else -> room.copy(floorPaint = variantId)
         }
         next = withRoom(next, roomId, nextRoom)
