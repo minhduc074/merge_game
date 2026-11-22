@@ -1,9 +1,12 @@
 # Bếp Ngon Merge 🍒
 
-Merge game kiểu **Merge Mansion / Travel Town** cho Android — bấm generator để sinh
-nguyên liệu, kéo 2 item giống nhau merge lên tier cao hơn, giao đơn hàng cho khách
-cute, lên level mở khóa bàn chơi, kiếm vàng nâng cấp và trang trí quán. Kèm minigame
-thả trái kiểu Suika kiếm thêm năng lượng.
+**English** · [Tiếng Việt](README.vi.md)
+
+A **Merge Mansion / Travel Town** style merge game for Android — tap generators
+to spawn ingredients, drag two matching items together to merge them up a tier,
+serve cute customers their orders, level up to unlock the board, earn coins for
+upgrades and cafe decor. Comes with a Suika-style fruit-drop minigame for bonus
+energy.
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202025.11.01-4285F4?logo=jetpackcompose)
@@ -12,75 +15,82 @@ thả trái kiểu Suika kiếm thêm năng lượng.
 
 ## Gameplay
 
-- **Board 5×7** — 12 ô cuối bị khóa bằng mạng nhện, mở **1 ô mỗi level** (Lv2–Lv13).
-  Mỗi ô khóa giấu sẵn **1 item bậc cao đóng băng** — lên level mở ô là reveal quà.
-  Vài item đóng băng cũng rải ngẫu nhiên vùng trên lúc bắt đầu chơi.
-- **4 chuỗi merge**: Trái cây (11 tiers), Bánh (10), Đồ uống (8), Món Việt (7)
-  + chuỗi **rare** 3 tiers cho mỗi family (gen spawn ~3%, order đôi khi hỏi với giá cao).
-- **Generators** — bấm để sinh item (tốn 1⚡/lần), hết lượt phải chờ hồi.
-  Long-press để xem spawn table + **nâng cấp bằng vàng** (giá cao để cân bằng).
-- **Orders** — khách gọi món theo adaptive pacing (order tới nhanh hơn nếu bạn
-  hoàn thành nhanh). Tier được hỏi leo dần theo level; family vừa mở gen chỉ bị
-  hỏi item thấp trước. Family unlock sau trả giá cao hơn (bakery +10%, drink +25%, viet +40%).
-  Item nào đã có trên bàn được **khoanh xanh**, món đã giao hiện **✓**.
-- **Kéo thả**: item khác loại **swap chỗ**, item giống merge, item đóng băng
-  cần merge đúng loại để mở băng, kéo xuống túi để cất, kéo lên order để giao.
-- **Năng lượng** — tốn 1⚡ mỗi lần gen, hồi +1/60s (trần 100), quà ngày +10,
-  minigame cho thêm.
-- **Meta**: quán cà phê trang trí (decor buff), thú cưng (cho ăn bằng vàng → buff),
-  achievements, quà hàng ngày, magic wand nhân đôi item, QTE gift bubble.
+- **5×7 board** — the bottom 12 cells are webbed shut and unlock **one per level**
+  (Lv2–Lv13). Every locked cell hides a **frozen high-tier item** — leveling up
+  always reveals a prize. A few frozen items also scatter randomly across the
+  upper board on a fresh run.
+- **4 merge chains**: Fruit (11 tiers), Bakery (10), Drinks (8), Vietnamese
+  dishes (7) — plus a short 3-tier **rare chain** per family (generators spawn
+  them ~3% of the time, orders occasionally ask for them at premium prices).
+- **Generators** — tap to spawn an item (costs 1⚡), recharge when depleted.
+  Long-press to view the spawn table or **upgrade with coins** (pricey, for balance).
+- **Orders** — customers request dishes at an adaptive pace (faster if you
+  complete orders quickly). Requested tiers scale with level; a freshly unlocked
+  family is only asked for low tiers at first. Later families pay more
+  (bakery +10%, drink +25%, viet +40%). Items you already own get a **green
+  ring**, delivered items show a **✓**.
+- **Drag & drop**: mismatched items **swap places**, matching items merge,
+  frozen items need an exact match to unfreeze, drag to the bag to store, drag
+  onto an order card to deliver.
+- **Energy** — 1⚡ per generator tap, regenerates +1/60s (cap 100), +10 from
+  daily rewards, plus the minigame.
+- **Meta**: cafe room with decor buffs, pets (feed with coins → buffs),
+  achievements, daily rewards, magic wand item duplicator, QTE gift bubble.
 
-### Minigame: Thả trái 🍉
+### Minigame: Fruit Drop 🍉
 
-Suika-like: thả trái vào khung, 2 trái cùng loại chạm nhau merge lên trái to hơn,
-tràn khung là thua. Physics = **JBox2D**.
-Không giới hạn lượt chơi; thưởng `min(20⚡, điểm/10)` — 10 điểm = 1⚡.
+Suika-style: drop fruits into a box, identical fruits merge into bigger ones,
+overflow and it's game over. Physics powered by **JBox2D**. Unlimited plays;
+reward is `min(20⚡, score/10)` — 10 points = 1⚡.
 
 ## Tech stack
 
 - Kotlin + Jetpack Compose (Material3), MVVM
 - AGP 8.13.2, Compose BOM 2025.11.01, minSdk 26, target/compileSdk 36
-- Save: DataStore Preferences + kotlinx.serialization
-- JBox2D cho physics minigame
-- Game logic thuần Kotlin trong `game/` — test được bằng unit test thường (JUnit4)
+- Save games: DataStore Preferences + kotlinx.serialization
+- JBox2D for the minigame physics
+- Game logic is pure Kotlin in `game/` — covered by plain JUnit4 tests
 
 ## Build & test
 
 ```sh
 ./gradlew.bat assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
 ./gradlew.bat assembleRelease      # signed release APK
-./gradlew.bat testDebugUnitTest    # 100+ unit test cho engine
+./gradlew.bat testDebugUnitTest    # 100+ engine unit tests
 ```
 
-Release ký bằng `keystore/bepngon.jks` (gitignored), credentials đọc từ
-`local.properties`. Thiếu keys thì vẫn build được nhưng APK unsigned.
+Release builds sign with `keystore/bepngon.jks` (gitignored), credentials read
+from `local.properties`. Without them the build still works but produces an
+unsigned APK.
 
-## Cấu trúc
+## Project layout
 
 ```
 app/src/main/java/com/bepngon/merge/
-├── game/            # logic thuần Kotlin, pure functions (state, args) -> (state, events)
+├── game/            # pure-Kotlin logic: (state, args) -> (state, events)
 │   ├── GameEngine.kt    # merge/move, orders, level/XP, inventory, buffs, cheat
 │   ├── GameModels.kt    # GameState, BoardItem, Order, GameEvent
-│   ├── ItemCatalog.kt   # toàn bộ merge chains + generators + rare chains
+│   ├── ItemCatalog.kt   # every merge chain + generator + rare chain
 │   ├── MetaCatalog.kt   # decor, pets, achievements, daily rewards
-│   └── SubakEngine.kt   # physics minigame thả trái (JBox2D)
+│   └── SubakEngine.kt   # fruit-drop minigame physics (JBox2D)
 ├── ui/              # GameScreen, GameViewModel, components/
-├── data/            # SaveManager (save/load + migration layout cũ)
+├── data/            # SaveManager (save/load + legacy layout migration)
 └── sound/           # SoundManager
 ```
 
-Quy ước thêm content mới: thêm merge chain = thêm 1 `chain()` + `generator()`
-trong `ItemCatalog` — không cần sửa engine. Chi tiết dev workflow xem `AGENTS.md`.
+Convention for new content: adding a merge chain is one `chain()` + one
+`generator()` entry in `ItemCatalog` — no engine changes needed. See `AGENTS.md`
+for the full dev workflow.
 
 ## Art assets
 
-Ảnh item/generator/khách nằm ở `app/src/main/res/drawable-nodpi/`, tên file =
-defId (`fruit_4.png`, `gen_bakery_2.png`, `rare_viet_1.png`, `cust_koala.png`).
-`GameArt` tự load theo tên, fallback emoji khi thiếu file. Prompt gen ảnh:
-`art-prompts.md`. Script cắt sheet AI-gen: `tools/slice_sheet.py`.
+Item/generator/customer art lives in `app/src/main/res/drawable-nodpi/`, file
+name = defId (`fruit_4.png`, `gen_bakery_2.png`, `rare_viet_1.png`,
+`cust_koala.png`). `GameArt` resolves drawables by name and falls back to emoji.
+Generation prompts: `art-prompts.md`. AI-sheet slicer: `tools/slice_sheet.py`.
 
 ## Debug
 
-Build DEBUG: bấm badge **Lv.xx** 10 lần → nhảy Lv30, mở hết ô, +99,999🪙,
-full energy/inventory (đếm lặng, không hiện UI). Reset game: nút ↻ góc trên.
+DEBUG builds: tap the **Lv.xx** badge 10 times → jump to Lv30, all cells
+unlocked, +99,999🪙, full energy/inventory (silent, no UI). Reset run: ↻ top
+right.
