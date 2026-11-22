@@ -16,6 +16,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -1378,6 +1380,48 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                 fontSize = 12.sp,
                 color = Cocoa.copy(alpha = 0.8f),
             )
+        }
+        MergeChainStrip(item.defId)
+    }
+}
+
+/** Horizontal merge chain tier-1 -> max; current item highlighted, past tiers dimmed. */
+@Composable
+private fun MergeChainStrip(currentDefId: String) {
+    val chain = ItemCatalog.chainOf(currentDefId)
+    if (chain.size <= 1) return
+    val curIdx = chain.indexOfFirst { it.id == currentDefId }
+    Spacer(Modifier.height(6.dp))
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        chain.forEachIndexed { i, chainDef ->
+            val isCur = i == curIdx
+            Box(
+                Modifier
+                    .background(
+                        if (isCur) Color(0xFFFFF3C9) else Color.Transparent,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .border(
+                        1.5.dp,
+                        if (isCur) Gold else Color.Transparent,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .padding(3.dp)
+                    .alpha(if (i < curIdx) 0.35f else 1f),
+            ) {
+                GameArt(chainDef.id, chainDef.emoji, 24.dp, emojiSize = 15.sp)
+            }
+            if (i < chain.size - 1) {
+                Text(
+                    "›",
+                    fontSize = 11.sp,
+                    color = Cocoa.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(horizontal = 1.dp),
+                )
+            }
         }
     }
 }
