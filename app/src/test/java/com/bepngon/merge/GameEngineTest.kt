@@ -867,6 +867,44 @@ class GameEngineTest {
     }
 
     @Test
+    fun `newly unlocked family orders stay low tier`() {
+        // viet gen arrives at Lv5: fresh gen -> only tier 1-2 asks
+        fun vietTiers(level: Int, seed0: Int): Set<Int> {
+            val s = stateWith(0 to "gen_viet_1", nextOrderAtMs = 10, level = level)
+            var cur = s.copy(nextOrderId = 2)
+            val tiers = mutableSetOf<Int>()
+            repeat(40) { i ->
+                val (next, events) = GameEngine.maybeSpawnOrder(
+                    cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                    100 + i * 1000L, Random(seed0 + i),
+                )
+                cur = next
+                (events.single() as GameEvent.OrderSpawned).order.required
+                    .filter { it.startsWith("viet_") }
+                    .forEach { tiers += ItemCatalog[it].tier }
+            }
+            return tiers
+        }
+        assertTrue(vietTiers(5, 0).all { it <= 2 })
+        assertTrue(vietTiers(11, 0).all { it <= 5 })
+        // ramp actually climbs — by Lv11 tier 3+ appears
+        assertTrue(vietTiers(11, 0).any { it >= 3 })
+    }
+
+    @Test
+    fun `later families pay more coins per order item`() {
+        // same sellPrice (40) across families isolates the family bonus
+        val fruit = GameEngine.orderCoinReward(orderOf("rare_fruit_1"))
+        val drink = GameEngine.orderCoinReward(orderOf("rare_drink_1"))
+        val viet = GameEngine.orderCoinReward(orderOf("rare_viet_1"))
+        assertTrue(drink > fruit)
+        assertTrue(viet > drink)
+        assertEquals(50, fruit)
+        assertEquals(62, drink)
+        assertEquals(70, viet)
+    }
+
+    @Test
     fun `first order still respects the initial delay`() {
         // nextOrderId == 1 → nothing has spawned yet, keep FIRST_ORDER_DELAY
         val s = stateWith(

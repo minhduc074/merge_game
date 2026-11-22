@@ -560,13 +560,44 @@ object GameEngine {
         return jittered.toLong().coerceIn(ORDER_INTERVAL_MIN_MS, ORDER_INTERVAL_MAX_MS)
     }
 
+    /** Player level at which each family's generator arrives:
+     *  fruit/bakery ship with the starter board, drink at Lv3, viet at Lv5. */
+    private val FAMILY_UNLOCK_LEVEL = mapOf(
+        Family.FRUIT to 1,
+        Family.BAKERY to 1,
+        Family.DRINK to 3,
+        Family.VIET to 5,
+    )
+
+    /** Orders for a freshly unlocked family only ask for low tiers, ramping
+     *  +1 tier every 2 levels toward the global cap. */
+    private fun familyMaxTier(family: Family, level: Int, globalCap: Int): Int {
+        val unlock = FAMILY_UNLOCK_LEVEL[family] ?: 1
+        return minOf(globalCap, 2 + (level - unlock).coerceAtLeast(0) / 2)
+    }
+
+    /** Later families pay more per item — harder unlocks deserve better orders. */
+    private val FAMILY_ORDER_BONUS_PCT = mapOf(
+        Family.FRUIT to 0,
+        Family.BAKERY to 10,
+        Family.DRINK to 25,
+        Family.VIET to 40,
+    )
+
+    /** Coins an order pays before buffs — shared with the order card UI. */
+    fun orderCoinReward(order: Order): Int =
+        order.required.sumOf {
+            val def = ItemCatalog[it]
+            def.sellPrice * (100 + (FAMILY_ORDER_BONUS_PCT[def.family] ?: 0)) / 100
+        } * 5 / 4
+
     private fun generateOrder(state: GameState, random: Random): Order {
         val produceable = produceableFamilies(state)
         // Higher player level unlocks higher-tier requests: Lv1-4 caps at
         // tier 5, Lv5-9 at 6, Lv10-14 at 7, Lv15+ at 8.
         val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 5)
         val candidates = ItemCatalog.allInFamilies(produceable)
-            .filter { it.tier <= maxTier }
+            .filter { it.tier <= familyMaxTier(it.family, state.level, maxTier) }
 
         val count = when (random.nextInt(100)) {
             in 0 until 50 -> 1
@@ -710,7 +741,7 @@ object GameEngine {
         order: Order,
         nowMs: Long = 0,
     ): Pair<GameState, List<GameEvent>> {
-        val baseCoins = order.required.sumOf { ItemCatalog[it].sellPrice } * 5 / 4
+        val baseCoins = orderCoinReward(order)
         val coinsGained = baseCoins * (100 + orderCoinPct(state, nowMs)) / 100
         val xpGained =
             (order.required.sumOf { ItemCatalog[it].tier * 2 } + 5) *

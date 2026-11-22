@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.Order
 import androidx.compose.ui.text.font.FontWeight
@@ -117,7 +118,7 @@ private fun OrderCard(
             }
             Column(Modifier.padding(start = 6.dp)) {
                 Text(order.customer.name, fontSize = 10.sp, color = Cocoa, maxLines = 1)
-                val coins = order.required.sumOf { ItemCatalog[it].sellPrice } * 3 / 2
+                val coins = GameEngine.orderCoinReward(order)
                 Text("+$coins🪙", fontSize = 9.sp, color = Color(0xFFE65100))
             }
         }
