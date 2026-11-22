@@ -1633,13 +1633,13 @@ private fun QteBubble(
         Text(emoji, fontSize = 26.sp)
         Column(Modifier.padding(start = 8.dp)) {
             Text(
-                "🎁 Quà bất ngờ! Bấm nhận",
+                label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Cocoa,
             )
             Text(
-                "$label • còn ${leftSec}s",
+                "còn ${leftSec}s",
                 fontSize = 11.sp,
                 color = Cocoa.copy(alpha = 0.7f),
             )
