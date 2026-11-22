@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1025,7 +1026,7 @@ private fun ItemTile(
         pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
     }
 
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
@@ -1086,9 +1087,10 @@ private fun ItemTile(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        val boxSize = maxWidth * 0.74f
         Box(
             Modifier
-                .size(42.dp)
+                .size(boxSize)
                 .shadow(1.dp, RoundedCornerShape(12.dp))
                 .background(
                     if (item.frozen) {
@@ -1112,16 +1114,16 @@ private fun ItemTile(
             GameArt(
                 item.defId,
                 def.emoji,
-                40.dp,
+                boxSize * 0.95f,
                 alpha = if (item.frozen) 0.6f else 1f,
-                emojiSize = 26.sp,
+                emojiSize = (boxSize.value * 0.62f).sp,
             )
         }
         if (item.frozen) {
             GameArt(
                 "icon_snow",
                 "❄️",
-                14.dp,
+                boxSize * 0.34f,
                 emojiSize = 12.sp,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -1132,7 +1134,7 @@ private fun ItemTile(
             if (cooling) {
                 Text(
                     "💤 ${(item.cooldownUntilMs - nowMs) / 1000 + 1}s",
-                    fontSize = 9.sp,
+                    fontSize = (boxSize.value * 0.21f).sp,
                     fontWeight = FontWeight.Bold,
                     color = Cocoa,
                     modifier = Modifier
@@ -1143,7 +1145,7 @@ private fun ItemTile(
             } else {
                 Text(
                     "x${item.charges}",
-                    fontSize = 9.sp,
+                    fontSize = (boxSize.value * 0.21f).sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     modifier = Modifier
