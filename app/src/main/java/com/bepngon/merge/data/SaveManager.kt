@@ -44,6 +44,10 @@ private data class StatsData(
     val ordersDone: Int = 0,
     val coinsEarned: Int = 0,
     val maxTier: Int = 0,
+    val spawns: Int = 0,
+    val raresFound: Int = 0,
+    val qteClaimed: Int = 0,
+    val maxCombo: Int = 0,
 )
 
 @Serializable
@@ -200,7 +204,10 @@ class SaveManager(private val context: Context) {
             nextUid = state.nextUid,
             lockedCells = state.lockedCells.toList(),
             stats = state.stats.let {
-                StatsData(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
+                StatsData(
+                    it.merges, it.ordersDone, it.coinsEarned, it.maxTier,
+                    it.spawns, it.raresFound, it.qteClaimed, it.maxCombo,
+                )
             },
             reachedAchievements = state.reachedAchievements.toList(),
             claimedAchievements = state.claimedAchievements.toList(),
@@ -279,7 +286,10 @@ class SaveManager(private val context: Context) {
                 legacy = data.cells.size != GameEngine.CELLS,
             ),
             stats = data.stats.let {
-                Stats(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
+                Stats(
+                    it.merges, it.ordersDone, it.coinsEarned, it.maxTier,
+                    it.spawns, it.raresFound, it.qteClaimed, it.maxCombo,
+                )
             },
             reachedAchievements = data.reachedAchievements.toSet(),
             claimedAchievements = data.claimedAchievements.toSet(),

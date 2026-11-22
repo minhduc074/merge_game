@@ -233,7 +233,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun decorOp(roomId: String, op: (GameState) -> Pair<GameState, List<GameEvent>>) {
         val before = _ui.value.game.decor.rooms[roomId] ?: return
-        applyEngine(op)
+        applyEngine { s ->
+            val (n, ev) = op(s)
+            val evs = ev.toMutableList()
+            GameEngine.checkAchievements(n, evs) to evs
+        }
         val after = _ui.value.game.decor.rooms[roomId]
         if (after !== before) {
             decorUndo.addLast(roomId to before)

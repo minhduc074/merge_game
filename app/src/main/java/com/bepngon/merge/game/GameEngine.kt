@@ -171,8 +171,16 @@ object GameEngine {
             }
             val cells = state.cells.toMutableList()
             cells[from] = newItem(state.nextUid, target.defId)
-            return state.copy(cells = cells, nextUid = state.nextUid + 1) to
-                listOf(GameEvent.ItemDuplicated(from))
+            val events = mutableListOf<GameEvent>(GameEvent.ItemDuplicated(from))
+            val next = state.copy(
+                cells = cells,
+                nextUid = state.nextUid + 1,
+                stats = state.stats.copy(
+                    raresFound = state.stats.raresFound +
+                        if (ItemCatalog[target.defId].isRare) 1 else 0,
+                ),
+            )
+            return checkAchievements(next, events) to events
         }
 
         // Dropping a matching item onto a frozen one merges and unlocks it.
@@ -227,6 +235,7 @@ object GameEngine {
             stats = state.stats.copy(
                 merges = state.stats.merges + 1,
                 maxTier = maxOf(state.stats.maxTier, result.tier),
+                raresFound = state.stats.raresFound + if (result.isRare) 1 else 0,
             ),
         )
         return checkAchievements(next, events) to events
@@ -253,8 +262,16 @@ object GameEngine {
             }
             val inventory = state.inventory.toMutableList()
             inventory[slot] = newItem(state.nextUid, target.defId)
-            return state.copy(inventory = inventory, nextUid = state.nextUid + 1) to
-                listOf(GameEvent.ItemDuplicated(-1 - slot))
+            val events = mutableListOf<GameEvent>(GameEvent.ItemDuplicated(-1 - slot))
+            val next = state.copy(
+                inventory = inventory,
+                nextUid = state.nextUid + 1,
+                stats = state.stats.copy(
+                    raresFound = state.stats.raresFound +
+                        if (ItemCatalog[target.defId].isRare) 1 else 0,
+                ),
+            )
+            return checkAchievements(next, events) to events
         }
 
         val okToMerge = if (target.frozen) {
@@ -311,10 +328,12 @@ object GameEngine {
     fun buyInventorySlot(state: GameState): Pair<GameState, List<GameEvent>> {
         val cost = inventorySlotCost(state.inventoryCap) ?: return state to emptyList()
         if (state.coins < cost) return state to listOf(GameEvent.NotEnoughCoins)
-        return state.copy(
+        val events = mutableListOf<GameEvent>(GameEvent.SlotBought(state.inventoryCap + 1))
+        val next = state.copy(
             coins = state.coins - cost,
             inventoryCap = state.inventoryCap + 1,
-        ) to listOf(GameEvent.SlotBought(state.inventoryCap + 1))
+        )
+        return checkAchievements(next, events) to events
     }
 
     /** Move an inventory item to the first free board cell. */
@@ -377,11 +396,18 @@ object GameEngine {
         val cells = state.cells.toMutableList()
         cells[cellIndex] = genItem
         cells[target] = spawned
-        return state.copy(
+        val events = mutableListOf<GameEvent>(GameEvent.Spawned(target, spawned))
+        val next = state.copy(
             cells = cells,
             energy = if (frenzy) state.energy else state.energy - ENERGY_PER_SPAWN,
             nextUid = state.nextUid + 1,
-        ) to listOf(GameEvent.Spawned(target, spawned))
+            stats = state.stats.copy(
+                spawns = state.stats.spawns + 1,
+                raresFound = state.stats.raresFound +
+                    if (ItemCatalog[spawnedDefId].isRare) 1 else 0,
+            ),
+        )
+        return checkAchievements(next, events) to events
     }
 
     // ---------- periodic tick: recharge gens + spawn orders ----------
@@ -482,7 +508,11 @@ object GameEngine {
         random: Random = Random,
     ): Pair<GameState, List<GameEvent>> {
         val offer = state.qte ?: return state to emptyList()
-        var next = state.copy(qte = null, nextQteAtMs = nowMs + nextQteDelay(random))
+        var next = state.copy(
+            qte = null,
+            nextQteAtMs = nowMs + nextQteDelay(random),
+            stats = state.stats.copy(qteClaimed = state.stats.qteClaimed + 1),
+        )
         val events = mutableListOf<GameEvent>(GameEvent.QteClaimed(offer.reward))
         when (offer.reward) {
             QteReward.FRENZY -> {
@@ -514,7 +544,7 @@ object GameEngine {
                 if (cellIndex != null) events += GameEvent.WildcardSpawned(cellIndex)
             }
         }
-        return next to events
+        return checkAchievements(next, events) to events
     }
 
     /** Drop a magic wand on a random empty cell (or free bag slot, or +coins
@@ -803,6 +833,7 @@ object GameEngine {
             stats = state.stats.copy(
                 ordersDone = state.stats.ordersDone + 1,
                 coinsEarned = state.stats.coinsEarned + coinsGained + comboCoins,
+                maxCombo = maxOf(state.stats.maxCombo, combo),
             ),
         )
 
@@ -825,7 +856,7 @@ object GameEngine {
 
     // ---------- achievements / daily / onboarding ----------
 
-    private fun checkAchievements(
+    fun checkAchievements(
         state: GameState,
         events: MutableList<GameEvent>,
     ): GameState {
@@ -885,7 +916,7 @@ object GameEngine {
             next = placed
             if (cellIndex != null) events += GameEvent.WildcardSpawned(cellIndex)
         }
-        return next to events
+        return checkAchievements(next, events) to events
     }
 
     fun finishOnboarding(state: GameState): Pair<GameState, List<GameEvent>> =
@@ -1010,8 +1041,11 @@ object GameEngine {
                 inventory = state.inventory.toMutableList().also { it[invIdx] = upgraded },
             )
         }
-        return next.copy(coins = state.coins - cost) to
-            listOf(GameEvent.GeneratorUpgraded(cellIdx, cost, nextId))
+        val events = mutableListOf<GameEvent>(
+            GameEvent.GeneratorUpgraded(cellIdx, cost, nextId),
+        )
+        val after = next.copy(coins = state.coins - cost)
+        return checkAchievements(after, events) to events
     }
 
     fun startMiniGame(state: GameState, nowMs: Long): Pair<GameState, List<GameEvent>> {
@@ -1025,10 +1059,12 @@ object GameEngine {
         nowMs: Long,
     ): Pair<GameState, List<GameEvent>> {
         val energy = minOf(MINI_MAX_ENERGY, score / 10)
-        return state.copy(
+        val events = mutableListOf<GameEvent>(GameEvent.MiniGameFinished(score, energy))
+        val next = state.copy(
             energy = minOf(ENERGY_CAP, state.energy + energy),
             miniBest = maxOf(state.miniBest, score),
-        ) to listOf(GameEvent.MiniGameFinished(score, energy))
+        )
+        return checkAchievements(next, events) to events
     }
 
     // ---------- debug ----------

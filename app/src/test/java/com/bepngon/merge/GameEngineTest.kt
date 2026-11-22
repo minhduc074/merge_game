@@ -7,6 +7,7 @@ import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
+import com.bepngon.merge.game.Metric
 import com.bepngon.merge.game.Order
 import com.bepngon.merge.game.QteOffer
 import com.bepngon.merge.game.QteReward
@@ -215,6 +216,65 @@ class GameEngineTest {
         assertEquals(4, t.cells[0]?.charges)
         assertEquals(50_000 + GameEngine.GEN_REGEN_MS, t.cells[0]?.rechargeAtMs)
         assertTrue(ev.none { it is GameEvent.GeneratorReady })
+    }
+
+    @Test
+    fun `generator tap increments spawns stat`() {
+        val s = stateWith(0 to "gen_fruit_1")
+        val (next, _) = GameEngine.tapGenerator(s, 0, 1000, Random(42))
+        assertEquals(1, next.stats.spawns)
+    }
+
+    @Test
+    fun `spawn achievement unlocks once spawn goal reached`() {
+        val s = stateWith(0 to "gen_fruit_1", stats = Stats(spawns = 49))
+        val (next, events) = GameEngine.tapGenerator(s, 0, 1000, Random(42))
+        assertTrue("spawn50" in next.reachedAchievements)
+        assertTrue(
+            events.any {
+                it is GameEvent.AchievementUnlocked && it.achievement.id == "spawn50"
+            },
+        )
+    }
+
+    @Test
+    fun `merging rare items counts toward raresFound`() {
+        val s = stateWith(0 to "rare_fruit_1", 1 to "rare_fruit_1")
+        val (next, _) = GameEngine.moveOrMerge(s, 0, 1)
+        assertEquals(1, next.stats.raresFound)
+    }
+
+    @Test
+    fun `claiming a qte offer increments qteClaimed`() {
+        val s = stateWith().copy(qte = QteOffer(QteReward.COINS, 10_000))
+        val (next, _) = GameEngine.claimQte(s, 1000, Random(42))
+        assertEquals(1, next.stats.qteClaimed)
+    }
+
+    @Test
+    fun `orders completed inside the window grow maxCombo`() {
+        val s = stateWith(
+            0 to "fruit_1",
+            1 to "fruit_1",
+            orders = listOf(
+                Order(1, Customers.ALL[0], listOf("fruit_1")),
+                Order(2, Customers.ALL[0], listOf("fruit_1")),
+            ),
+        )
+        val (s1, _) = GameEngine.autoFulfillOrder(s, 1, 1000)
+        val (s2, _) = GameEngine.autoFulfillOrder(s1, 2, 2000)
+        assertEquals(2, s2.stats.maxCombo)
+    }
+
+    @Test
+    fun `metricOf exposes state-derived metrics`() {
+        val s = stateWith(0 to "gen_fruit_2", 5 to "gen_fruit_1")
+            .copy(score = 1234, inventoryCap = 6, dailyStreak = 4, miniBest = 77)
+        assertEquals(1, s.metricOf(Metric.GENERATOR_T2))
+        assertEquals(1234, s.metricOf(Metric.SCORE))
+        assertEquals(6, s.metricOf(Metric.INVENTORY_CAP))
+        assertEquals(4, s.metricOf(Metric.STREAK))
+        assertEquals(77, s.metricOf(Metric.MINI_BEST))
     }
 
     @Test
@@ -785,7 +845,9 @@ class GameEngineTest {
             1000 - GameEngine.genUpgradeCost(ItemCatalog["gen_fruit_2"]),
             next.coins,
         )
-        assertTrue(events.single() is GameEvent.GeneratorUpgraded)
+        assertTrue(events.any { it is GameEvent.GeneratorUpgraded })
+        // tier-2 generator also unlocks the genup1 achievement
+        assertTrue("genup1" in next.reachedAchievements)
     }
 
     @Test
