@@ -59,7 +59,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Mở từ chip "🛋️ Trang trí" trong `RoomScreen` → flag `showDecor` → `ui/components/DecorScreen.kt`.
 - Phòng = grid `RoomDef.cols`×`rows`, `wallRows` đầu là vùng treo tường (WALL item). Va chạy chỉ trong cùng `DecorLayer` → thảm nằm dưới bàn OK. Paint = `Placement.PAINT`, mua là phủ cả mặt (`wallPaint`/`floorPaint`, màu = `variant.tint`).
 - Variant `priceCoins = 0` = starter (luôn dùng được); còn lại vào `ownedVariants` khi mua — `placeItem`/`setVariant`/`setPaint` mua+áp dụng atomic (trừ coin 1 lần).
-- Art MVP = emoji + tile nền `variant.tint`; sprite thật gắn sau qua `variant.artName` (`decor_<id>` png → drawable-nodpi).
+- Art = sprite `decor_<itemId>.png` trong drawable-nodpi render qua `DecorArt` (DecorScreen) + recolor variant bằng `ColorFilter.tint(tint, BlendMode.Modulate)` (API-safe minSdk 26 — `BlendMode.Color` cần API 29); fallback emoji khi thiếu PNG.
 - Undo/redo = snapshot `RoomSave` trong `GameViewModel` (session-only, 50 bước; undo KHÔNG hoàn coin đã mua variant — ownership giữ lại).
 - Save trong `SaveData.decor`; `RoomSave.version` riêng để migrate (version lạ → reset phòng đó về trống).
 - Phase sau chưa có: surface decor trên bàn (`hostUid`), brief/rating thưởng, sell, camera zoom/pan, room thứ 2.
@@ -79,3 +79,4 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Source sheet gốc (AI gen, 1696×2528): `art_out/Gemini_Generated_Image_*.png`. Script cắt: `python tools/slice_sheet.py` → `art_out/slices/` (gitignored, đã copy vào drawable-nodpi). Prompt pack: `art-prompts.md`.
 - Minigame "Thả trái": physics = jbox2d (`game/SubakEngine.kt`, thuần JVM → unit test ở `SubakEngineTest.kt`), art = `subak_*.png` render từ SVG (resvg, convert hsl()→hex trước khi rasterize).
 - Slicer: band y-range hardcode theo layout sheet (divider line full-width làm row-projection merge), cột dùng gap detection hoặc even-split snap về cột ít pixel nhất, nền trắng xóa bằng flood-fill từ mép (giữ trắng nội bộ như chai sữa).
+- Decor sprites (`decor_*.png`): gen 1 item/prompt qua Gemini web trong Edge — `python -u tools/gen_decor_browser.py` (UI automation: paste prompt → chờ ảnh → click ảnh mở Edge image viewer → ⬇ full-size ≈ 50s → `~/Downloads`), rồi `python tools/process_decor.py` (nền trắng→alpha, trim, 512px). Raw gốc: `art_out/decor_raw/` (gitignored). Lưu ý: OpenRouter key trong `.env` hết hạn → gen_art.py (API) không chạy được; download lag 1 nhịp nếu detect trượt → luôn check contact sheet sau batch.

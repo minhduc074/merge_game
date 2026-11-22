@@ -1,5 +1,6 @@
 package com.bepngon.merge.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,16 +36,22 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -302,6 +309,7 @@ fun DecorScreen(
         // drag overlay (window coords -> local)
         drag?.let { d ->
             val item = DecorCatalog[d.itemId]
+            val dv = DecorCatalog.variant(d.variantId)
             Box(
                 Modifier
                     .offset {
@@ -315,7 +323,11 @@ fun DecorScreen(
                     .alpha(0.9f),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(item.emoji, fontSize = 34.sp)
+                DecorArt(
+                    d.itemId, dv.tint,
+                    with(LocalDensity.current) { (cellPxNow() * 1.9f).toDp() },
+                    item.emoji,
+                )
             }
         }
     }
@@ -336,6 +348,39 @@ private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     )
+}
+
+/** Decor sprite `decor_<itemId>` recolored toward the variant tint
+ *  (Modulate keeps cel shading); falls back to emoji when the PNG is
+ *  missing. */
+@Composable
+private fun DecorArt(
+    itemId: String,
+    tint: Long?,
+    size: Dp,
+    emoji: String,
+    modifier: Modifier = Modifier,
+    alpha: Float = 1f,
+) {
+    val ctx = LocalContext.current
+    val res = remember(itemId) { artRes(ctx, "decor_$itemId") }
+    if (res != 0) {
+        Image(
+            painter = painterResource(res),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            colorFilter = tint?.let {
+                ColorFilter.tint(Color(it).copy(alpha = 0.5f), BlendMode.Modulate)
+            },
+            modifier = modifier.size(size).alpha(alpha),
+        )
+    } else {
+        Text(
+            emoji,
+            fontSize = (size.value * 0.6f).sp,
+            modifier = modifier.alpha(alpha),
+        )
+    }
 }
 
 /** One placed item on the floor/wall: tinted tile + emoji, tap = menu,
@@ -391,11 +436,10 @@ private fun PlacedTile(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
+            DecorArt(
+                p.itemId, variant.tint,
+                with(density) { (cellPx * 0.92f * maxOf(w, h)).toDp() },
                 item.emoji,
-                fontSize = with(density) {
-                    (cellPx * 0.55f * minOf(w, h)).toDp().toSp()
-                },
             )
         }
     }
@@ -422,7 +466,7 @@ private fun ItemMenu(
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(item.emoji, fontSize = 22.sp)
+            DecorArt(item.id, item.variantOf(p.variantId).tint, 26.dp, item.emoji)
             Text(
                 item.name,
                 fontSize = 14.sp,
@@ -632,7 +676,7 @@ private fun CatalogCard(
                     .border(1.dp, Color(0x446D4C41), RoundedCornerShape(8.dp)),
             )
         } else {
-            Text(item.emoji, fontSize = 30.sp)
+            DecorArt(item.id, variant.tint, 40.dp, item.emoji)
         }
         Text(item.name, fontSize = 10.sp, color = Cocoa, fontWeight = FontWeight.Bold)
         Text(
