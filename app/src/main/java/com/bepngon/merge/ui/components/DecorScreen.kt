@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -104,6 +103,7 @@ fun DecorScreen(
 
     var drag by remember { mutableStateOf<DecorDrag?>(null) }
     var menuUid by remember { mutableStateOf<Long?>(null) }
+    var stickyMove by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(DecorCatalog.categories.first().first) }
     val pickedVariant = remember { mutableStateMapOf<String, String>() }
     var roomBounds by remember { mutableStateOf(Rect.Zero) }
@@ -146,10 +146,13 @@ fun DecorScreen(
                     else onMove(d.uid, gx, gy, d.rot)
                 }
             }
-            d.uid != 0L -> onRemove(d.uid) // placed item dragged out → store it
+            // placed item dragged out → store it (except in sticky-move
+            // mode, where dropping outside just cancels the move)
+            d.uid != 0L && !stickyMove -> onRemove(d.uid)
             else -> Unit // catalog item released outside → cancel quietly
         }
         drag = null
+        stickyMove = false
     }
 
     Box(
@@ -193,7 +196,43 @@ fun DecorScreen(
                     Modifier
                         .aspectRatio(def.cols.toFloat() / def.rows)
                         .clip(RoundedCornerShape(16.dp))
-                        .onGloballyPositioned { roomBounds = it.boundsInWindow() },
+                        .onGloballyPositioned { roomBounds = it.boundsInWindow() }
+                        // sticky-move mode (from the item menu): the picked-up
+                        // item follows a drag on the canvas, or a tap drops it.
+                        .pointerInput(stickyMove) {
+                            if (!stickyMove) return@pointerInput
+                            detectTapGestures { local ->
+                                val d = drag ?: return@detectTapGestures
+                                snapToCell(roomBounds.topLeft + local, d.itemId, d.rot)
+                                    ?.let { (gx, gy) ->
+                                        if (DecorEngine.canPlace(
+                                                game.decor, roomId, d.itemId,
+                                                gx, gy, d.rot, d.uid,
+                                            )
+                                        ) {
+                                            onMove(d.uid, gx, gy, d.rot)
+                                            drag = null
+                                            stickyMove = false
+                                        }
+                                    }
+                            }
+                        }
+                        .pointerInput(stickyMove) {
+                            if (!stickyMove) return@pointerInput
+                            detectDragGestures(
+                                onDragStart = {},
+                                onDrag = { change, _ ->
+                                    drag = drag?.copy(
+                                        pos = roomBounds.topLeft + change.position,
+                                    )
+                                },
+                                onDragEnd = ::drop,
+                                onDragCancel = {
+                                    drag = null
+                                    stickyMove = false
+                                },
+                            )
+                        },
                 ) {
                     val density = LocalDensity.current
                     val wallH = roomBounds.height * def.wallRows / def.rows
@@ -229,6 +268,7 @@ fun DecorScreen(
                                 p = p,
                                 cellPx = cellPxNow(),
                                 hidden = drag?.uid == p.uid,
+                                interactive = !stickyMove,
                                 onTap = { menuUid = p.uid },
                                 onPickup = { start ->
                                     menuUid = null
@@ -264,9 +304,39 @@ fun DecorScreen(
                         }
                     }
                 }
+                if (stickyMove) {
+                    Row(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xE6FFFFFF))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "✋ Đang di chuyển — chạm ô trống để đặt",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Cocoa,
+                        )
+                        Text(
+                            "✕",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Cocoa,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clickable {
+                                    drag = null
+                                    stickyMove = false
+                                },
+                        )
+                    }
+                }
                 if (room.placed.isEmpty() && drag == null) {
                     Text(
-                        "Kéo đồ từ khay bên dưới vào tiệm nhé!\nChạm đồ đã đặt để đổi màu / xoay / cất.",
+                        "Kéo đồ từ khay bên dưới vào tiệm nhé!\nKéo đồ đã đặt để dời, chạm để đổi màu / xoay / cất.",
                         fontSize = 13.sp,
                         color = Cocoa.copy(alpha = 0.7f),
                         fontWeight = FontWeight.SemiBold,
@@ -288,6 +358,23 @@ fun DecorScreen(
                         onRemove(menuPlaced.uid)
                         menuUid = null
                     },
+                    onMoveMode = {
+                        menuUid = null
+                        stickyMove = true
+                        val (w, h) = DecorEngine.footprint(
+                            DecorCatalog[menuPlaced.itemId], menuPlaced.rot,
+                        )
+                        val cell = cellPxNow()
+                        drag = DecorDrag(
+                            menuPlaced.itemId, menuPlaced.variantId,
+                            menuPlaced.uid,
+                            Offset(
+                                roomBounds.left + (menuPlaced.gx + w / 2f) * cell,
+                                roomBounds.top + (menuPlaced.gy + h / 2f) * cell,
+                            ),
+                            menuPlaced.rot, menuPlaced.flip,
+                        )
+                    },
                     onClose = { menuUid = null },
                 )
             } else {
@@ -299,6 +386,7 @@ fun DecorScreen(
                     onPickVariant = { itemId, v -> pickedVariant[itemId] = v },
                     onPaint = onPaint,
                     onDragStart = { item, start ->
+                        if (stickyMove) return@CatalogTray
                         menuUid = null
                         val v = variantOf(item)
                         drag = DecorDrag(item.id, v.id, 0, start, 0, false)
@@ -412,12 +500,14 @@ private fun DecorArt(
 }
 
 /** One placed item on the floor/wall: tinted tile + emoji, tap = menu,
- *  long-press drag = move / drag outside room = store. */
+ *  drag = move / drag outside room = store. [interactive] disables all
+ *  gestures so events pass through to the canvas in sticky-move mode. */
 @Composable
 private fun PlacedTile(
     p: PlacedDecor,
     cellPx: Float,
     hidden: Boolean,
+    interactive: Boolean,
     onTap: () -> Unit,
     onPickup: (Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
@@ -438,11 +528,13 @@ private fun PlacedTile(
             .onGloballyPositioned { origin = it.positionInWindow() }
             .alpha(if (hidden) 0.25f else 1f)
             .graphicsLayer { scaleX = if (p.flip) -1f else 1f }
-            .pointerInput(p.uid) {
+            .pointerInput(p.uid, interactive) {
+                if (!interactive) return@pointerInput
                 detectTapGestures(onTap = { onTap() })
             }
-            .pointerInput(p.uid) {
-                detectDragGesturesAfterLongPress(
+            .pointerInput(p.uid, interactive) {
+                if (!interactive) return@pointerInput
+                detectDragGestures(
                     onDragStart = { start -> onPickup(origin + start) },
                     onDrag = { change, _ -> onDragPos(origin + change.position) },
                     onDragEnd = onDrop,
@@ -483,6 +575,7 @@ private fun ItemMenu(
     onRotate: () -> Unit,
     onFlip: () -> Unit,
     onRemove: () -> Unit,
+    onMoveMode: () -> Unit,
     onClose: () -> Unit,
 ) {
     val item = DecorCatalog[p.itemId]
@@ -529,6 +622,7 @@ private fun ItemMenu(
                 .padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            MenuBtn("✋ Di chuyển", onMoveMode)
             if (item.canRotate && item.placement == Placement.FLOOR && item.w != item.h) {
                 MenuBtn("🔄 Xoay", onRotate)
             }
