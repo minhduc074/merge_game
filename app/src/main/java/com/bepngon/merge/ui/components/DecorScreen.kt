@@ -898,11 +898,34 @@ private fun RoomShell(decor: DecorState, roomId: String) {
     val wallTexR = rememberTex(wallItemR.tex?.takeIf { wallItemR.layer == DecorLayer.WALL_PAINT })
     val floorTex = rememberTex(floorItem.tex?.takeIf { floorItem.layer == DecorLayer.FLOOR_PAINT })
     val panelTex = rememberTex("wtex_panel")
+    // optional painted backdrop: drop bg_garden.png into drawable-nodpi
+    // and it replaces the procedural garden
+    val gardenBg = rememberTex("bg_garden")
     val floorTint = Color(floorV.tint)
     val groundTint = Color(groundV.tint)
     Canvas(Modifier.fillMaxSize()) {
         val rr = size.roomRect()
-        if (skyType == "garden") drawGarden(groundTint, rr) else {
+        if (skyType == "garden") {
+            if (gardenBg != null) {
+                // cover-fit the canvas like CSS background-size: cover
+                val s = maxOf(
+                    size.width / gardenBg.width,
+                    size.height / gardenBg.height,
+                )
+                val w = gardenBg.width * s
+                val h = gardenBg.height * s
+                drawImage(
+                    gardenBg,
+                    dstOffset = IntOffset(
+                        ((size.width - w) / 2f).roundToInt(),
+                        ((size.height - h) / 2f).roundToInt(),
+                    ),
+                    dstSize = IntSize(w.roundToInt(), h.roundToInt()),
+                )
+            } else {
+                drawGarden(groundTint, rr)
+            }
+        } else {
             drawSky(skyType)
             drawGroundBand(groundTint, rr)
         }

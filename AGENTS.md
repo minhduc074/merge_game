@@ -79,6 +79,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 
 - Art thật nằm trong `app/src/main/res/drawable-nodpi/`, tên file = `defId` (`fruit_4.png`, `gen_bakery_2.png`), customer = `cust_<id>`, icon/UI = `icon_*`/`ui_*`/`fx_*`.
 - Render qua `ui/components/GameArt.kt` — lookup drawable theo tên (cache `getIdentifier`), fallback emoji nếu thiếu file. Muốn đổi art cho item chỉ cần thay PNG cùng tên.
+- Decor editor: backdrop vườn của sky `"garden"` = `bg_garden.png` (cover-fit toàn canvas, phòng iso vẽ đè lên — giữ vùng giữa ảnh thoáng). Thiếu file thì fallback cảnh vẽ code `drawGarden`. Texture tường/sàn = `wtex_*`/`ftex_*`.
 - Source sheet gốc (AI gen, 1696×2528): `art_out/Gemini_Generated_Image_*.png`. Script cắt: `python tools/slice_sheet.py` → `art_out/slices/` (gitignored, đã copy vào drawable-nodpi). Prompt pack: `art-prompts.md`.
 - Minigame "Thả trái": physics = jbox2d (`game/SubakEngine.kt`, thuần JVM → unit test ở `SubakEngineTest.kt`), art = `subak_*.png` render từ SVG (resvg, convert hsl()→hex trước khi rasterize).
 - Slicer: band y-range hardcode theo layout sheet (divider line full-width làm row-projection merge), cột dùng gap detection hoặc even-split snap về cột ít pixel nhất, nền trắng xóa bằng flood-fill từ mép (giữ trắng nội bộ như chai sữa).
