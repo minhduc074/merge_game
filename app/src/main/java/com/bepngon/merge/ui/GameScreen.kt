@@ -174,6 +174,9 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 onSetVariant = { uid, variantId ->
                     vm.decorSetVariant(DecorEngine.DEFAULT_ROOM, uid, variantId)
                 },
+                onScale = { uid, scale ->
+                    vm.decorSetScale(DecorEngine.DEFAULT_ROOM, uid, scale)
+                },
                 onPaint = { variantId, wallSide ->
                     vm.decorPaint(DecorEngine.DEFAULT_ROOM, variantId, wallSide)
                 },

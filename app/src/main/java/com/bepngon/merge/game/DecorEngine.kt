@@ -266,6 +266,23 @@ object DecorEngine {
         return next to events
     }
 
+    /** Resize a placed item's sprite — visual only, footprint unchanged. */
+    fun setScale(
+        state: GameState,
+        roomId: String,
+        uid: Long,
+        scale: Float,
+    ): Pair<GameState, List<GameEvent>> {
+        val room = roomOf(state.decor, roomId)
+        if (room.placed.none { it.uid == uid }) return state to emptyList()
+        val s = scale.coerceIn(0.6f, 1.5f)
+        val nextRoom = room.copy(
+            placed = room.placed.map { if (it.uid == uid) it.copy(scale = s) else it },
+        )
+        return withRoom(state, roomId, nextRoom) to
+            listOf(GameEvent.DecorPlaced(roomId, uid))
+    }
+
     /** Paint items cover a whole surface — buying one instantly applies it;
      *  owned paints can be re-applied freely. */
     fun setPaint(

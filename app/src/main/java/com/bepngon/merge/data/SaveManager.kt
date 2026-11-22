@@ -55,6 +55,7 @@ private data class PlacedDecorData(
     val gy: Int,
     val rot: Int = 0,
     val flip: Boolean = false,
+    val scale: Float = 1f,
 )
 
 @Serializable
@@ -135,7 +136,7 @@ private fun DecorSaveData.toState(): DecorState = DecorState(
             RoomSave(
                 version = r.version,
                 placed = r.placed.map {
-                    PlacedDecor(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip)
+                    PlacedDecor(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip, it.scale)
                 },
                 floorPaint = r.floorPaint,
                 wallPaint = r.wallPaint,
@@ -221,7 +222,7 @@ class SaveManager(private val context: Context) {
                     RoomSaveData(
                         version = DecorEngine.DECOR_SAVE_VERSION,
                         placed = r.placed.map {
-                            PlacedDecorData(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip)
+                            PlacedDecorData(it.uid, it.itemId, it.variantId, it.gx, it.gy, it.rot, it.flip, it.scale)
                         },
                         floorPaint = r.floorPaint,
                         wallPaint = r.wallPaint,

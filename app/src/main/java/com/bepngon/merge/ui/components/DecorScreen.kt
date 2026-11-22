@@ -236,6 +236,7 @@ fun DecorScreen(
     onRemove: (uid: Long) -> Unit,
     onRotate: (uid: Long) -> Unit,
     onSetVariant: (uid: Long, variantId: String) -> Unit,
+    onScale: (uid: Long, scale: Float) -> Unit,
     onPaint: (variantId: String, wallSide: Int?) -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -309,13 +310,13 @@ fun DecorScreen(
         if (item.placement == Placement.WALL) {
             val side = if (p.rot == 90) 1 else 0
             val pt = iso.wallPoint(side, p.gx + w / 2f, (def.wallRows - p.gy - h / 2f) / def.wallRows)
-            val size = w * cellW() * 1.45f
+            val size = w * cellW() * 1.45f * p.scale
             return Offset(pt.x * cw - size / 2, pt.y * ch - size * 0.55f) to size
         }
         val fy = p.gy - def.wallRows
         val cx = Iso.CF.x + (p.gx + w / 2f) * iso.ex.x + (fy + h / 2f) * iso.ey.x
         val botY = Iso.CF.y + (p.gx + w) * iso.ex.y + (fy + h) * iso.ey.y
-        val size = (w + h) * cellW() * 0.8f
+        val size = (w + h) * cellW() * 0.8f * p.scale
         return Offset(cx * cw - size / 2, botY * ch - size * 0.92f) to size
     }
 
@@ -566,6 +567,7 @@ fun DecorScreen(
                     p = menuPlaced,
                     game = game,
                     onSetVariant = { onSetVariant(menuPlaced.uid, it) },
+                    onScale = { onScale(menuPlaced.uid, it) },
                     onRotate = { onRotate(menuPlaced.uid) },
                     onRemove = {
                         onRemove(menuPlaced.uid)
@@ -1106,6 +1108,7 @@ private fun ItemMenu(
     p: PlacedDecor,
     game: GameState,
     onSetVariant: (String) -> Unit,
+    onScale: (Float) -> Unit,
     onRotate: () -> Unit,
     onRemove: () -> Unit,
     onMoveMode: () -> Unit,
@@ -1162,6 +1165,21 @@ private fun ItemMenu(
             // Xoay: rugs rotate for real; oblique art mirrors — same button
             if (item.canRotate || item.canFlip) {
                 MenuBtn("🔄 Xoay", onRotate)
+            }
+            // sprite scale presets — footprint on the grid stays the same
+            listOf("Nhỏ" to 0.75f, "Vừa" to 1f, "Lớn" to 1.25f).forEach { (label, s) ->
+                val sel = kotlin.math.abs(p.scale - s) < 0.01f
+                Text(
+                    "🔍 $label",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (sel) Color.White else Cocoa,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (sel) Cocoa else Color(0xFFFFE0B2))
+                        .clickable { onScale(s) }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                )
             }
         }
     }

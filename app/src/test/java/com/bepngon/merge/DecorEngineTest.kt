@@ -11,6 +11,7 @@ import com.bepngon.merge.game.RoomSave
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
@@ -193,6 +194,23 @@ class DecorEngineTest {
         assertEquals(0, next.coins)
         assertEquals(v.id, next.decor.rooms.getValue(room).placed[0].variantId)
         assertTrue(events.any { it is GameEvent.VariantBought })
+    }
+
+    @Test
+    fun `setScale resizes the sprite and clamps the range`() {
+        val p = placed(1, "chair_wood", 0, 4)
+        val state = stateWith(placed = listOf(p))
+        val (big, ev) = DecorEngine.setScale(state, room, 1, 1.25f)
+        assertEquals(1.25f, big.decor.rooms.getValue(room).placed[0].scale)
+        assertTrue(ev.any { it is GameEvent.DecorPlaced })
+        val (clampHi, _) = DecorEngine.setScale(state, room, 1, 9f)
+        assertEquals(1.5f, clampHi.decor.rooms.getValue(room).placed[0].scale)
+        val (clampLo, _) = DecorEngine.setScale(state, room, 1, 0.1f)
+        assertEquals(0.6f, clampLo.decor.rooms.getValue(room).placed[0].scale)
+        // unknown uid -> no-op
+        val (same, ev2) = DecorEngine.setScale(state, room, 99, 1.25f)
+        assertSame(state, same)
+        assertTrue(ev2.isEmpty())
     }
 
     @Test

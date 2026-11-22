@@ -59,6 +59,8 @@ data class PlacedDecor(
     val gy: Int,
     val rot: Int = 0,
     val flip: Boolean = false,
+    /** Visual size multiplier (footprint on the grid stays unchanged). */
+    val scale: Float = 1f,
 )
 
 data class RoomDef(
