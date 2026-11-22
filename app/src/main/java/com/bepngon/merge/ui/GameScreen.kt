@@ -603,6 +603,10 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
         OrderBar(
             orders = ui.game.orders,
             dragDefId = drag?.defId,
+            availableDefIds = ui.game.cells.filterNotNull()
+                .filter { !it.frozen }
+                .map { it.defId } +
+                ui.game.inventory.filterNotNull().map { it.defId },
             canFulfill = { GameEngine.canFulfillOrder(ui.game, it) },
             onFulfill = vm::autoFulfillOrder,
             onItemTap = { infoItem = BoardItem(-1, it) },

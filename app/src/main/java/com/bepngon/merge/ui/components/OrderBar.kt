@@ -39,6 +39,7 @@ import com.bepngon.merge.ui.theme.MergeGreen
 fun OrderBar(
     orders: List<Order>,
     dragDefId: String?,
+    availableDefIds: List<String>,
     canFulfill: (Order) -> Boolean,
     onFulfill: (Long) -> Unit,
     onItemTap: (String) -> Unit,
@@ -58,6 +59,7 @@ fun OrderBar(
                 OrderCard(
                     order = order,
                     accepts = dragDefId != null && dragDefId in order.remaining,
+                    availableDefIds = availableDefIds,
                     fulfillable = canFulfill(order),
                     onFulfill = { onFulfill(order.id) },
                     onItemTap = onItemTap,
@@ -74,6 +76,7 @@ fun OrderBar(
 private fun OrderCard(
     order: Order,
     accepts: Boolean,
+    availableDefIds: List<String>,
     fulfillable: Boolean,
     onFulfill: () -> Unit,
     onItemTap: (String) -> Unit,
@@ -119,19 +122,39 @@ private fun OrderCard(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             val fulfilledLeft = order.fulfilled.toMutableList()
+            val availLeft = availableDefIds.toMutableList()
             order.required.forEach { req ->
                 val done = fulfilledLeft.remove(req)
-                GameArt(
-                    req,
-                    ItemCatalog[req].emoji,
-                    28.dp,
-                    alpha = if (done) 0.3f else 1f,
-                    emojiSize = 16.sp,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable { onItemTap(req) }
-                        .padding(2.dp),
-                )
+                val have = !done && availLeft.remove(req)
+                Box {
+                    GameArt(
+                        req,
+                        ItemCatalog[req].emoji,
+                        28.dp,
+                        alpha = if (done) 0.3f else 1f,
+                        emojiSize = 16.sp,
+                        modifier = Modifier
+                            .then(
+                                if (have) Modifier.border(1.5.dp, MergeGreen, CircleShape)
+                                else Modifier,
+                            )
+                            .clip(CircleShape)
+                            .clickable { onItemTap(req) }
+                            .padding(2.dp),
+                    )
+                    if (done) {
+                        Text(
+                            "✓",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .background(MergeGreen, CircleShape)
+                                .padding(horizontal = 3.dp, vertical = 1.dp),
+                        )
+                    }
+                }
             }
         }
         }
