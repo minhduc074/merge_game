@@ -1349,7 +1349,6 @@ private fun ItemInfoCard(
             )
             Spacer(Modifier.height(4.dp))
             Text("Sinh ra:", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.7f))
-            val total = def.spawnTable.sumOf { it.weight }
             Row(
                 Modifier.padding(top = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1357,8 +1356,7 @@ private fun ItemInfoCard(
                 def.spawnTable.forEach { entry ->
                     val spawnDef = ItemCatalog[entry.itemId]
                     Text(
-                        "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji} " +
-                            "${entry.weight * 100 / total}%",
+                        "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
                         fontSize = 12.sp,
                         color = if (spawnDef.isRare) Gold else Cocoa,
                     )
@@ -1524,7 +1522,6 @@ private fun GenSpawnListCard(
         }
 
         Spacer(Modifier.height(8.dp))
-        val totalWeight = def.spawnTable.sumOf { it.weight }
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1533,8 +1530,7 @@ private fun GenSpawnListCard(
             def.spawnTable.forEach { entry ->
                 val spawnDef = ItemCatalog[entry.itemId]
                 Text(
-                    "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji} " +
-                        "${entry.weight * 100 / totalWeight}%",
+                    "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
                     fontSize = 12.sp,
                     color = if (spawnDef.isRare) Gold else Cocoa,
                 )
