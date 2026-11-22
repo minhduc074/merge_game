@@ -28,12 +28,15 @@ object DecorCatalog {
         canRotate: Boolean = true,
         canFlip: Boolean = false,
         topDown: Boolean = false,
+        tex: String? = null,
+        panel: Boolean = false,
     ) {
         put(
             id, DecorItem(
                 id = id, name = name, emoji = emoji, category = category,
                 placement = placement, layer = layer, w = w, h = h,
                 canRotate = canRotate, canFlip = canFlip, topDown = topDown,
+                tex = tex, panel = panel,
                 variants = vars.map { v ->
                     DecorVariant(
                         id = "${id}_${v.suffix}",
@@ -610,9 +613,101 @@ object DecorCatalog {
             V("xanh", "Xanh", 0xFF90CAF9, 440, 8),
             canRotate = false,
         )
-        // ---- paint: buying covers the whole surface, nothing is placed ----
+        // ---- room shell: pattern + color tiles, applied whole-surface ----
+        // Walls: shared pastel palette; `tex` = seamless line-art tile,
+        // `panel` adds the wainscot band (giống ảnh tham chiếu của user).
         item(
-            "paint_wall", "Sơn tường", "🎨", "paint", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
+            "wall_floral", "Hoa nhỏ", "🌸", "room", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
+            V("tim", "Tím", 0xFFE6DBF0, 0),
+            V("hong", "Hồng", 0xFFF9D8E0, 80),
+            V("kem", "Kem", 0xFFFBEFD8, 80),
+            V("mint", "Mint", 0xFFD8EEE3, 100),
+            V("xanh", "Xanh", 0xFFD3E2F3, 100),
+            V("la", "Lá", 0xFFDCE9CF, 100),
+            canRotate = false, tex = "wtex_floral", panel = true,
+        )
+        item(
+            "wall_gingham", "Caro", "🏁", "room", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
+            V("hong", "Hồng", 0xFFF5CBD4, 300),
+            V("tim", "Tím", 0xFFDFD1EE, 100),
+            V("kem", "Kem", 0xFFF9E7C8, 100),
+            V("mint", "Mint", 0xFFCBE8DB, 100),
+            V("xanh", "Xanh", 0xFFC9DCF1, 100),
+            canRotate = false, tex = "wtex_gingham",
+        )
+        item(
+            "wall_dots", "Chấm bi", "🔵", "room", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
+            V("mint", "Mint", 0xFFD8EEE3, 300),
+            V("tim", "Tím", 0xFFE2D6F0, 100),
+            V("hong", "Hồng", 0xFFF9D8E0, 100),
+            V("kem", "Kem", 0xFFFBEFD8, 100),
+            V("xanh", "Xanh", 0xFFD3E2F3, 100),
+            canRotate = false, tex = "wtex_dots",
+        )
+        item(
+            "wall_stripes", "Sọc dọc", "🎗️", "room", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
+            V("hong", "Hồng", 0xFFF6D4D9, 250),
+            V("kem", "Kem", 0xFFFBEFD8, 100),
+            V("tim", "Tím", 0xFFE2D6F0, 100),
+            V("mint", "Mint", 0xFFD8EEE3, 100),
+            V("xanh", "Xanh", 0xFFD3E2F3, 100),
+            canRotate = false, tex = "wtex_stripes",
+        )
+        // Floors: same idea — plank/checker/parquet over the tint base.
+        item(
+            "floor_wood", "Ván gỗ", "🪵", "room", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
+            V("sang", "Gỗ sáng", 0xFFEFCDA3, 0),
+            V("nau", "Gỗ nâu", 0xFFDFAF82, 100),
+            V("kem", "Kem", 0xFFF4E3C6, 100),
+            V("xam", "Xám", 0xFFDAD2C8, 120),
+            V("hong", "Hồng", 0xFFF1D3D3, 120),
+            canRotate = false, tex = "ftex_wood",
+        )
+        item(
+            "floor_dots", "Chấm bi", "🔵", "room", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
+            V("tim", "Tím", 0xFFE0D3EE, 300),
+            V("mint", "Mint", 0xFFD3E9DC, 100),
+            V("hong", "Hồng", 0xFFF4D5DA, 100),
+            V("kem", "Kem", 0xFFF4E6CC, 100),
+            V("xanh", "Xanh", 0xFFCEDDEF, 100),
+            canRotate = false, tex = "ftex_dots",
+        )
+        item(
+            "floor_checker", "Ô caro", "🏁", "room", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
+            V("hong", "Hồng", 0xFFF4D5DA, 350),
+            V("kem", "Kem", 0xFFF4E6CC, 120),
+            V("tim", "Tím", 0xFFE0D3EE, 120),
+            V("xanh", "Xanh", 0xFFCEDDEF, 120),
+            canRotate = false, tex = "ftex_checker",
+        )
+        item(
+            "floor_parquet", "Xương cá", "🪵", "room", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
+            V("kem", "Kem", 0xFFF1E0C2, 400),
+            V("nau", "Gỗ nâu", 0xFFDFAF82, 140),
+            V("sang", "Gỗ sáng", 0xFFEFCDA3, 140),
+            V("xam", "Xám", 0xFFDAD2C8, 140),
+            canRotate = false, tex = "ftex_parquet",
+        )
+        // Skies: `tex` carries the sky type key (day/sunset/night) — the
+        // renderer draws gradients + clouds/stars, no bitmap needed.
+        item(
+            "sky_day", "Trời xanh", "☀️", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
+            V("xanh", "Ban ngày", 0xFFBFE0F5, 0),
+            canRotate = false, tex = "day",
+        )
+        item(
+            "sky_sunset", "Hoàng hôn", "🌇", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
+            V("cam", "Hoàng hôn", 0xFFF6C9B8, 300),
+            canRotate = false, tex = "sunset",
+        )
+        item(
+            "sky_night", "Đêm sao", "🌙", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
+            V("dem", "Đêm", 0xFF3D4A78, 500),
+            canRotate = false, tex = "night",
+        )
+        // ---- legacy paint ids kept so old saves still resolve ----
+        item(
+            "paint_wall", "Sơn tường", "🎨", "legacy", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
             V("kem", "Kem", 0xFFFFF8E7, 0),
             V("mint", "Xanh mint", 0xFFE0F2F1, 200),
             V("hongdao", "Hồng đào", 0xFFFCE4EC, 300, 3),
@@ -620,7 +715,7 @@ object DecorCatalog {
             canRotate = false,
         )
         item(
-            "paint_floor", "Lát sàn", "🟫", "paint", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
+            "paint_floor", "Lát sàn", "🟫", "legacy", Placement.PAINT, DecorLayer.FLOOR_PAINT, 0, 0,
             V("gonau", "Gỗ nâu", 0xFFC08A5E, 0),
             V("gosang", "Gỗ sáng", 0xFFE0B88A, 180),
             V("caro", "Caro", 0xFFBCAAA4, 350, 4, DecorStyle.CO_DIEN),
@@ -636,8 +731,9 @@ object DecorCatalog {
             cols = 9,
             rows = 12,
             wallRows = 3,
-            defaultWall = 0xFFFFF8E7,
-            defaultFloor = 0xFFC08A5E,
+            defaultWall = "wall_floral_tim",
+            defaultFloor = "floor_wood_sang",
+            defaultSky = "sky_day_xanh",
         ),
     )
 
@@ -648,7 +744,7 @@ object DecorCatalog {
         "decor" to "Trang trí",
         "fun" to "Thú vui",
         "wall" to "Tường",
-        "paint" to "Sơn",
+        "room" to "Phòng",
     )
 
     operator fun get(itemId: String): DecorItem =
@@ -660,8 +756,14 @@ object DecorCatalog {
     fun variant(variantId: String): DecorVariant =
         items.values.firstNotNullOf { item -> item.variants.firstOrNull { it.id == variantId } }
 
+    fun variantOrNull(variantId: String): DecorVariant? =
+        items.values.firstNotNullOfOrNull { item -> item.variants.firstOrNull { it.id == variantId } }
+
     fun itemOfVariant(variantId: String): DecorItem =
         items.values.first { item -> item.variants.any { it.id == variantId } }
+
+    fun itemOfVariantOrNull(variantId: String): DecorItem? =
+        items.values.firstOrNull { item -> item.variants.any { it.id == variantId } }
 
     fun inCategory(category: String): List<DecorItem> =
         items.values.filter { it.category == category }

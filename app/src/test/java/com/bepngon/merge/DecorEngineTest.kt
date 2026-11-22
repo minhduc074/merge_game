@@ -210,11 +210,32 @@ class DecorEngineTest {
 
         // tint falls back to defaults when unpainted
         state = stateWith()
-        assertEquals(def.defaultWall, DecorEngine.wallTint(state.decor, room))
-        assertEquals(def.defaultFloor, DecorEngine.floorTint(state.decor, room))
+        assertEquals(
+            DecorCatalog.variant(def.defaultWall).tint,
+            DecorEngine.wallTint(state.decor, room),
+        )
+        assertEquals(
+            DecorCatalog.variant(def.defaultFloor).tint,
+            DecorEngine.floorTint(state.decor, room),
+        )
         assertEquals(
             DecorCatalog.variant("paint_floor_da").tint,
             DecorEngine.floorTint(s2.decor, room),
+        )
+    }
+
+    @Test
+    fun `setPaint covers the sky surface too`() {
+        val night = DecorCatalog["sky_night"].variants.first()
+        var state = stateWith(coins = night.priceCoins + 50)
+        val (next, events) = DecorEngine.setPaint(state, room, night.id)
+        assertEquals(night.id, next.decor.rooms.getValue(room).skyPaint)
+        assertEquals(50, next.coins)
+        assertTrue(events.any { it is GameEvent.PaintApplied })
+        // unpainted room -> default day sky
+        assertEquals(
+            DecorCatalog.variant(def.defaultSky).id,
+            DecorEngine.skyVariant(stateWith().decor.rooms.getValue(room), def).id,
         )
     }
 

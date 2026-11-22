@@ -26,16 +26,29 @@ object DecorEngine {
     fun roomOf(decor: DecorState, roomId: String): RoomSave =
         decor.rooms.getValue(roomId)
 
+    /** Saved paint variant, or the room's default when unpainted. Variant
+     *  ids saved by older versions resolve through the legacy catalog
+     *  items; unknown ids fall back to the default instead of crashing. */
+    fun paintVariant(saved: String?, defaultId: String): DecorVariant =
+        saved?.let { DecorCatalog.variantOrNull(it) } ?: DecorCatalog.variant(defaultId)
+
+    fun wallVariant(room: RoomSave, def: RoomDef): DecorVariant =
+        paintVariant(room.wallPaint, def.defaultWall)
+
+    fun floorVariant(room: RoomSave, def: RoomDef): DecorVariant =
+        paintVariant(room.floorPaint, def.defaultFloor)
+
+    fun skyVariant(room: RoomSave, def: RoomDef): DecorVariant =
+        paintVariant(room.skyPaint, def.defaultSky)
+
     fun wallTint(decor: DecorState, roomId: String): Long {
-        val room = roomOf(decor, roomId)
-        return room.wallPaint?.let { DecorCatalog.variant(it).tint }
-            ?: DecorCatalog.room(roomId).defaultWall
+        val def = DecorCatalog.room(roomId)
+        return wallVariant(roomOf(decor, roomId), def).tint
     }
 
     fun floorTint(decor: DecorState, roomId: String): Long {
-        val room = roomOf(decor, roomId)
-        return room.floorPaint?.let { DecorCatalog.variant(it).tint }
-            ?: DecorCatalog.room(roomId).defaultFloor
+        val def = DecorCatalog.room(roomId)
+        return floorVariant(roomOf(decor, roomId), def).tint
     }
 
     // ---------- validation ----------
@@ -257,10 +270,10 @@ object DecorEngine {
         val events = mutableListOf<GameEvent>()
         var next = acquire(state, v, events)
         val room = roomOf(next.decor, roomId)
-        val nextRoom = if (item.layer == DecorLayer.WALL_PAINT) {
-            room.copy(wallPaint = variantId)
-        } else {
-            room.copy(floorPaint = variantId)
+        val nextRoom = when (item.layer) {
+            DecorLayer.WALL_PAINT -> room.copy(wallPaint = variantId)
+            DecorLayer.SKY_PAINT -> room.copy(skyPaint = variantId)
+            else -> room.copy(floorPaint = variantId)
         }
         next = withRoom(next, roomId, nextRoom)
         events += GameEvent.PaintApplied(roomId)

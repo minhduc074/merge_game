@@ -63,6 +63,7 @@ private data class RoomSaveData(
     val placed: List<PlacedDecorData> = emptyList(),
     val floorPaint: String? = null,
     val wallPaint: String? = null,
+    val skyPaint: String? = null,
 )
 
 @Serializable
@@ -136,6 +137,7 @@ private fun DecorSaveData.toState(): DecorState = DecorState(
                 },
                 floorPaint = r.floorPaint,
                 wallPaint = r.wallPaint,
+                skyPaint = r.skyPaint,
             )
         }
     }.ifEmpty { mapOf(DecorEngine.DEFAULT_ROOM to RoomSave()) },
@@ -219,6 +221,7 @@ class SaveManager(private val context: Context) {
                         },
                         floorPaint = r.floorPaint,
                         wallPaint = r.wallPaint,
+                        skyPaint = r.skyPaint,
                     )
                 },
                 ownedVariants = state.decor.ownedVariants.toList(),

@@ -30,16 +30,23 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.graphics.BitmapFactory
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,12 +61,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.DecorItem
+import com.bepngon.merge.game.DecorLayer
+import com.bepngon.merge.game.DecorState
 import com.bepngon.merge.game.DecorVariant
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.PlacedDecor
@@ -176,6 +186,19 @@ private class IsoMap(
             wallPoint(side, len, 1f), wallPoint(side, 0f, 1f),
         )
     }
+
+    /** Bottom band of a wall (h = 0..[hTop]) — used for the wainscot. */
+    fun wallBandPath(side: Int, hTop: Float): List<Offset> {
+        val len = wallLen(side).toFloat()
+        return listOf(
+            wallPoint(side, 0f, 0f), wallPoint(side, len, 0f),
+            wallPoint(side, len, hTop), wallPoint(side, 0f, hTop),
+        )
+    }
+
+    /** Both ends of a horizontal wall line at height [h] — wainscot rail. */
+    fun wallRail(side: Int, h: Float): Pair<Offset, Offset> =
+        wallPoint(side, 0f, h) to wallPoint(side, wallLen(side).toFloat(), h)
 
     fun footprintPts(gx: Int, fy: Int, w: Int, h: Int): List<Offset> = listOf(
         cellOrigin(gx.toFloat(), fy.toFloat()),
@@ -403,22 +426,11 @@ fun DecorScreen(
                         },
                 ) {
                     val density = LocalDensity.current
-                    RoomShell(room.wallPaint != null, room.floorPaint != null)
-                    // paint tints + ghost preview, clipped to the room quads
+                    RoomShell(game.decor, roomId)
+                    // ghost preview, clipped to the room quads
                     Canvas(Modifier.fillMaxSize()) {
                         val cw = size.width
                         val ch = size.height
-                        if (room.wallPaint != null) {
-                            val tint = Color(DecorEngine.wallTint(game.decor, roomId))
-                            drawPath(iso.path(iso.wallPath(1), cw, ch), tint.copy(alpha = 0.35f))
-                            drawPath(iso.path(iso.wallPath(0), cw, ch), tint.copy(alpha = 0.35f))
-                        }
-                        if (room.floorPaint != null) {
-                            drawPath(
-                                iso.path(iso.floorPath(), cw, ch),
-                                Color(DecorEngine.floorTint(game.decor, roomId)).copy(alpha = 0.35f),
-                            )
-                        }
                         ghost?.let { (_, ok, pts) ->
                             drawPath(
                                 iso.path(pts, cw, ch),
@@ -523,6 +535,7 @@ fun DecorScreen(
             } else {
                 CatalogTray(
                     game = game,
+                    roomId = roomId,
                     tab = tab,
                     onTab = { tab = it },
                     pickedVariant = pickedVariant,
@@ -586,24 +599,208 @@ private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit)
     )
 }
 
-/** Isometric room shell: the generated corner-room art filling the
- *  canvas. Falls back to flat wall/floor bands when the JPG is missing. */
+/** Procedural isometric room shell: painted sky behind, both wall quads
+ *  filled with tint + a seamless pattern tile (wainscot band on `panel`
+ *  styles), floor diamond plus a front skirt for slab thickness, and dark
+ *  outlines along the shell edges. Fully recolorable — the saved variant
+ *  picks both the pattern (via its item's `tex`) and the tint. */
 @Composable
-private fun RoomShell(wallPainted: Boolean, floorPainted: Boolean) {
-    val ctx = LocalContext.current
-    val res = remember { artRes(ctx, "decor_bg_room") }
-    if (res != 0) {
-        Image(
-            painter = painterResource(res),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize(),
+private fun RoomShell(decor: DecorState, roomId: String) {
+    val def = DecorCatalog.room(roomId)
+    val room = DecorEngine.roomOf(decor, roomId)
+    val iso = remember(def) { IsoMap(def.cols, def.floorRows, def.wallRows) }
+    val wallV = DecorEngine.wallVariant(room, def)
+    val floorV = DecorEngine.floorVariant(room, def)
+    val skyV = DecorEngine.skyVariant(room, def)
+    val wallItem = DecorCatalog.itemOfVariant(wallV.id)
+    val floorItem = DecorCatalog.itemOfVariant(floorV.id)
+    val skyType = DecorCatalog.itemOfVariant(skyV.id).tex ?: "day"
+    val wallTex = rememberTex(wallItem.tex?.takeIf { wallItem.layer == DecorLayer.WALL_PAINT })
+    val floorTex = rememberTex(floorItem.tex?.takeIf { floorItem.layer == DecorLayer.FLOOR_PAINT })
+    val panelTex = rememberTex("wtex_panel")
+    val wallTint = Color(wallV.tint)
+    val floorTint = Color(floorV.tint)
+    Canvas(Modifier.fillMaxSize()) {
+        val cw = size.width
+        val ch = size.height
+        drawSky(skyType)
+        // floor thickness skirt under the two front edges
+        val dy = 0.052f
+        drawPath(
+            iso.path(
+                listOf(Iso.FL, Iso.FB, Iso.FB + Offset(0f, dy), Iso.FL + Offset(0f, dy)),
+                cw, ch,
+            ),
+            shade(floorTint, 0.74f),
         )
-    } else {
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxWidth().weight(0.41f).background(Color(0xFFE8DFF0)))
-            Box(Modifier.fillMaxWidth().weight(0.59f).background(Color(0xFFF5DDBB)))
+        drawPath(
+            iso.path(
+                listOf(Iso.FB, Iso.FR, Iso.FR + Offset(0f, dy), Iso.FB + Offset(0f, dy)),
+                cw, ch,
+            ),
+            shade(floorTint, 0.62f),
+        )
+        // walls, then the floor face on top of the skirt seam
+        drawWall(iso, 1, wallTint, wallTex, if (wallItem.panel) panelTex else null)
+        drawWall(iso, 0, wallTint, wallTex, if (wallItem.panel) panelTex else null)
+        val floor = iso.path(iso.floorPath(), cw, ch)
+        drawPath(floor, floorTint)
+        floorTex?.let { tilePath(floor, it, cw * 0.13f) }
+        drawPath(
+            floor,
+            Brush.verticalGradient(
+                listOf(Color(0x17000000), Color(0x00000000)),
+                startY = Iso.CF.y * ch, endY = Iso.FB.y * ch,
+            ),
+        )
+        drawEdges(iso, dy)
+    }
+}
+
+private fun shade(c: Color, f: Float) = Color(c.red * f, c.green * f, c.blue * f)
+
+private fun skyStops(type: String): List<Color> = when (type) {
+    "sunset" -> listOf(Color(0xFFF0B39B), Color(0xFFF9D6C6), Color(0xFFFBE9DC))
+    "night" -> listOf(Color(0xFF2B3660), Color(0xFF4B4378), Color(0xFF6A5C95))
+    else -> listOf(Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFE4F3FC))
+}
+
+/** Seamless pattern tile repeated over [path], clipped to it. */
+private fun DrawScope.tilePath(path: Path, bmp: ImageBitmap, tilePx: Float) {
+    val th = tilePx * bmp.height / bmp.width
+    clipPath(path) {
+        var y = 0f
+        while (y < size.height) {
+            var x = 0f
+            while (x < size.width) {
+                drawImage(
+                    image = bmp,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(bmp.width, bmp.height),
+                    dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+                    dstSize = IntSize(tilePx.roundToInt(), th.roundToInt()),
+                )
+                x += tilePx
+            }
+            y += th
         }
+    }
+}
+
+private fun DrawScope.drawWall(
+    iso: IsoMap,
+    side: Int,
+    tint: Color,
+    tex: ImageBitmap?,
+    panelTex: ImageBitmap?,
+) {
+    val cw = size.width
+    val ch = size.height
+    val wall = iso.path(iso.wallPath(side), cw, ch)
+    drawPath(wall, tint)
+    tex?.let { tilePath(wall, it, cw * 0.115f) }
+    // ambient shadow deepening toward the floor line
+    drawPath(
+        wall,
+        Brush.verticalGradient(
+            listOf(Color(0x00000000), Color(0x15000000)),
+            startY = Iso.CT.y * ch, endY = Iso.CF.y * ch,
+        ),
+    )
+    if (panelTex != null) {
+        val hTop = 0.42f
+        val band = iso.path(iso.wallBandPath(side, hTop), cw, ch)
+        drawPath(band, shade(tint, 1.06f).let { Color(it.red, it.green, it.blue).lerpToWhite(0.55f) })
+        tilePath(band, panelTex, cw * 0.085f)
+        val (a, b) = iso.wallRail(side, hTop)
+        drawLine(
+            Color(0xFF8A6A55).copy(alpha = 0.6f),
+            Offset(a.x * cw, a.y * ch), Offset(b.x * cw, b.y * ch),
+            strokeWidth = cw * 0.0035f,
+        )
+    }
+}
+
+private fun Color.lerpToWhite(f: Float) = Color(
+    red + (1f - red) * f,
+    green + (1f - green) * f,
+    blue + (1f - blue) * f,
+)
+
+private fun DrawScope.cloud(cx: Float, cy: Float, r: Float, color: Color) {
+    drawRect(color, Offset(cx - r * 1.6f, cy + r * 0.15f), Size(r * 3.2f, r * 0.75f))
+    drawCircle(color, r * 0.72f, Offset(cx - r * 0.85f, cy + r * 0.2f))
+    drawCircle(color, r, Offset(cx, cy))
+    drawCircle(color, r * 0.68f, Offset(cx + r * 0.9f, cy + r * 0.3f))
+}
+
+private fun DrawScope.drawSky(type: String) {
+    val cw = size.width
+    val ch = size.height
+    drawRect(Brush.verticalGradient(skyStops(type)))
+    when (type) {
+        "night" -> {
+            // stars (deterministic scatter) + pale moon with craters
+            val rnd = kotlin.random.Random(7)
+            repeat(42) {
+                drawCircle(
+                    Color.White.copy(alpha = 0.5f + rnd.nextFloat() * 0.4f),
+                    cw * (0.003f + rnd.nextFloat() * 0.004f),
+                    Offset(rnd.nextFloat() * cw, rnd.nextFloat() * ch),
+                )
+            }
+            val mc = Offset(cw * 0.76f, ch * 0.11f)
+            drawCircle(Color(0xFFF6ECD0), cw * 0.045f, mc)
+            drawCircle(Color(0xFFE3D6B8), cw * 0.011f, mc + Offset(cw * 0.012f, -cw * 0.008f))
+            drawCircle(Color(0xFFE3D6B8), cw * 0.008f, mc + Offset(-cw * 0.014f, cw * 0.006f))
+            cloud(cw * 0.18f, ch * 0.16f, cw * 0.04f, Color(0xFF8F86B8).copy(alpha = 0.7f))
+            cloud(cw * 0.55f, ch * 0.05f, cw * 0.05f, Color(0xFF8F86B8).copy(alpha = 0.7f))
+        }
+        "sunset" -> {
+            drawCircle(Color(0xFFFFB27D), cw * 0.05f, Offset(cw * 0.20f, ch * 0.30f))
+            cloud(cw * 0.22f, ch * 0.10f, cw * 0.055f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
+            cloud(cw * 0.65f, ch * 0.05f, cw * 0.045f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
+            cloud(cw * 0.88f, ch * 0.22f, cw * 0.05f, Color(0xFFF9DCCF).copy(alpha = 0.9f))
+        }
+        else -> {
+            val sc = Offset(cw * 0.80f, ch * 0.09f)
+            drawCircle(Color(0xFFFFE9A8), cw * 0.048f, sc)
+            drawCircle(Color(0xFFFFF6D8), cw * 0.030f, sc)
+            cloud(cw * 0.20f, ch * 0.10f, cw * 0.055f, Color.White.copy(alpha = 0.95f))
+            cloud(cw * 0.58f, ch * 0.05f, cw * 0.042f, Color.White.copy(alpha = 0.95f))
+            cloud(cw * 0.90f, ch * 0.20f, cw * 0.048f, Color.White.copy(alpha = 0.95f))
+        }
+    }
+}
+
+private fun DrawScope.drawEdges(iso: IsoMap, dy: Float) {
+    val cw = size.width
+    val ch = size.height
+    val ink = Color(0xFF7A5A48).copy(alpha = 0.55f)
+    val w = cw * 0.0028f
+    fun p(o: Offset) = Offset(o.x * cw, o.y * ch)
+    // wall top edges + verticals + the corner seam
+    drawLine(ink, p(Iso.LT), p(Iso.CT), w)
+    drawLine(ink, p(Iso.CT), p(Iso.RT), w)
+    drawLine(ink, p(Iso.CT), p(Iso.CF), w)
+    drawLine(ink, p(Iso.LT), p(Iso.FL), w)
+    drawLine(ink, p(Iso.RT), p(Iso.FR), w)
+    // wall/floor seams + floor outline + skirt bottom
+    drawLine(ink, p(Iso.CF), p(Iso.FL), w * 0.8f)
+    drawLine(ink, p(Iso.CF), p(Iso.FR), w * 0.8f)
+    drawLine(ink, p(Iso.FL), p(Iso.FB), w)
+    drawLine(ink, p(Iso.FB), p(Iso.FR), w)
+    drawLine(ink, p(Iso.FL + Offset(0f, dy)), p(Iso.FB + Offset(0f, dy)), w * 0.8f)
+    drawLine(ink, p(Iso.FB + Offset(0f, dy)), p(Iso.FR + Offset(0f, dy)), w * 0.8f)
+}
+
+@Composable
+private fun rememberTex(name: String?): ImageBitmap? {
+    val ctx = LocalContext.current
+    return remember(name) {
+        name?.let { artRes(ctx, it) }
+            ?.takeIf { it != 0 }
+            ?.let { BitmapFactory.decodeResource(ctx.resources, it).asImageBitmap() }
     }
 }
 
@@ -818,10 +1015,12 @@ private fun VariantChip(
     }
 }
 
-/** Bottom tray: category tabs + draggable item cards. */
+/** Bottom tray: category tabs + draggable item cards (or the room-shell
+ *  style picker on the "room" tab). */
 @Composable
 private fun CatalogTray(
     game: GameState,
+    roomId: String,
     tab: String,
     onTab: (String) -> Unit,
     pickedVariant: Map<String, String>,
@@ -853,6 +1052,16 @@ private fun CatalogTray(
                 )
             }
         }
+        if (tab == "room") {
+            RoomStyleTray(
+                game = game,
+                roomId = roomId,
+                pickedVariant = pickedVariant,
+                onPickVariant = onPickVariant,
+                onPaint = onPaint,
+            )
+            return@Column
+        }
         Row(
             Modifier
                 .fillMaxWidth()
@@ -877,6 +1086,168 @@ private fun CatalogTray(
                 }
             }
         }
+    }
+}
+
+/** Room-shell style picker (reference UI): one row of pattern tiles per
+ *  surface (Tường / Sàn / Trời); the color dots under a section recolor
+ *  whichever pattern is applied there. Tapping applies instantly via
+ *  [onPaint] — unowned variants charge their price through setPaint. */
+@Composable
+private fun RoomStyleTray(
+    game: GameState,
+    roomId: String,
+    pickedVariant: Map<String, String>,
+    onPickVariant: (String, String) -> Unit,
+    onPaint: (String) -> Unit,
+) {
+    val def = DecorCatalog.room(roomId)
+    val room = DecorEngine.roomOf(game.decor, roomId)
+    val sections = listOf(
+        Triple("Tường", DecorLayer.WALL_PAINT, DecorEngine.wallVariant(room, def)),
+        Triple("Sàn", DecorLayer.FLOOR_PAINT, DecorEngine.floorVariant(room, def)),
+        Triple("Trời", DecorLayer.SKY_PAINT, DecorEngine.skyVariant(room, def)),
+    )
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        sections.forEach { (label, layer, appliedV) ->
+            val appliedItem = DecorCatalog.itemOfVariant(appliedV.id)
+            val appliedSuffix = appliedV.id.removePrefix("${appliedItem.id}_")
+            val items = DecorCatalog.inCategory("room").filter { it.layer == layer }
+            Text(
+                label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Cocoa.copy(alpha = 0.65f),
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items.forEach { item ->
+                    // keep the same color suffix when switching patterns —
+                    // the variant the card would apply on tap
+                    val targetV = pickedVariant[item.id]?.let { item.variantOf(it) }
+                        ?: item.variants.firstOrNull {
+                            it.id.removePrefix("${item.id}_") == appliedSuffix
+                        }
+                        ?: item.variants.first()
+                    SurfaceCard(
+                        item = item,
+                        variant = targetV,
+                        game = game,
+                        applied = item.id == appliedItem.id,
+                        onClick = { onPaint(targetV.id) },
+                    )
+                }
+            }
+            if (items.isNotEmpty() && appliedItem.category == "room") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 5.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    appliedItem.variants.forEach { v ->
+                        val locked = v.unlockLevel > game.level
+                        Box(
+                            Modifier
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(if (locked) Color(0xFFBBBBBB) else Color(v.tint))
+                                .border(
+                                    2.dp,
+                                    if (v.id == appliedV.id) Gold else Color(0x336D4C41),
+                                    CircleShape,
+                                )
+                                .clickable {
+                                    onPickVariant(appliedItem.id, v.id)
+                                    onPaint(v.id)
+                                },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One pattern/sky tile in the room picker: texture or gradient preview
+ *  over the variant tint, name + price/status underneath. */
+@Composable
+private fun SurfaceCard(
+    item: DecorItem,
+    variant: DecorVariant,
+    game: GameState,
+    applied: Boolean,
+    onClick: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val locked = variant.unlockLevel > game.level
+    val owned = DecorCatalog.isOwned(game.decor, variant.id)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(
+                if (applied) 2.dp else 1.dp,
+                if (applied) Gold else Color(0x33A0522D),
+                RoundedCornerShape(12.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(6.dp),
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .then(
+                    if (item.layer == DecorLayer.SKY_PAINT) {
+                        Modifier.background(Brush.verticalGradient(skyStops(item.tex ?: "day")))
+                    } else {
+                        Modifier.background(Color(variant.tint))
+                    },
+                ),
+        ) {
+            item.tex?.takeIf { item.layer != DecorLayer.SKY_PAINT }
+                ?.let { artRes(ctx, it) }
+                ?.takeIf { it != 0 }
+                ?.let { res ->
+                    Image(
+                        painter = painterResource(res),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            if (locked) {
+                Text(
+                    "🔒",
+                    fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(2.dp),
+                )
+            }
+        }
+        Text(item.name, fontSize = 9.sp, color = Cocoa, fontWeight = FontWeight.Bold)
+        Text(
+            when {
+                applied -> "Đang dùng"
+                owned -> "✓"
+                locked -> "Lv${variant.unlockLevel}"
+                else -> "🪙${variant.priceCoins}"
+            },
+            fontSize = 8.sp,
+            color = when {
+                applied || owned -> MergeGreen
+                locked -> WarnRed
+                else -> Cocoa
+            },
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
