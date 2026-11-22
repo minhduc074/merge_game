@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -89,6 +88,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.DecorEngine
@@ -106,6 +106,7 @@ import com.bepngon.merge.ui.theme.CreamBg
 import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
 import com.bepngon.merge.ui.theme.WarnRed
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -134,6 +135,16 @@ private object Iso {
     val FB = Offset(0.5f, 0.89f) // floor diamond: bottom vertex
     val LT = Offset(0.05f, 0.36f) // left wall outer-top (above FL)
     val RT = Offset(0.95f, 0.36f) // right wall outer-top (above FR)
+}
+
+/** Largest ASPECT-ratio rect centered inside a (possibly taller) canvas.
+ *  The iso room keeps its proportions and is drawn inside this rect; the
+ *  rest of the canvas is extra sky/ground around it. */
+private fun Size.roomRect(): Rect {
+    val s = min(width, height * Iso.ASPECT)
+    val w = s
+    val h = s / Iso.ASPECT
+    return Rect((width - w) / 2f, (height - h) / 2f, (width + w) / 2f, (height + h) / 2f)
 }
 
 /** Grid ↔ screen mapping for the isometric room. All math happens in
@@ -202,10 +213,15 @@ private class IsoMap(
         return hTop to hTop - h.toFloat() / wallRows
     }
 
-    fun path(pts: List<Offset>, w: Float, h: Float): Path = Path().apply {
-        pts.forEachIndexed { i, o -> if (i == 0) moveTo(o.x * w, o.y * h) else lineTo(o.x * w, o.y * h) }
+    fun path(pts: List<Offset>, r: Rect): Path = Path().apply {
+        pts.forEachIndexed { i, o ->
+            val p = Offset(r.left + o.x * r.width, r.top + o.y * r.height)
+            if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+        }
         close()
     }
+
+    fun p(o: Offset, r: Rect) = Offset(r.left + o.x * r.width, r.top + o.y * r.height)
 
     fun floorPath(): List<Offset> =
         listOf(Iso.CF, Iso.FR, Iso.FB, Iso.FL)
@@ -313,17 +329,31 @@ fun DecorScreen(
 
     // Function, not a val: pointerInput closures capture `drop`/`snapToCell`
     // once, so sizes must re-read roomBounds every call (0 until measured).
-    fun cellW(): Float = iso.ex.x * roomSize.width
+    fun cellW(): Float {
+        val rr = roomSize.toSize().roomRect()
+        return iso.ex.x * rr.width
+    }
+
+    /** Window-space bounds of the iso room rect (canvas ⊃ room since the
+     *  canvas now bleeds sky/ground top and bottom). */
+    fun roomWin(): Rect {
+        val rr = roomSize.toSize().roomRect()
+        return Rect(
+            roomBounds.topLeft + Offset(rr.left, rr.top) * zoom,
+            Size(rr.width, rr.height) * zoom,
+        )
+    }
 
     /** Snap a window position to a grid cell: (gx, gy, rot). For wall
      *  items the wall plane under the pointer picks the side in rot. */
     fun snapToCell(pos: Offset, itemId: String, rot: Int): Triple<Int, Int, Int>? {
-        if (roomBounds.width <= 0 || !roomBounds.inflate(roomBounds.width).contains(pos)) return null
+        val win = roomWin()
+        if (win.width <= 0 || !win.inflate(win.width).contains(pos)) return null
         val item = DecorCatalog[itemId]
         val (w, h) = DecorEngine.footprint(item, rot)
         val local = Offset(
-            (pos.x - roomBounds.left) / roomBounds.width,
-            (pos.y - roomBounds.top) / roomBounds.height,
+            (pos.x - win.left) / win.width,
+            (pos.y - win.top) / win.height,
         )
         return when (item.placement) {
             Placement.FLOOR -> {
@@ -354,19 +384,20 @@ fun DecorScreen(
     fun itemBox(p: PlacedDecor): Pair<Offset, Float> {
         val item = DecorCatalog[p.itemId]
         val (w, h) = DecorEngine.footprint(item, p.rot)
-        val cw = roomSize.width.toFloat()
-        val ch = roomSize.height.toFloat()
+        val rr = roomSize.toSize().roomRect()
         if (item.placement == Placement.WALL) {
             val side = if (p.rot == 90) 1 else 0
             val pt = iso.wallPoint(side, p.gx + w / 2f, (def.wallRows - p.gy - h / 2f) / def.wallRows)
             val size = w * cellW() * 1.45f * p.scale
-            return Offset(pt.x * cw - size / 2, pt.y * ch - size * 0.55f) to size
+            val bp = iso.p(pt, rr)
+            return Offset(bp.x - size / 2, bp.y - size * 0.55f) to size
         }
         val fy = p.gy - def.wallRows
         val cx = Iso.CF.x + (p.gx + w / 2f) * iso.ex.x + (fy + h / 2f) * iso.ey.x
         val botY = Iso.CF.y + (p.gx + w) * iso.ex.y + (fy + h) * iso.ey.y
         val size = (w + h) * cellW() * 0.8f * p.scale
-        return Offset(cx * cw - size / 2, botY * ch - size * 0.92f) to size
+        val bp = Offset(rr.left + cx * rr.width, rr.top + botY * rr.height)
+        return Offset(bp.x - size / 2, bp.y - size * 0.92f) to size
     }
 
     val ghost: Triple<Triple<Int, Int, Int>, Boolean, List<Offset>>? = drag?.let { d ->
@@ -389,7 +420,7 @@ fun DecorScreen(
     fun drop() {
         val d = drag ?: return
         when {
-            roomBounds.contains(d.pos) -> {
+            roomWin().contains(d.pos) -> {
                 // let the engine re-validate — an invalid drop keeps state
                 // untouched and answers InvalidDrop for the error feedback
                 snapToCell(d.pos, d.itemId, d.rot)?.let { (gx, gy, rot) ->
@@ -480,7 +511,7 @@ fun DecorScreen(
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier
-                        .aspectRatio(Iso.ASPECT)
+                        .fillMaxSize()
                         .clip(RoundedCornerShape(16.dp))
                         // zoom/pan layer: frame + clip stay fixed, the room
                         // content scales inside. Pointer positions reported
@@ -568,11 +599,10 @@ fun DecorScreen(
                     RoomShell(game.decor, roomId)
                     // ghost preview, clipped to the room quads
                     Canvas(Modifier.fillMaxSize()) {
-                        val cw = size.width
-                        val ch = size.height
+                        val rr = size.roomRect()
                         ghost?.let { (_, ok, pts) ->
                             drawPath(
-                                iso.path(pts, cw, ch),
+                                iso.path(pts, rr),
                                 if (ok) Color(0x8866BB6A) else Color(0x88EF5350),
                             )
                         }
@@ -871,32 +901,31 @@ private fun RoomShell(decor: DecorState, roomId: String) {
     val floorTint = Color(floorV.tint)
     val groundTint = Color(groundV.tint)
     Canvas(Modifier.fillMaxSize()) {
-        val cw = size.width
-        val ch = size.height
-        if (skyType == "garden") drawGarden(groundTint) else {
+        val rr = size.roomRect()
+        if (skyType == "garden") drawGarden(groundTint, rr) else {
             drawSky(skyType)
-            drawGroundBand(groundTint)
+            drawGroundBand(groundTint, rr)
         }
         // floor thickness skirt under the two front edges
         val dy = 0.052f
         drawPath(
             iso.path(
                 listOf(Iso.FL, Iso.FB, Iso.FB + Offset(0f, dy), Iso.FL + Offset(0f, dy)),
-                cw, ch,
+                rr,
             ),
             shade(floorTint, 0.74f),
         )
         drawPath(
             iso.path(
                 listOf(Iso.FB, Iso.FR, Iso.FR + Offset(0f, dy), Iso.FB + Offset(0f, dy)),
-                cw, ch,
+                rr,
             ),
             shade(floorTint, 0.62f),
         )
         // walls, then the floor face on top of the skirt seam
-        drawWall(iso, 1, Color(wallVL.tint), wallTexL, if (wallItemL.panel) panelTex else null)
-        drawWall(iso, 0, Color(wallVR.tint), wallTexR, if (wallItemR.panel) panelTex else null)
-        val floor = iso.path(iso.floorPath(), cw, ch)
+        drawWall(iso, 1, Color(wallVL.tint), wallTexL, if (wallItemL.panel) panelTex else null, rr)
+        drawWall(iso, 0, Color(wallVR.tint), wallTexR, if (wallItemR.panel) panelTex else null, rr)
+        val floor = iso.path(iso.floorPath(), rr)
         drawPath(floor, floorTint)
         floorTex?.let {
             tileQuad(
@@ -907,16 +936,18 @@ private fun RoomShell(decor: DecorState, roomId: String) {
                 uStep = 3f,
                 vStep = 3f,
                 corner = { u, v -> iso.cellOrigin(u, v) },
+                rr = rr,
             )
         }
         drawPath(
             floor,
             Brush.verticalGradient(
                 listOf(Color(0x17000000), Color(0x00000000)),
-                startY = Iso.CF.y * ch, endY = Iso.FB.y * ch,
+                startY = rr.top + Iso.CF.y * rr.height,
+                endY = rr.top + Iso.FB.y * rr.height,
             ),
         )
-        drawEdges(iso, dy)
+        drawEdges(iso, dy, rr)
     }
 }
 
@@ -945,9 +976,8 @@ private fun DrawScope.tileQuad(
     uStep: Float,
     vStep: Float,
     corner: (u: Float, v: Float) -> Offset,
+    rr: Rect,
 ) {
-    val cw = size.width
-    val ch = size.height
     val ab = bmp.asAndroidBitmap()
     val src = floatArrayOf(
         0f, 0f, ab.width.toFloat(), 0f,
@@ -959,19 +989,20 @@ private fun DrawScope.tileQuad(
         isAntiAlias = true
         isFilterBitmap = true
     }
+    fun map(o: Offset) = Offset(rr.left + o.x * rr.width, rr.top + o.y * rr.height)
     clipPath(clip) {
         var v = 0f
         while (v < vMax) {
             var u = 0f
             while (u < uMax) {
-                val tl = corner(u, v)
-                val tr = corner(u + uStep, v)
-                val br = corner(u + uStep, v + vStep)
-                val bl = corner(u, v + vStep)
-                dst[0] = tl.x * cw; dst[1] = tl.y * ch
-                dst[2] = tr.x * cw; dst[3] = tr.y * ch
-                dst[4] = br.x * cw; dst[5] = br.y * ch
-                dst[6] = bl.x * cw; dst[7] = bl.y * ch
+                val tl = map(corner(u, v))
+                val tr = map(corner(u + uStep, v))
+                val br = map(corner(u + uStep, v + vStep))
+                val bl = map(corner(u, v + vStep))
+                dst[0] = tl.x; dst[1] = tl.y
+                dst[2] = tr.x; dst[3] = tr.y
+                dst[4] = br.x; dst[5] = br.y
+                dst[6] = bl.x; dst[7] = bl.y
                 m.setPolyToPoly(src, 0, dst, 0, 4)
                 drawContext.canvas.nativeCanvas.drawBitmap(ab, m, p)
                 u += uStep
@@ -987,10 +1018,9 @@ private fun DrawScope.drawWall(
     tint: Color,
     tex: ImageBitmap?,
     panelTex: ImageBitmap?,
+    rr: Rect,
 ) {
-    val cw = size.width
-    val ch = size.height
-    val wall = iso.path(iso.wallPath(side), cw, ch)
+    val wall = iso.path(iso.wallPath(side), rr)
     drawPath(wall, tint)
     tex?.let {
         tileQuad(
@@ -1001,6 +1031,7 @@ private fun DrawScope.drawWall(
             uStep = 2.5f,
             vStep = 0.3f,
             corner = { u, v -> iso.wallPoint(side, u, 1f - v) },
+            rr = rr,
         )
     }
     // ambient shadow deepening toward the floor line
@@ -1008,12 +1039,13 @@ private fun DrawScope.drawWall(
         wall,
         Brush.verticalGradient(
             listOf(Color(0x00000000), Color(0x15000000)),
-            startY = Iso.CT.y * ch, endY = Iso.CF.y * ch,
+            startY = rr.top + Iso.CT.y * rr.height,
+            endY = rr.top + Iso.CF.y * rr.height,
         ),
     )
     if (panelTex != null) {
         val hTop = 0.42f
-        val band = iso.path(iso.wallBandPath(side, hTop), cw, ch)
+        val band = iso.path(iso.wallBandPath(side, hTop), rr)
         drawPath(band, shade(tint, 1.06f).let { Color(it.red, it.green, it.blue).lerpToWhite(0.55f) })
         tileQuad(
             clip = band,
@@ -1023,12 +1055,13 @@ private fun DrawScope.drawWall(
             uStep = 1.5f,
             vStep = hTop,
             corner = { u, v -> iso.wallPoint(side, u, hTop - v) },
+            rr = rr,
         )
         val (a, b) = iso.wallRail(side, hTop)
         drawLine(
             Color(0xFF8A6A55).copy(alpha = 0.6f),
-            Offset(a.x * cw, a.y * ch), Offset(b.x * cw, b.y * ch),
-            strokeWidth = cw * 0.0035f,
+            iso.p(a, rr), iso.p(b, rr),
+            strokeWidth = rr.width * 0.0035f,
         )
     }
 }
@@ -1048,17 +1081,16 @@ private fun DrawScope.cloud(cx: Float, cy: Float, r: Float, color: Color) {
 
 /** Outdoor ground band wrapping the room from just under the wall/floor
  *  edges down to the frame bottom — painted with the chosen Đất variant. */
-private fun DrawScope.drawGroundBand(tint: Color) {
-    val cw = size.width
+private fun DrawScope.drawGroundBand(tint: Color, rr: Rect) {
     val ch = size.height
-    val top = ch * 0.61f
+    val top = rr.top + rr.height * 0.61f
     drawRect(
         Brush.verticalGradient(
             listOf(shade(tint, 1.08f), shade(tint, 0.82f)),
             startY = top, endY = ch,
         ),
         Offset(0f, top),
-        Size(cw, ch - top),
+        Size(size.width, ch - top),
     )
 }
 
@@ -1104,23 +1136,25 @@ private fun DrawScope.drawSky(type: String) {
 /** Garden scenery behind the room (reference look): sky + clouds peeking
  *  over a grass field, white picket fence, trees at the top corners,
  *  bushes, stepping stones and scattered daisies. */
-private fun DrawScope.drawGarden(grassTint: Color = Color(0xFF9CCC65)) {
+private fun DrawScope.drawGarden(grassTint: Color = Color(0xFF9CCC65), rr: Rect) {
     val cw = size.width
     val ch = size.height
-    // sky band behind everything
+    // sky band behind everything — extra canvas above the room is just
+    // more sky, below is more lawn
     drawRect(Brush.verticalGradient(listOf(Color(0xFF9FCFEF), Color(0xFFD4ECFA))))
     cloud(cw * 0.30f, ch * 0.06f, cw * 0.05f, Color.White.copy(alpha = 0.95f))
     cloud(cw * 0.66f, ch * 0.10f, cw * 0.04f, Color.White.copy(alpha = 0.9f))
-    // grass field (tinted by the Đất variant)
-    val grassTop = ch * 0.24f
+    // grass field (tinted by the Đất variant) — sits just behind the wall
+    // tops and fills everything below
+    val grassTop = rr.top + rr.height * 0.24f
     drawRect(
         Brush.verticalGradient(listOf(shade(grassTint, 1.1f), shade(grassTint, 0.88f))),
         Offset(0f, grassTop),
         Size(cw, ch - grassTop),
     )
     // white picket fence: two rails behind pointed pickets
-    val fenceTop = ch * 0.28f
-    val picketH = ch * 0.085f
+    val fenceTop = rr.top + rr.height * 0.28f
+    val picketH = rr.height * 0.085f
     val picketW = cw * 0.013f
     val picketStep = cw * 0.028f
     val fence = Color(0xFFFAF8F0)
@@ -1143,19 +1177,19 @@ private fun DrawScope.drawGarden(grassTint: Color = Color(0xFF9CCC65)) {
         fx += picketStep
     }
     // trees at the top corners
-    gardenTree(cw * 0.07f, ch * 0.13f, cw * 0.085f)
-    gardenTree(cw * 0.94f, ch * 0.10f, cw * 0.075f)
-    gardenTree(cw * 0.88f, ch * 0.24f, cw * 0.05f)
+    gardenTree(cw * 0.07f, rr.top + rr.height * 0.13f, cw * 0.085f)
+    gardenTree(cw * 0.94f, rr.top + rr.height * 0.10f, cw * 0.075f)
+    gardenTree(cw * 0.88f, rr.top + rr.height * 0.24f, cw * 0.05f)
     // bushes along the grass edges
-    gardenBush(cw * 0.04f, ch * 0.42f, cw * 0.055f)
-    gardenBush(cw * 0.96f, ch * 0.44f, cw * 0.055f)
-    gardenBush(cw * 0.07f, ch * 0.95f, cw * 0.06f)
-    gardenBush(cw * 0.93f, ch * 0.95f, cw * 0.06f)
+    gardenBush(cw * 0.04f, rr.top + rr.height * 0.42f, cw * 0.055f)
+    gardenBush(cw * 0.96f, rr.top + rr.height * 0.44f, cw * 0.055f)
+    gardenBush(cw * 0.07f, rr.top + rr.height * 0.95f, cw * 0.06f)
+    gardenBush(cw * 0.93f, rr.top + rr.height * 0.95f, cw * 0.06f)
     // stepping stones, lower right
     val stone = Color(0xFFE3DECE)
-    drawOval(stone, Offset(cw * 0.86f, ch * 0.60f), Size(cw * 0.045f, cw * 0.028f))
-    drawOval(stone, Offset(cw * 0.90f, ch * 0.72f), Size(cw * 0.05f, cw * 0.030f))
-    drawOval(stone, Offset(cw * 0.87f, ch * 0.85f), Size(cw * 0.048f, cw * 0.029f))
+    drawOval(stone, Offset(cw * 0.86f, rr.top + rr.height * 0.60f), Size(cw * 0.045f, cw * 0.028f))
+    drawOval(stone, Offset(cw * 0.90f, rr.top + rr.height * 0.72f), Size(cw * 0.05f, cw * 0.030f))
+    drawOval(stone, Offset(cw * 0.87f, rr.top + rr.height * 0.85f), Size(cw * 0.048f, cw * 0.029f))
     // daisies + grass speckles (deterministic scatter)
     val rnd = kotlin.random.Random(11)
     val petals = listOf(Color.White, Color(0xFFF7B8CE), Color(0xFFF8E08A))
@@ -1186,12 +1220,10 @@ private fun DrawScope.gardenBush(cx: Float, cy: Float, r: Float) {
     drawCircle(Color(0xFF7BBD64), r * 0.9f, Offset(cx + r * 0.6f, cy))
 }
 
-private fun DrawScope.drawEdges(iso: IsoMap, dy: Float) {
-    val cw = size.width
-    val ch = size.height
+private fun DrawScope.drawEdges(iso: IsoMap, dy: Float, rr: Rect) {
     val ink = Color(0xFF7A5A48).copy(alpha = 0.55f)
-    val w = cw * 0.0028f
-    fun p(o: Offset) = Offset(o.x * cw, o.y * ch)
+    val w = rr.width * 0.0028f
+    fun p(o: Offset) = iso.p(o, rr)
     // wall top edges + verticals + the corner seam
     drawLine(ink, p(Iso.LT), p(Iso.CT), w)
     drawLine(ink, p(Iso.CT), p(Iso.RT), w)
