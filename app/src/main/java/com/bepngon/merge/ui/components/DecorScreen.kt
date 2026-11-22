@@ -1183,9 +1183,11 @@ private fun ItemMenu(
                     onClick = { onSetVariant(v.id) },
                 )
             }
-            // sprite scale stepper — footprint on the grid stays the same
+            // sprite scale stepper — footprint on the grid stays the same.
+            // Steps anchor to the 1+k*0.15 grid so ± always returns to 100%.
+            val k = ((p.scale - 1f) / 0.15f).roundToInt()
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ScaleBtn("➖", p.scale > 0.65f) { onScale(p.scale - 0.15f) }
+                ScaleBtn("➖", k > -3) { onScale(1f + (k - 1) * 0.15f) }
                 Text(
                     "${(p.scale * 100).roundToInt()}%",
                     fontSize = 11.sp,
@@ -1193,7 +1195,7 @@ private fun ItemMenu(
                     color = Cocoa,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
-                ScaleBtn("➕", p.scale < 1.45f) { onScale(p.scale + 0.15f) }
+                ScaleBtn("➕", k < 3) { onScale(1f + (k + 1) * 0.15f) }
             }
         }
     }
