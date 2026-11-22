@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -377,8 +379,6 @@ fun DecorScreen(
                     modifier = Modifier.weight(1f),
                 )
                 TopChip("🪙 ${game.coins}") {}
-                TopChip("↶", enabled = canUndo) { onUndo() }
-                TopChip("↷", enabled = canRedo) { onRedo() }
                 Text(
                     "✕",
                     fontSize = 22.sp,
@@ -558,35 +558,52 @@ fun DecorScreen(
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                 }
+                // undo/redo: round buttons floating at the room's bottom-left,
+                // outside the zoom layer (reference layout)
+                Row(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 10.dp, bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    RoundBtn("↶", canUndo, onUndo)
+                    RoundBtn("↷", canRedo, onRedo)
+                }
+                // selected-item menu: pill floating on the room's bottom
+                // edge instead of a panel replacing the tray
+                val menuPlaced = menuUid?.let { id -> room.placed.firstOrNull { it.uid == id } }
+                if (menuPlaced != null) {
+                    ItemMenu(
+                        p = menuPlaced,
+                        game = game,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 10.dp),
+                        onSetVariant = { onSetVariant(menuPlaced.uid, it) },
+                        onScale = { onScale(menuPlaced.uid, it) },
+                        onRotate = { onRotate(menuPlaced.uid) },
+                        onRemove = {
+                            onRemove(menuPlaced.uid)
+                            menuUid = null
+                        },
+                        onMoveMode = {
+                            menuUid = null
+                            stickyMove = true
+                            val (bo, bs) = itemBox(menuPlaced)
+                            drag = DecorDrag(
+                                menuPlaced.itemId, menuPlaced.variantId,
+                                menuPlaced.uid,
+                                roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f) * zoom,
+                                menuPlaced.rot, menuPlaced.flip,
+                            )
+                        },
+                        onClose = { menuUid = null },
+                    )
+                }
             }
 
-            // ---- bottom: context menu or catalog tray ----
-            val menuPlaced = menuUid?.let { id -> room.placed.firstOrNull { it.uid == id } }
-            if (menuPlaced != null) {
-                ItemMenu(
-                    p = menuPlaced,
-                    game = game,
-                    onSetVariant = { onSetVariant(menuPlaced.uid, it) },
-                    onScale = { onScale(menuPlaced.uid, it) },
-                    onRotate = { onRotate(menuPlaced.uid) },
-                    onRemove = {
-                        onRemove(menuPlaced.uid)
-                        menuUid = null
-                    },
-                    onMoveMode = {
-                        menuUid = null
-                        stickyMove = true
-                        val (bo, bs) = itemBox(menuPlaced)
-                        drag = DecorDrag(
-                            menuPlaced.itemId, menuPlaced.variantId,
-                            menuPlaced.uid,
-                            roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f) * zoom,
-                            menuPlaced.rot, menuPlaced.flip,
-                        )
-                    },
-                    onClose = { menuUid = null },
-                )
-            } else {
+            // ---- bottom: catalog tray ----
+            run {
                 CatalogTray(
                     game = game,
                     roomId = roomId,
@@ -635,6 +652,17 @@ fun DecorScreen(
         }
     }
 }
+
+/** Tray tab icons, keyed by category id (reference-style icon chips). */
+private val CATEGORY_ICONS = mapOf(
+    "seating" to "🪑",
+    "bed" to "🛏️",
+    "table" to "🗄️",
+    "decor" to "🎀",
+    "fun" to "🐱",
+    "wall" to "🖼️",
+    "room" to "🏠",
+)
 
 @Composable
 private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -1102,7 +1130,9 @@ private fun PlacedTile(
     }
 }
 
-/** Tap-menu for a placed item: variant carousel, rotate, flip, store. */
+/** Tap-menu for a placed item: floating pill on the room's bottom edge —
+ *  action buttons (icon over label), then a scrollable variant row with
+ *  the size presets appended. */
 @Composable
 private fun ItemMenu(
     p: PlacedDecor,
@@ -1113,37 +1143,36 @@ private fun ItemMenu(
     onRemove: () -> Unit,
     onMoveMode: () -> Unit,
     onClose: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val item = DecorCatalog[p.itemId]
     Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+        modifier
+            .widthIn(max = 340.dp)
+            .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
-            .padding(10.dp),
+            .border(1.dp, Color(0x33A0522D), RoundedCornerShape(18.dp))
+            .padding(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            DecorArt(
-                item.id, item.variantOf(p.variantId).tint, 26.dp, item.emoji,
-                flip = p.flip,
-            )
-            Text(
-                item.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Cocoa,
-                modifier = Modifier.weight(1f).padding(start = 6.dp),
-            )
-            MenuBtn("📦 Cất", onRemove)
-            MenuBtn("✕", onClose)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            MenuIconBtn("✋", "Di chuyển", onMoveMode)
+            // Xoay: rugs rotate for real; oblique art mirrors — same button
+            if (item.canRotate || item.canFlip) {
+                MenuIconBtn("🔄", "Xoay", onRotate)
+            }
+            MenuIconBtn("📦", "Cất vào kho", onRemove)
+            MenuIconBtn("✕", "Đóng", onClose)
         }
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
+                .padding(top = 6.dp)
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             item.variants.forEach { v ->
                 VariantChip(
@@ -1154,24 +1183,12 @@ private fun ItemMenu(
                     onClick = { onSetVariant(v.id) },
                 )
             }
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MenuBtn("✋ Di chuyển", onMoveMode)
-            // Xoay: rugs rotate for real; oblique art mirrors — same button
-            if (item.canRotate || item.canFlip) {
-                MenuBtn("🔄 Xoay", onRotate)
-            }
             // sprite scale presets — footprint on the grid stays the same
             listOf("Nhỏ" to 0.75f, "Vừa" to 1f, "Lớn" to 1.25f).forEach { (label, s) ->
                 val sel = kotlin.math.abs(p.scale - s) < 0.01f
                 Text(
                     "🔍 $label",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (sel) Color.White else Cocoa,
                     modifier = Modifier
@@ -1185,19 +1202,37 @@ private fun ItemMenu(
     }
 }
 
+/** Round white icon button (undo/redo under the room). */
 @Composable
-private fun MenuBtn(label: String, onClick: () -> Unit) {
+private fun RoundBtn(icon: String, enabled: Boolean, onClick: () -> Unit) {
     Text(
-        label,
-        fontSize = 12.sp,
+        icon,
+        fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
-        color = Cocoa,
+        color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFFFE0B2))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .border(1.dp, Color(0x33A0522D), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .wrapContentSize(Alignment.Center),
     )
+}
+
+/** Pill-menu button: emoji icon stacked over a small label. */
+@Composable
+private fun MenuIconBtn(icon: String, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(icon, fontSize = 17.sp)
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Cocoa)
+    }
 }
 
 @Composable
@@ -1259,7 +1294,14 @@ private fun CatalogTray(
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.85f))
+            .padding(8.dp),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -1267,18 +1309,24 @@ private fun CatalogTray(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             DecorCatalog.categories.forEach { (id, label) ->
-                Text(
-                    label,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (tab == id) Color.White else Cocoa,
+                val sel = tab == id
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (tab == id) Cocoa else Color.White)
-                        .border(1.dp, Color(0x33A0522D), RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (sel) Color(0xFFFADADD) else Color.White)
+                        .border(1.dp, Color(0x33A0522D), RoundedCornerShape(12.dp))
                         .clickable { onTab(id) }
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                )
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(CATEGORY_ICONS[id] ?: "🧺", fontSize = 15.sp)
+                    Text(
+                        label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Cocoa,
+                    )
+                }
             }
         }
         if (tab == "room") {
