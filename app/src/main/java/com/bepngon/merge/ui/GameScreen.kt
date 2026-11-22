@@ -80,7 +80,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.game.BoardItem
-import com.bepngon.merge.game.Customers
 import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
@@ -148,9 +147,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
         if (ui.showRoom) {
             RoomScreen(
                 game = ui.game,
-                nowMs = ui.nowMs,
-                onAdoptPet = vm::adoptPet,
-                onFeedPetCoins = vm::feedPetCoins,
                 onOpenMiniGame = vm::openMiniGame,
                 onOpenDecor = vm::openDecor,
                 onClose = vm::closeRoom,
@@ -528,31 +524,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 }
                 is GameEvent.FrenzyStarted -> {
                     SoundManager.play(SoundManager.Sfx.LevelUp)
-                }
-                is GameEvent.PetAdopted -> {
-                    SoundManager.play(SoundManager.Sfx.Achieve)
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    levelBanner = "🐾 Bé ${Customers.byId(e.defId).name} về nhà!"
-                    scope.launch {
-                        kotlinx.coroutines.delay(2200)
-                        levelBanner = null
-                    }
-                }
-                is GameEvent.PetFed -> {
-                    SoundManager.play(SoundManager.Sfx.Complete)
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-                is GameEvent.PetGift -> {
-                    SoundManager.play(SoundManager.Sfx.Daily)
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    cellBounds[e.cellIndex]?.let { r ->
-                        pushFloater("🐼 tặng quà!", r.center, MergeGreen)
-                        sparkles = sparkles + r.center
-                        scope.launch {
-                            kotlinx.coroutines.delay(650)
-                            sparkles = sparkles.drop(1)
-                        }
-                    }
                 }
                 is GameEvent.MiniGameFinished -> {
                     SoundManager.play(SoundManager.Sfx.Daily)

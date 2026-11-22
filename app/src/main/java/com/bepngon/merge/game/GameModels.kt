@@ -110,7 +110,6 @@ data class GameState(
     val dailyStreak: Int = 0,
     val comboCount: Int = 0,
     val comboUntilMs: Long = 0,
-    val pet: PetState? = null,
     val miniPlaysLeft: Int = 3,
     val miniRefillAtMs: Long = 0,
     val miniBest: Int = 0,
@@ -143,28 +142,6 @@ enum class QteReward { WILDCARD, FRENZY, ENERGY, COINS, RECHARGE }
 
 /** A timed bonus the player taps to claim before it expires. */
 data class QteOffer(val reward: QteReward, val expiresAtMs: Long)
-
-/** The adopted pet; buff runs while [fedUntilMs] is in the future (session clock). */
-data class PetState(
-    val defId: String,
-    val fedUntilMs: Long,
-    /** Panda gift timer; 0 = disabled. */
-    val nextGiftAtMs: Long = 0,
-) {
-    fun isFed(nowMs: Long): Boolean = nowMs < fedUntilMs
-    fun isHungry(nowMs: Long): Boolean = !isFed(nowMs)
-}
-
-sealed interface PetBuff {
-    data class OrderCoinsPct(val pct: Int) : PetBuff
-    data class GenCooldownPct(val pct: Int) : PetBuff
-    data class XpPct(val pct: Int) : PetBuff
-    data class EnergyRegenPct(val pct: Int) : PetBuff
-    data class ComboBonusMs(val ms: Long) : PetBuff
-    /** Longer feed duration — pig eats a lot. */
-    data class FeedBonusMs(val ms: Long) : PetBuff
-    data object PeriodicGift : PetBuff
-}
 
 sealed interface GameEvent {
     data class Merged(val cellIndex: Int, val newItem: BoardItem, val scoreGained: Int) : GameEvent
@@ -210,9 +187,6 @@ sealed interface GameEvent {
     /** Duplicate created by the magic wand; index uses the same encoding as [WildcardSpawned]. */
     data class ItemDuplicated(val index: Int) : GameEvent
     data class FrenzyStarted(val untilMs: Long) : GameEvent
-    data class PetAdopted(val defId: String) : GameEvent
-    data class PetFed(val untilMs: Long) : GameEvent
-    data class PetGift(val cellIndex: Int) : GameEvent
     data class MiniGameFinished(val score: Int, val energy: Int) : GameEvent
     data object MiniGameNoPlays : GameEvent
     data class VariantBought(val variantId: String, val cost: Int) : GameEvent

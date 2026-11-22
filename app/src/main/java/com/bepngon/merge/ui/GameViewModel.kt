@@ -61,7 +61,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             while (true) {
-                delay(GameEngine.energyRegenMs(_ui.value.game, nowMs()))
+                delay(GameEngine.ENERGY_REGEN_BASE_MS)
                 update { s ->
                     if (s.energy < GameEngine.ENERGY_CAP) s.copy(energy = s.energy + 1) else s
                 }
@@ -152,9 +152,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(showRoom = false)
     }
 
-    fun adoptPet(petId: String) = applyEngine { GameEngine.adoptPet(it, petId, nowMs()) }
 
-    fun feedPetCoins() = applyEngine { GameEngine.feedPetCoins(it, nowMs()) }
     fun upgradeGenerator(uid: Long) = applyEngine { GameEngine.upgradeGenerator(it, uid) }
 
     fun openMiniGame() {

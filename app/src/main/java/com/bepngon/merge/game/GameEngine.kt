@@ -45,12 +45,9 @@ object GameEngine {
     /** Magic-wand weight in the QTE roll while a generator is cooling. */
     const val QTE_WILD_WHEN_COOLING = 0.5f
 
-    // Cafe room, pet and mini-game (Suika fruit drop).
+    // Cafe room and mini-game (Suika fruit drop).
     const val ENERGY_REGEN_BASE_MS = 60_000L
-    const val PET_FEED_COINS = 15
     const val GEN_UPGRADE_PRICE_MULT = 10
-    const val PET_FEED_MS = 30 * 60_000L
-    const val PANDA_GIFT_MS = 4 * 3_600_000L
     const val MINI_MAX_PLAYS = 3
     const val MINI_REFILL_MS = 4 * 3_600_000L
     const val MINI_MAX_ENERGY = 20
@@ -366,7 +363,7 @@ object GameEngine {
         genItem = genItem.copy(
             charges = charges,
             cooldownUntilMs =
-                if (!frenzy && charges == 0) nowMs + genCooldownMs(state, nowMs) else 0,
+                if (!frenzy && charges == 0) nowMs + GEN_COOLDOWN_MS else 0,
         )
 
         val cells = state.cells.toMutableList()
@@ -405,10 +402,9 @@ object GameEngine {
 
         val (afterOrders, orderEvents) = maybeSpawnOrder(next, nowMs, random)
         val (afterQte, qteEvents) = qteStep(afterOrders, nowMs, random)
-        val (afterPet, petEvents) = petStep(afterQte, nowMs, random)
 
         // Mini-game play refill: one play per refill window while below cap.
-        var afterMini = afterPet
+        var afterMini = afterQte
         val miniEvents = mutableListOf<GameEvent>()
         if (afterMini.miniRefillAtMs in 1..nowMs && afterMini.miniPlaysLeft < MINI_MAX_PLAYS) {
             val left = afterMini.miniPlaysLeft + 1
@@ -418,7 +414,7 @@ object GameEngine {
             )
         }
 
-        return afterMini to (events + orderEvents + qteEvents + petEvents + miniEvents)
+        return afterMini to (events + orderEvents + qteEvents + miniEvents)
     }
 
     // ---------- quick-time events ----------
@@ -741,11 +737,9 @@ object GameEngine {
         order: Order,
         nowMs: Long = 0,
     ): Pair<GameState, List<GameEvent>> {
-        val baseCoins = orderCoinReward(order)
-        val coinsGained = baseCoins * (100 + orderCoinPct(state, nowMs)) / 100
+        val coinsGained = orderCoinReward(order)
         val xpGained =
-            (order.required.sumOf { ItemCatalog[it].tier * 2 } + 5) *
-                (100 + xpPct(state, nowMs)) / 100
+            (order.required.sumOf { ItemCatalog[it].tier * 2 } + 5)
 
         // Combo: consecutive completed orders inside the window build a chain;
         // from the 3rd onward each pays a growing bonus.
@@ -776,7 +770,7 @@ object GameEngine {
             coins = state.coins + coinsGained + comboCoins,
             xp = state.xp + xpGained + comboXp,
             comboCount = combo,
-            comboUntilMs = nowMs + comboWindowMs(state, nowMs),
+            comboUntilMs = nowMs + COMBO_WINDOW_MS,
             orderPaceMs = pace,
             lastOrderDoneAtMs = nowMs,
             stats = state.stats.copy(
@@ -954,54 +948,7 @@ object GameEngine {
         return next
     }
 
-    // ---------- cafe room, pet & mini game ----------
-
-    private fun fedPetDef(state: GameState, nowMs: Long): PetDef? =
-        state.pet
-            ?.takeIf { it.isFed(nowMs) }
-            ?.let { PetCatalog.byId(it.defId) }
-
-    fun orderCoinPct(state: GameState, nowMs: Long): Int =
-        (fedPetDef(state, nowMs)?.buff as? PetBuff.OrderCoinsPct)?.pct ?: 0
-
-    fun xpPct(state: GameState, nowMs: Long): Int =
-        (fedPetDef(state, nowMs)?.buff as? PetBuff.XpPct)?.pct ?: 0
-
-    fun genCooldownMs(state: GameState, nowMs: Long): Long {
-        val pct = (fedPetDef(state, nowMs)?.buff as? PetBuff.GenCooldownPct)?.pct ?: 0
-        // Recharge can at most be halved so cooldowns still matter.
-        return GEN_COOLDOWN_MS * (100 - pct).coerceAtLeast(50) / 100
-    }
-
-    fun energyRegenMs(state: GameState, nowMs: Long): Long {
-        val pct = (fedPetDef(state, nowMs)?.buff as? PetBuff.EnergyRegenPct)?.pct ?: 0
-        return ENERGY_REGEN_BASE_MS * (100 - pct).coerceAtLeast(60) / 100
-    }
-
-    fun comboWindowMs(state: GameState, nowMs: Long): Long =
-        COMBO_WINDOW_MS +
-            ((fedPetDef(state, nowMs)?.buff as? PetBuff.ComboBonusMs)?.ms ?: 0L)
-
-    private fun feedMs(state: GameState, nowMs: Long): Long {
-        // The feed-duration bonus is intrinsic to the pet, not gated on being fed.
-        val bonus = state.pet?.let {
-            (PetCatalog.byId(it.defId).buff as? PetBuff.FeedBonusMs)?.ms
-        } ?: 0L
-        return PET_FEED_MS + bonus
-    }
-
-    fun adoptPet(state: GameState, petId: String, nowMs: Long): Pair<GameState, List<GameEvent>> {
-        val def = PetCatalog.byId(petId)
-        if (state.coins < def.cost) return state to listOf(GameEvent.NotEnoughCoins)
-        // Adoption comes with a first free meal so the buff kicks in right away.
-        val pet = PetState(
-            defId = def.id,
-            fedUntilMs = nowMs + feedMs(state, nowMs),
-            nextGiftAtMs = if (def.buff is PetBuff.PeriodicGift) nowMs + PANDA_GIFT_MS else 0,
-        )
-        return state.copy(coins = state.coins - def.cost, pet = pet) to
-            listOf(GameEvent.PetAdopted(def.id))
-    }
+    // ---------- cafe room & mini game ----------
 
     /** Coin cost to upgrade a generator one tier — priced at 10x the next
      *  tier's sell value so merging two gens stays the cheaper path. */
@@ -1037,43 +984,6 @@ object GameEngine {
         }
         return next.copy(coins = state.coins - cost) to
             listOf(GameEvent.GeneratorUpgraded(cellIdx, cost, nextId))
-    }
-
-    fun feedPetCoins(state: GameState, nowMs: Long): Pair<GameState, List<GameEvent>> {
-        val pet = state.pet ?: return state to emptyList()
-        if (state.coins < PET_FEED_COINS) return state to listOf(GameEvent.NotEnoughCoins)
-        return state.copy(
-            coins = state.coins - PET_FEED_COINS,
-            pet = pet.copy(fedUntilMs = nowMs + feedMs(state, nowMs)),
-        ) to listOf(GameEvent.PetFed(nowMs + feedMs(state, nowMs)))
-    }
-
-    private fun petStep(
-        state: GameState,
-        nowMs: Long,
-        random: Random,
-    ): Pair<GameState, List<GameEvent>> {
-        val pet = state.pet ?: return state to emptyList()
-        val def = PetCatalog.byId(pet.defId)
-        if (def.buff !is PetBuff.PeriodicGift || pet.nextGiftAtMs <= 0) {
-            return state to emptyList()
-        }
-        if (nowMs < pet.nextGiftAtMs) return state to emptyList()
-        if (!pet.isFed(nowMs)) {
-            // Gift waits while the pet is hungry — nudge the timer a little.
-            return state.copy(pet = pet.copy(nextGiftAtMs = nowMs + 10 * 60_000L)) to emptyList()
-        }
-        val empty = emptyCells(state)
-        val next = state.copy(pet = pet.copy(nextGiftAtMs = nowMs + PANDA_GIFT_MS))
-        if (empty.isEmpty()) return next to emptyList()
-        val giftTiers = ItemCatalog.allInFamilies(
-            setOf(Family.FRUIT, Family.BAKERY, Family.DRINK, Family.VIET),
-        ).filter { it.tier in 1..3 }
-        val cell = empty.random(random)
-        val cells = next.cells.toMutableList()
-        cells[cell] = newItem(next.nextUid, giftTiers.random(random).id)
-        return next.copy(cells = cells, nextUid = next.nextUid + 1) to
-            listOf(GameEvent.PetGift(cell))
     }
 
     fun startMiniGame(state: GameState, nowMs: Long): Pair<GameState, List<GameEvent>> {

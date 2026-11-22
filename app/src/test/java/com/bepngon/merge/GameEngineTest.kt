@@ -1123,59 +1123,7 @@ class GameEngineTest {
         assertTrue(wild < 35)
     }
 
-    // ---------- cafe room / pet / mini game ----------
-
-    @Test
-    fun `adopting pet costs coins and starts fed`() {
-        val s = stateWith(coins = 250)
-        val (next, events) = GameEngine.adoptPet(s, "cat", 1000)
-        assertEquals(50, next.coins)
-        assertEquals("cat", next.pet?.defId)
-        assertTrue(next.pet!!.isFed(1000))
-        assertTrue(events.any { it is GameEvent.PetAdopted })
-    }
-
-    @Test
-    fun `fed pet buff boosts order coins while hungry pet does not`() {
-        val base = stateWith(
-            0 to "fruit_5", // sellPrice 10 → payout 12, big enough for int rounding
-            orders = listOf(orderOf("fruit_5")),
-        )
-        val withPet = GameEngine.adoptPet(base.copy(coins = 500), "fox", 0).first
-        val fedCoins = GameEngine.autoFulfillOrder(withPet, 1, 1_000).first.coins -
-            withPet.coins
-        // Hungry: same state, buff off → plain payout
-        val hungry = withPet.copy(pet = withPet.pet!!.copy(fedUntilMs = 0))
-        val baseCoins = GameEngine.autoFulfillOrder(hungry, 1, 1_000).first.coins -
-            hungry.coins
-        // fox = +8%
-        assertEquals(baseCoins * 108 / 100, fedCoins)
-        assertTrue(fedCoins > baseCoins)
-    }
-
-    @Test
-    fun `feed pet with coins spends coins and feeds`() {
-        var s = stateWith(coins = 600)
-        s = GameEngine.adoptPet(s, "dog", 0).first
-        val hungry = s.copy(pet = s.pet!!.copy(fedUntilMs = 0))
-        val (fed, events) = GameEngine.feedPetCoins(hungry, 5000)
-        assertEquals(hungry.coins - GameEngine.PET_FEED_COINS, fed.coins)
-        assertTrue(fed.pet!!.isFed(5000))
-        assertTrue(events.any { it is GameEvent.PetFed })
-        // board items are untouched — pets only eat bought food
-        assertEquals(hungry.cells, fed.cells)
-    }
-
-    @Test
-    fun `panda drops a gift item on tick when fed`() {
-        var s = stateWith(coins = 600)
-        s = GameEngine.adoptPet(s, "panda", 0).first
-        s = s.copy(pet = s.pet!!.copy(nextGiftAtMs = 1000))
-        val (next, events) = GameEngine.tick(s, 2000, Random(1))
-        assertTrue(events.any { it is GameEvent.PetGift })
-        assertTrue(next.cells.any { it != null })
-        assertEquals(2000 + GameEngine.PANDA_GIFT_MS, next.pet!!.nextGiftAtMs)
-    }
+    // ---------- cafe room / mini game ----------
 
     @Test
     fun `mini game pays 1 energy per 10 points capped`() {
