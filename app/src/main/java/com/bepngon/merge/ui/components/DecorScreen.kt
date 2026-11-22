@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -248,6 +251,9 @@ fun DecorScreen(
     var tab by remember { mutableStateOf(DecorCatalog.categories.first().first) }
     val pickedVariant = remember { mutableStateMapOf<String, String>() }
     var roomBounds by remember { mutableStateOf(Rect.Zero) }
+    var roomSize by remember { mutableStateOf(IntSize.Zero) }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
 
     val iso = remember(def) { IsoMap(def.cols, def.floorRows, def.wallRows) }
@@ -257,7 +263,7 @@ fun DecorScreen(
 
     // Function, not a val: pointerInput closures capture `drop`/`snapToCell`
     // once, so sizes must re-read roomBounds every call (0 until measured).
-    fun cellW(): Float = iso.ex.x * roomBounds.width
+    fun cellW(): Float = iso.ex.x * roomSize.width
 
     /** Snap a window position to a grid cell: (gx, gy, rot). For wall
      *  items the wall plane under the pointer picks the side in rot. */
@@ -298,8 +304,8 @@ fun DecorScreen(
     fun itemBox(p: PlacedDecor): Pair<Offset, Float> {
         val item = DecorCatalog[p.itemId]
         val (w, h) = DecorEngine.footprint(item, p.rot)
-        val cw = roomBounds.width
-        val ch = roomBounds.height
+        val cw = roomSize.width.toFloat()
+        val ch = roomSize.height.toFloat()
         if (item.placement == Placement.WALL) {
             val side = if (p.rot == 90) 1 else 0
             val pt = iso.wallPoint(side, p.gx + w / 2f, (def.wallRows - p.gy - h / 2f) / def.wallRows)
@@ -391,6 +397,17 @@ fun DecorScreen(
                     Modifier
                         .aspectRatio(Iso.ASPECT)
                         .clip(RoundedCornerShape(16.dp))
+                        // zoom/pan layer: frame + clip stay fixed, the room
+                        // content scales inside. Pointer positions reported
+                        // inside are unscaled — multiply by `zoom` where they
+                        // are converted to window coords.
+                        .graphicsLayer {
+                            scaleX = zoom
+                            scaleY = zoom
+                            translationX = pan.x
+                            translationY = pan.y
+                        }
+                        .onSizeChanged { roomSize = it }
                         .onGloballyPositioned { roomBounds = it.boundsInWindow() }
                         // sticky-move mode (from the item menu): the picked-up
                         // item follows a drag on the canvas, or a tap drops it.
@@ -398,7 +415,7 @@ fun DecorScreen(
                             if (!stickyMove) return@pointerInput
                             detectTapGestures { local ->
                                 val d = drag ?: return@detectTapGestures
-                                snapToCell(roomBounds.topLeft + local, d.itemId, d.rot)
+                                snapToCell(roomBounds.topLeft + local * zoom, d.itemId, d.rot)
                                     ?.let { (gx, gy, rot) ->
                                         if (DecorEngine.canPlace(
                                                 game.decor, roomId, d.itemId,
@@ -418,13 +435,43 @@ fun DecorScreen(
                                 onDragStart = {},
                                 onDrag = { change, _ ->
                                     drag = drag?.copy(
-                                        pos = roomBounds.topLeft + change.position,
+                                        pos = roomBounds.topLeft + change.position * zoom,
                                     )
                                 },
                                 onDragEnd = ::drop,
                                 onDragCancel = {
                                     drag = null
                                     stickyMove = false
+                                },
+                            )
+                        }
+                        // pinch to zoom, drag empty space to pan; item drags
+                        // are consumed by the tile child handlers first.
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, panDelta, zoomDelta, _ ->
+                                val ns = (zoom * zoomDelta).coerceIn(1f, 3f)
+                                zoom = ns
+                                val mx = roomSize.width * (ns - 1f) / 2f + roomSize.width * 0.18f
+                                val my = roomSize.height * (ns - 1f) / 2f + roomSize.height * 0.18f
+                                pan = if (ns <= 1f) {
+                                    Offset.Zero
+                                } else {
+                                    Offset(
+                                        (pan.x + panDelta.x * ns).coerceIn(-mx, mx),
+                                        (pan.y + panDelta.y * ns).coerceIn(-my, my),
+                                    )
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (zoom > 1.05f) {
+                                        zoom = 1f
+                                        pan = Offset.Zero
+                                    } else {
+                                        zoom = 1.75f
+                                    }
                                 },
                             )
                         },
@@ -450,6 +497,7 @@ fun DecorScreen(
                                 p = p,
                                 origin = origin,
                                 sizePx = sizePx,
+                                zoom = zoom,
                                 hidden = drag?.uid == p.uid,
                                 interactive = !stickyMove,
                                 onTap = {
@@ -530,7 +578,7 @@ fun DecorScreen(
                         drag = DecorDrag(
                             menuPlaced.itemId, menuPlaced.variantId,
                             menuPlaced.uid,
-                            roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f),
+                            roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f) * zoom,
                             menuPlaced.rot, menuPlaced.flip,
                         )
                     },
@@ -678,6 +726,9 @@ private fun shade(c: Color, f: Float) = Color(c.red * f, c.green * f, c.blue * f
 private fun skyStops(type: String): List<Color> = when (type) {
     "sunset" -> listOf(Color(0xFFF0B39B), Color(0xFFF9D6C6), Color(0xFFFBE9DC))
     "night" -> listOf(Color(0xFF2B3660), Color(0xFF4B4378), Color(0xFF6A5C95))
+    "garden" -> listOf(
+        Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFA9D98E), Color(0xFF8CC473),
+    )
     else -> listOf(Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFE4F3FC))
 }
 
@@ -799,6 +850,10 @@ private fun DrawScope.cloud(cx: Float, cy: Float, r: Float, color: Color) {
 private fun DrawScope.drawSky(type: String) {
     val cw = size.width
     val ch = size.height
+    if (type == "garden") {
+        drawGarden()
+        return
+    }
     drawRect(Brush.verticalGradient(skyStops(type)))
     when (type) {
         "night" -> {
@@ -833,6 +888,91 @@ private fun DrawScope.drawSky(type: String) {
             cloud(cw * 0.90f, ch * 0.20f, cw * 0.048f, Color.White.copy(alpha = 0.95f))
         }
     }
+}
+
+/** Garden scenery behind the room (reference look): sky + clouds peeking
+ *  over a grass field, white picket fence, trees at the top corners,
+ *  bushes, stepping stones and scattered daisies. */
+private fun DrawScope.drawGarden() {
+    val cw = size.width
+    val ch = size.height
+    // sky band behind everything
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF9FCFEF), Color(0xFFD4ECFA))))
+    cloud(cw * 0.30f, ch * 0.06f, cw * 0.05f, Color.White.copy(alpha = 0.95f))
+    cloud(cw * 0.66f, ch * 0.10f, cw * 0.04f, Color.White.copy(alpha = 0.9f))
+    // grass field
+    val grassTop = ch * 0.24f
+    drawRect(
+        Brush.verticalGradient(listOf(Color(0xFFA9D98E), Color(0xFF8CC473))),
+        Offset(0f, grassTop),
+        Size(cw, ch - grassTop),
+    )
+    // white picket fence: two rails behind pointed pickets
+    val fenceTop = ch * 0.28f
+    val picketH = ch * 0.085f
+    val picketW = cw * 0.013f
+    val picketStep = cw * 0.028f
+    val fence = Color(0xFFFAF8F0)
+    val fenceShade = Color(0xFFE8E2D4)
+    drawRect(fenceShade, Offset(0f, fenceTop + picketH * 0.20f), Size(cw, picketH * 0.13f))
+    drawRect(fenceShade, Offset(0f, fenceTop + picketH * 0.64f), Size(cw, picketH * 0.13f))
+    var fx = -picketW
+    while (fx < cw) {
+        drawPath(
+            Path().apply {
+                moveTo(fx, fenceTop + picketH)
+                lineTo(fx, fenceTop + picketH * 0.22f)
+                lineTo(fx + picketW / 2f, fenceTop)
+                lineTo(fx + picketW, fenceTop + picketH * 0.22f)
+                lineTo(fx + picketW, fenceTop + picketH)
+                close()
+            },
+            fence,
+        )
+        fx += picketStep
+    }
+    // trees at the top corners
+    gardenTree(cw * 0.07f, ch * 0.13f, cw * 0.085f)
+    gardenTree(cw * 0.94f, ch * 0.10f, cw * 0.075f)
+    gardenTree(cw * 0.88f, ch * 0.24f, cw * 0.05f)
+    // bushes along the grass edges
+    gardenBush(cw * 0.04f, ch * 0.42f, cw * 0.055f)
+    gardenBush(cw * 0.96f, ch * 0.44f, cw * 0.055f)
+    gardenBush(cw * 0.07f, ch * 0.95f, cw * 0.06f)
+    gardenBush(cw * 0.93f, ch * 0.95f, cw * 0.06f)
+    // stepping stones, lower right
+    val stone = Color(0xFFE3DECE)
+    drawOval(stone, Offset(cw * 0.86f, ch * 0.60f), Size(cw * 0.045f, cw * 0.028f))
+    drawOval(stone, Offset(cw * 0.90f, ch * 0.72f), Size(cw * 0.05f, cw * 0.030f))
+    drawOval(stone, Offset(cw * 0.87f, ch * 0.85f), Size(cw * 0.048f, cw * 0.029f))
+    // daisies + grass speckles (deterministic scatter)
+    val rnd = kotlin.random.Random(11)
+    val petals = listOf(Color.White, Color(0xFFF7B8CE), Color(0xFFF8E08A))
+    repeat(46) {
+        val x = rnd.nextFloat() * cw
+        val y = grassTop + (ch - grassTop) * (0.12f + rnd.nextFloat() * 0.85f)
+        if (rnd.nextFloat() < 0.4f) {
+            drawCircle(Color(0xFF7AB464), cw * 0.006f, Offset(x, y))
+        } else {
+            val petal = petals[rnd.nextInt(petals.size)]
+            drawCircle(petal, cw * 0.006f, Offset(x, y))
+            drawCircle(Color(0xFFF2C94C), cw * 0.0026f, Offset(x, y))
+        }
+    }
+}
+
+private fun DrawScope.gardenTree(cx: Float, cy: Float, r: Float) {
+    drawRect(Color(0xFF8A6A55), Offset(cx - r * 0.11f, cy + r * 0.4f), Size(r * 0.22f, r * 1.2f))
+    drawCircle(Color(0xFF6FB35B), r, Offset(cx, cy))
+    drawCircle(Color(0xFF7CC268), r * 0.68f, Offset(cx - r * 0.72f, cy + r * 0.45f))
+    drawCircle(Color(0xFF7CC268), r * 0.65f, Offset(cx + r * 0.7f, cy + r * 0.5f))
+    drawCircle(Color(0xFF8BC97A), r * 0.38f, Offset(cx - r * 0.22f, cy - r * 0.32f))
+}
+
+private fun DrawScope.gardenBush(cx: Float, cy: Float, r: Float) {
+    drawCircle(Color(0xFF7BBD64), r, Offset(cx - r * 0.6f, cy))
+    drawCircle(Color(0xFF8BC97A), r * 1.15f, Offset(cx, cy - r * 0.25f))
+    drawCircle(Color(0xFF7BBD64), r * 0.9f, Offset(cx + r * 0.6f, cy))
 }
 
 private fun DrawScope.drawEdges(iso: IsoMap, dy: Float) {
@@ -920,6 +1060,7 @@ private fun PlacedTile(
     p: PlacedDecor,
     origin: Offset,
     sizePx: Float,
+    zoom: Float,
     hidden: Boolean,
     interactive: Boolean,
     onTap: () -> Unit,
@@ -941,11 +1082,11 @@ private fun PlacedTile(
                 if (!interactive) return@pointerInput
                 detectTapGestures(onTap = { onTap() })
             }
-            .pointerInput(p.uid, interactive) {
+            .pointerInput(p.uid, interactive, zoom) {
                 if (!interactive) return@pointerInput
                 detectDragGestures(
-                    onDragStart = { start -> onPickup(winPos + start) },
-                    onDrag = { change, _ -> onDragPos(winPos + change.position) },
+                    onDragStart = { start -> onPickup(winPos + start * zoom) },
+                    onDrag = { change, _ -> onDragPos(winPos + change.position * zoom) },
                     onDragEnd = onDrop,
                     onDragCancel = onDrop,
                 )

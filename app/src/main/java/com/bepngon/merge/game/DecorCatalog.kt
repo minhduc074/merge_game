@@ -691,6 +691,11 @@ object DecorCatalog {
         // Skies: `tex` carries the sky type key (day/sunset/night) — the
         // renderer draws gradients + clouds/stars, no bitmap needed.
         item(
+            "sky_garden", "Vườn", "🌳", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
+            V("xanh", "Sân vườn", 0xFFA9D98E, 0),
+            canRotate = false, tex = "garden",
+        )
+        item(
             "sky_day", "Trời xanh", "☀️", "room", Placement.PAINT, DecorLayer.SKY_PAINT, 0, 0,
             V("xanh", "Ban ngày", 0xFFBFE0F5, 0),
             canRotate = false, tex = "day",
@@ -733,7 +738,7 @@ object DecorCatalog {
             wallRows = 3,
             defaultWall = "wall_floral_tim",
             defaultFloor = "floor_wood_sang",
-            defaultSky = "sky_day_xanh",
+            defaultSky = "sky_garden_xanh",
         ),
     )
 
