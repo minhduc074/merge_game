@@ -211,9 +211,11 @@ object DecorEngine {
                 placed = room.placed.map { if (it.uid == uid) it.copy(rot = newRot) else it },
             )
         } else {
+            // keep rot — wall items encode their side there, so mirroring
+            // must not teleport them to the other wall
             room.copy(
                 placed = room.placed.map {
-                    if (it.uid == uid) it.copy(flip = !it.flip, rot = 0) else it
+                    if (it.uid == uid) it.copy(flip = !it.flip) else it
                 },
             )
         }

@@ -575,7 +575,7 @@ fun DecorScreen(
                     d.itemId, dv.tint,
                     with(LocalDensity.current) { (cw * 1.9f).toDp() },
                     item.emoji,
-                    rot = d.rot,
+                    rot = d.rot, flip = d.flip,
                 )
             }
         }
@@ -816,9 +816,12 @@ private fun DecorArt(
     modifier: Modifier = Modifier,
     alpha: Float = 1f,
     rot: Int = 0,
+    flip: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val res = remember(itemId) { artRes(ctx, "decor_$itemId") }
+    // rotation + mirror live on the sprite only — transforming the
+    // gesture container would mirror/rotate pointer coordinates too
     if (res != 0) {
         Image(
             painter = painterResource(res),
@@ -829,8 +832,7 @@ private fun DecorArt(
             },
             modifier = modifier.size(size).alpha(alpha)
                 .graphicsLayer {
-                    // bitmap rotation only for top-down art (rugs) —
-                    // oblique sprites mirror via scaleX on the tile
+                    scaleX = if (flip) -1f else 1f
                     rotationZ = if (DecorCatalog[itemId].topDown) rot.toFloat() else 0f
                 },
         )
@@ -840,6 +842,7 @@ private fun DecorArt(
             fontSize = (size.value * 0.6f).sp,
             modifier = modifier.alpha(alpha)
                 .graphicsLayer {
+                    scaleX = if (flip) -1f else 1f
                     rotationZ = if (DecorCatalog[itemId].topDown) rot.toFloat() else 0f
                 },
         )
@@ -872,7 +875,6 @@ private fun PlacedTile(
             .size(with(density) { sizePx.toDp() })
             .onGloballyPositioned { winPos = it.positionInWindow() }
             .alpha(if (hidden) 0.25f else 1f)
-            .graphicsLayer { scaleX = if (p.flip) -1f else 1f }
             .pointerInput(p.uid, interactive) {
                 if (!interactive) return@pointerInput
                 detectTapGestures(onTap = { onTap() })
@@ -883,12 +885,15 @@ private fun PlacedTile(
                     onDragStart = { start -> onPickup(winPos + start) },
                     onDrag = { change, _ -> onDragPos(winPos + change.position) },
                     onDragEnd = onDrop,
-                    onDragCancel = {},
+                    onDragCancel = onDrop,
                 )
             },
         contentAlignment = Alignment.Center,
     ) {
-        DecorArt(p.itemId, variant.tint, with(density) { sizePx.toDp() }, item.emoji, rot = p.rot)
+        DecorArt(
+            p.itemId, variant.tint, with(density) { sizePx.toDp() }, item.emoji,
+            rot = p.rot, flip = p.flip,
+        )
     }
 }
 
@@ -913,7 +918,10 @@ private fun ItemMenu(
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DecorArt(item.id, item.variantOf(p.variantId).tint, 26.dp, item.emoji)
+            DecorArt(
+                item.id, item.variantOf(p.variantId).tint, 26.dp, item.emoji,
+                flip = p.flip,
+            )
             Text(
                 item.name,
                 fontSize = 14.sp,
@@ -1280,7 +1288,7 @@ private fun CatalogCard(
                             onDragStart = { start -> onDragStart(item, origin + start) },
                             onDrag = { change, _ -> onDragPos(origin + change.position) },
                             onDragEnd = onDrop,
-                            onDragCancel = {},
+                            onDragCancel = onDrop,
                         )
                     }
                 },
