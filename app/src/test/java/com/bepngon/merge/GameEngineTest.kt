@@ -586,6 +586,68 @@ class GameEngineTest {
     }
 
     @Test
+    fun `every generator can rarely spawn its family rare item`() {
+        val rareByFamily = mapOf(
+            "gen_fruit" to "rare_fruit_1",
+            "gen_bakery" to "rare_bakery_1",
+            "gen_drink" to "rare_drink_1",
+            "gen_viet" to "rare_viet_1",
+        )
+        rareByFamily.forEach { (prefix, rareId) ->
+            (1..3).forEach { tier ->
+                val gen = ItemCatalog["${prefix}_$tier"]
+                val entry = gen.spawnTable.singleOrNull { it.itemId == rareId }
+                assertNotNull("${gen.id} missing rare spawn", entry)
+                assertTrue(
+                    "${gen.id} rare weight too high",
+                    entry!!.weight in 1..5,
+                )
+            }
+            assertTrue(ItemCatalog[rareId].isRare)
+            assertEquals(3, ItemCatalog.chainOf(rareId).size)
+        }
+    }
+
+    @Test
+    fun `orders occasionally request rare items`() {
+        val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = 10)
+        var cur = s.copy(nextOrderId = 2)
+        var rarePicks = 0
+        var totalPicks = 0
+        repeat(200) { i ->
+            val (next, events) = GameEngine.maybeSpawnOrder(
+                cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                100 + i * 1000L, Random(i + 500),
+            )
+            cur = next
+            val order = (events.single() as GameEvent.OrderSpawned).order
+            order.required.forEach { id ->
+                totalPicks++
+                if (ItemCatalog[id].isRare) rarePicks++
+            }
+        }
+        assertTrue("no rare items ever requested", rarePicks > 0)
+        assertTrue(
+            "rare picks too common: $rarePicks/$totalPicks",
+            rarePicks * 100 / totalPicks < 15,
+        )
+    }
+
+    @Test
+    fun `rare items merge up their own short chain`() {
+        val s = stateWith(0 to "rare_fruit_1", 1 to "rare_fruit_1")
+        val (next, _) = GameEngine.moveOrMerge(s, 0, 1)
+        assertEquals("rare_fruit_2", next.cells[1]?.defId)
+        assertNull(next.cells[0])
+        val s2 = next.copy(
+            cells = next.cells.toMutableList()
+                .also { it[0] = GameEngine.newItem(50, "rare_fruit_2") },
+        )
+        val (next2, _) = GameEngine.moveOrMerge(s2, 0, 1)
+        assertEquals("rare_fruit_3", next2.cells[1]?.defId)
+    }
+
+    @Test
     fun `coin upgrade bumps generator tier for a steep price`() {
         val s = stateWith(0 to "gen_fruit_1", coins = 1000)
         val uid = s.cells[0]!!.uid

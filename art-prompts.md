@@ -318,3 +318,37 @@ corners, cozy cartoon style, vertical phone wallpaper, no text
 → `bg_mini.png` — thay nền phẳng + viền nâu hiện tại của hộp chứa trái.
 
 > 💡 Option B của §6: lưu `fx_flame.png` vào `app/src/main/res/drawable-nodpi/` — mình thay thế emoji 🔥 trong `ComboFlames` (giữ animation flicker scale/alpha hiện có).
+
+### Rare side-chains (`rare_*`) — item hiếm, nên trông "premium/lấp lánh" hơn item thường
+
+Cùng style prefix ở đầu file; thêm cụm `premium golden sparkle aura, subtle
+shine effects, looks rare and luxurious` vào cuối prompt để phân biệt với
+bản thường. Kích thước 256×256, nền trong suốt.
+
+### Rare fruit (`rare_fruit_1` → `rare_fruit_3`)
+```
+rare_fruit_1  → a ripe golden mango with glossy skin and a small green leaf
+rare_fruit_2  → a heavenly pink peach with a soft glow and delicate leaf
+rare_fruit_3  → a luxurious Japanese crown melon with netted skin and a tiny crown
+```
+
+### Rare bakery (`rare_bakery_1` → `rare_bakery_3`)
+```
+rare_bakery_1 → a glossy egg tart with caramelized top in a fluted cup
+rare_bakery_2 → a golden belgian waffle with dripping honey and butter
+rare_bakery_3 → an elegant caramel flan pudding on a small plate, glossy top
+```
+
+### Rare drink (`rare_drink_1` → `rare_drink_3`)
+```
+rare_drink_1  → a matcha green tea in a traditional cup with whisk, soft foam
+rare_drink_2  → a glass of ruby sangria with floating fruit slices
+rare_drink_3  → a champagne bottle with a popping cork and golden bubbles
+```
+
+### Rare viet (`rare_viet_1` → `rare_viet_3`)
+```
+rare_viet_1   → a steamed crystal shrimp dumpling, translucent wrapper
+rare_viet_2   → a grilled jumbo prawn on a skewer, char marks, herbs
+rare_viet_3   → a whole garlic-butter lobster on a plate, glossy red shell
+```

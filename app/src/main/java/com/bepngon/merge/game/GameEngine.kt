@@ -18,6 +18,7 @@ object GameEngine {
     const val ORDER_INTERVAL_MAX_MS = 28_000L
     const val BASE_ORDER_TIER = 5
     const val MAX_ORDER_TIER = 8
+    const val RARE_ORDER_WEIGHT = 2
     const val GEN_COOLDOWN_MS = 45_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
@@ -580,8 +581,9 @@ object GameEngine {
             }
             // Level bonus tilts the distribution upward: each tier above 1
             // gains level/3 weight, so around Lv15+ high tiers match the
-            // low-tier demand and at Lv30 they dominate it.
-            base + (def.tier - 1) * (level / 3)
+            // low-tier demand and at Lv30 they dominate it. Rare items stay
+            // a flat tiny weight — a lucky premium ask, not a staple.
+            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)

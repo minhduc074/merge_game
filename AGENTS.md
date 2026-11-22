@@ -55,7 +55,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 
 ## Code conventions
 
-- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine.
+- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 3, orders hỏi với `RARE_ORDER_WEIGHT`.
 - `GameEngine` là pure functions: `(GameState, args) -> Pair<GameState, List<GameEvent>>`; UI animate dựa trên `GameEvent` qua SharedFlow.
 - Callbacks truyền vào `pointerInput` phải đi qua `rememberUpdatedState` — pointerInput coroutine capture lambda cũ, không tự refresh.
 - Tọa độ drag/drop tính trong window coords qua `boundsInWindow()` của từng cell. `PointerInputChange.position` trong `detectDragGestures.onDrag` là LOCAL coords của tile — phải cộng `bounds.topLeft` trước khi hit-test.

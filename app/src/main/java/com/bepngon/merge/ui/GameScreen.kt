@@ -1316,7 +1316,8 @@ private fun ItemInfoCard(
             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                 Text(def.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Cocoa)
                 Text(
-                    "Tier ${def.tier}  •  🪙 ${def.sellPrice}",
+                    "Tier ${def.tier}  •  🪙 ${def.sellPrice}" +
+                        if (def.isRare) "  •  ✨ Hiếm" else "",
                     fontSize = 12.sp,
                     color = Cocoa.copy(alpha = 0.75f),
                 )
