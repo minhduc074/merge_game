@@ -5,6 +5,11 @@ package com.bepngon.merge.game
  *  A variant priced 0 is free and always usable (starter kit). */
 object DecorCatalog {
 
+    /** Every catalog price is multiplied by this so the whole decor economy
+     *  scales from one knob — base numbers in [V] stay readable. Items at
+     *  price 0 (starter kit) stay free: 0 × n = 0. */
+    private const val PRICE_MULT = 3
+
     private data class V(
         val suffix: String,
         val name: String,
@@ -44,7 +49,7 @@ object DecorCatalog {
                         tint = v.tint,
                         style = v.style,
                         rarity = if (v.rare) DecorRarity.RARE else DecorRarity.COMMON,
-                        priceCoins = v.price,
+                        priceCoins = v.price * PRICE_MULT,
                         unlockLevel = v.level,
                     )
                 },
