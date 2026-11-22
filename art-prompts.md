@@ -235,7 +235,7 @@ no text, no watermark
 
 ## 7. Tiệm của bé — phòng, decor, thú cưng, mini game 🏠
 
-### `bg_room` — nền phòng (1080×1400, vùng phòng trong RoomScreen)
+### `bg_cafe` — nền phòng (1080×1400+, vùng phòng trong RoomScreen)
 
 Nền phòng trống để decor đặt lên — cần sàn rộng, tường đơn giản:
 
@@ -250,7 +250,7 @@ phone wallpaper, no characters, no furniture in the middle of the room,
 no text, no watermark
 ```
 
-→ Lưu `bg_room.png` → `drawable-nodpi/` — mình wire vào `RoomScreen` thay gradient.
+→ Lưu `bg_cafe.png` → `drawable-nodpi/` — `RoomScreen` tự load (lookup `bg_cafe`) thay gradient.
 
 ### Decor sprites — PNG trong suốt, đặt theo `decor_*` id
 
