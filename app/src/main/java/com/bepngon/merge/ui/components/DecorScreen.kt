@@ -1054,19 +1054,33 @@ private fun DecorArt(
     // rotation + mirror live on the sprite only — transforming the
     // gesture container would mirror/rotate pointer coordinates too
     if (res != 0) {
-        Image(
-            painter = painterResource(res),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            colorFilter = tint?.let {
-                ColorFilter.tint(Color(it).copy(alpha = 0.5f), BlendMode.Modulate)
-            },
-            modifier = modifier.size(size).alpha(alpha)
+        val painter = painterResource(res)
+        Box(
+            modifier.size(size).alpha(alpha)
                 .graphicsLayer {
                     scaleX = if (flip) -1f else 1f
                     rotationZ = if (DecorCatalog[itemId].topDown) rot.toFloat() else 0f
                 },
-        )
+        ) {
+            Image(
+                painter = painter,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Modulate multiplies alpha too — tinting directly at 0.5 alpha
+            // would make the whole sprite see-through. Keep the base opaque
+            // and lay a half-strength tinted copy on top instead.
+            if (tint != null) {
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Color(tint), BlendMode.Modulate),
+                    modifier = Modifier.fillMaxSize().alpha(0.5f),
+                )
+            }
+        }
     } else {
         Text(
             emoji,
