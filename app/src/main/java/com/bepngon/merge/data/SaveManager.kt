@@ -65,7 +65,6 @@ private data class SaveData(
     val frenzyInMs: Long = 0,
     val nextQteInMs: Long = 0,
     val dailyStreak: Int = 0,
-    val decorOwned: List<String> = emptyList(),
     val petDefId: String? = null,
     val petFedInMs: Long = 0,
     val petNextGiftInMs: Long = 0,
@@ -151,7 +150,6 @@ class SaveManager(private val context: Context) {
             frenzyInMs = (state.frenzyUntilMs - nowMs).coerceAtLeast(0),
             nextQteInMs = (state.nextQteAtMs - nowMs).coerceAtLeast(0),
             dailyStreak = state.dailyStreak,
-            decorOwned = state.decorOwned.toList(),
             petDefId = state.pet?.defId,
             petFedInMs = ((state.pet?.fedUntilMs ?: 0) - nowMs).coerceAtLeast(0),
             petNextGiftInMs = ((state.pet?.nextGiftAtMs ?: 0) - nowMs).coerceAtLeast(0),
@@ -219,7 +217,6 @@ class SaveManager(private val context: Context) {
                 nowMs + GameEngine.QTE_FIRST_MS
             },
             dailyStreak = data.dailyStreak,
-            decorOwned = data.decorOwned.toSet(),
             pet = data.petDefId?.let {
                 PetState(
                     defId = it,

@@ -147,7 +147,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             RoomScreen(
                 game = ui.game,
                 nowMs = ui.nowMs,
-                onBuyDecor = vm::buyDecor,
                 onAdoptPet = vm::adoptPet,
                 onFeedPetCoins = vm::feedPetCoins,
                 onOpenMiniGame = vm::openMiniGame,
@@ -488,10 +487,6 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 }
                 is GameEvent.FrenzyStarted -> {
                     SoundManager.play(SoundManager.Sfx.LevelUp)
-                }
-                is GameEvent.DecorBought -> {
-                    SoundManager.play(SoundManager.Sfx.Coin)
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
                 is GameEvent.PetAdopted -> {
                     SoundManager.play(SoundManager.Sfx.Achieve)

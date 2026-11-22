@@ -29,7 +29,7 @@ thả trái kiểu Suika kiếm thêm năng lượng.
   cần merge đúng loại để mở băng, kéo xuống túi để cất, kéo lên order để giao.
 - **Năng lượng** — tốn 1⚡ mỗi lần gen, hồi +1/60s (trần 100), quà ngày +10,
   minigame cho thêm.
-- **Meta**: quán cà phê trang trí (decor buff), thú cưng (cho ăn bằng vàng → buff),
+- **Meta**: phòng cà phê, thú cưng (cho ăn bằng vàng → buff),
   achievements, quà hàng ngày, magic wand nhân đôi item, QTE gift bubble.
 
 ### Minigame: Thả trái 🍉
@@ -65,7 +65,7 @@ app/src/main/java/com/bepngon/merge/
 │   ├── GameEngine.kt    # merge/move, orders, level/XP, inventory, buffs, cheat
 │   ├── GameModels.kt    # GameState, BoardItem, Order, GameEvent
 │   ├── ItemCatalog.kt   # toàn bộ merge chains + generators + rare chains
-│   ├── MetaCatalog.kt   # decor, pets, achievements, daily rewards
+│   ├── MetaCatalog.kt   # pets, achievements, daily rewards
 │   └── SubakEngine.kt   # physics minigame thả trái (JBox2D)
 ├── ui/              # GameScreen, GameViewModel, components/
 ├── data/            # SaveManager (save/load + migration layout cũ)

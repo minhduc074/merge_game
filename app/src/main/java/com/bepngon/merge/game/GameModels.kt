@@ -110,7 +110,6 @@ data class GameState(
     val dailyStreak: Int = 0,
     val comboCount: Int = 0,
     val comboUntilMs: Long = 0,
-    val decorOwned: Set<String> = emptySet(),
     val pet: PetState? = null,
     val miniPlaysLeft: Int = 3,
     val miniRefillAtMs: Long = 0,
@@ -210,7 +209,6 @@ sealed interface GameEvent {
     /** Duplicate created by the magic wand; index uses the same encoding as [WildcardSpawned]. */
     data class ItemDuplicated(val index: Int) : GameEvent
     data class FrenzyStarted(val untilMs: Long) : GameEvent
-    data class DecorBought(val id: String) : GameEvent
     data class PetAdopted(val defId: String) : GameEvent
     data class PetFed(val untilMs: Long) : GameEvent
     data class PetGift(val cellIndex: Int) : GameEvent

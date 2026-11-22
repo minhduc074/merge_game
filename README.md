@@ -5,7 +5,7 @@
 A **Merge Mansion / Travel Town** style merge game for Android — tap generators
 to spawn ingredients, drag two matching items together to merge them up a tier,
 serve cute customers their orders, level up to unlock the board, earn coins for
-upgrades and cafe decor. Comes with a Suika-style fruit-drop minigame for bonus
+upgrades. Comes with a Suika-style fruit-drop minigame for bonus
 energy.
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin)
@@ -34,7 +34,7 @@ energy.
   onto an order card to deliver.
 - **Energy** — 1⚡ per generator tap, regenerates +1/60s (cap 100), +10 from
   daily rewards, plus the minigame.
-- **Meta**: cafe room with decor buffs, pets (feed with coins → buffs),
+- **Meta**: cafe room, pets (feed with coins → buffs),
   achievements, daily rewards, magic wand item duplicator, QTE gift bubble.
 
 ### Minigame: Fruit Drop 🍉
@@ -71,7 +71,7 @@ app/src/main/java/com/bepngon/merge/
 │   ├── GameEngine.kt    # merge/move, orders, level/XP, inventory, buffs, cheat
 │   ├── GameModels.kt    # GameState, BoardItem, Order, GameEvent
 │   ├── ItemCatalog.kt   # every merge chain + generator + rare chain
-│   ├── MetaCatalog.kt   # decor, pets, achievements, daily rewards
+│   ├── MetaCatalog.kt   # pets, achievements, daily rewards
 │   └── SubakEngine.kt   # fruit-drop minigame physics (JBox2D)
 ├── ui/              # GameScreen, GameViewModel, components/
 ├── data/            # SaveManager (save/load + legacy layout migration)

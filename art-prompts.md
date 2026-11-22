@@ -233,7 +233,7 @@ no text, no watermark
 
 ---
 
-## 7. Tiệm của bé — phòng, decor, thú cưng, mini game 🏠
+## 7. Tiệm của bé — phòng, thú cưng, mini game 🏠
 
 ### `bg_cafe` — nền phòng (1080×1400+, vùng phòng trong RoomScreen)
 
@@ -251,38 +251,6 @@ no text, no watermark
 ```
 
 → Lưu `bg_cafe.png` → `drawable-nodpi/` — `RoomScreen` tự load (lookup `bg_cafe`) thay gradient.
-
-### Decor sprites — PNG trong suốt, đặt theo `decor_*` id
-
-Dán kèm STYLE PREFIX + "isolated, transparent background":
-
-```
-decor_rug      → a cozy round woven rug with warm terracotta and cream
-                 zigzag pattern, seen from a slight top-down angle
-decor_plant    → a small potted monstera plant in a terracotta pot
-decor_painting → a framed flower painting with a light wooden frame,
-                 pastel sunflower art inside
-decor_clock    → a cute round wooden wall clock with a smiling sun face
-decor_lamp     → a red paper lantern with warm glow, hanging tassel
-decor_curtain  → a window with soft cream curtains tied back, morning
-                 light coming through, rounded cartoon window frame
-decor_table    → a small round wooden cafe table with two wooden stools,
-                 a tiny vase on top
-decor_shelf    → a wooden shelf filled with cute cakes and bread loaves
-decor_flowers  → a big pot of blooming sunflowers in a ceramic pot
-decor_counter  → a wooden cafe counter with an espresso machine and
-                 pastry display glass
-decor_oven     → a cute stone bread oven with a small warm fire glow
-                 inside, chimney on top
-decor_piano    → a small upright wooden piano with cream keys, a flower
-                 pot on top
-decor_aquarium → a round fishbowl aquarium with two tiny orange fish,
-                 pebbles and a mini coral
-decor_goldcat  → a golden maneki-neko lucky cat statue waving its paw,
-                 red collar with a gold coin
-```
-
-→ Lưu đúng tên `decor_*.png` vào `drawable-nodpi/` — `DecorRow` + room slots tự nhận.
 
 ### Pet sprites — nâng cấp (hiện tái dùng `cust_*.png`)
 

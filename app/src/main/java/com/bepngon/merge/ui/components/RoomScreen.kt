@@ -8,7 +8,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,18 +39,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bepngon.merge.game.DecorCatalog
-import com.bepngon.merge.game.DecorDef
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameState
-import com.bepngon.merge.game.ItemCatalog
-import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.PetCatalog
 import com.bepngon.merge.game.PetDef
 import com.bepngon.merge.ui.theme.Cocoa
@@ -65,7 +59,6 @@ import kotlin.math.sin
 fun RoomScreen(
     game: GameState,
     nowMs: Long,
-    onBuyDecor: (String) -> Unit,
     onAdoptPet: (String) -> Unit,
     onFeedPetCoins: () -> Unit,
 
@@ -115,7 +108,6 @@ fun RoomScreen(
             ) {
                 val rw = constraints.maxWidth.toFloat()
                 val rh = constraints.maxHeight.toFloat()
-                val density = LocalDensity.current
                 val ctx = LocalContext.current
                 val bgRes = remember { artRes(ctx, "bg_cafe") }
                 if (bgRes != 0) {
@@ -124,31 +116,6 @@ fun RoomScreen(
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                // Painter's order: rug mats the floor first, then items sorted by
-                // bottom edge (lower on screen = closer to viewer = drawn later).
-                fun bottomFrac(d: DecorDef): Float {
-                    val res = artRes(ctx, d.id)
-                    val asp = if (res != 0) {
-                        val dr = ctx.resources.getDrawable(res, null)
-                        if (dr.intrinsicWidth > 0) {
-                            dr.intrinsicHeight.toFloat() / dr.intrinsicWidth
-                        } else 1f
-                    } else 1f
-                    return d.y + d.w * asp * (rw / rh)
-                }
-                val ownedDecor = DecorCatalog.ALL.filter { it.id in game.decorOwned }
-                val depthSorted = ownedDecor.filter { it.id == "decor_rug" } +
-                    ownedDecor.filter { it.id != "decor_rug" }.sortedBy { bottomFrac(it) }
-                depthSorted.forEach { d ->
-                    GameArt(
-                        name = d.id,
-                        emoji = d.emoji,
-                        size = with(density) { (rw * d.w).toDp() },
-                        modifier = Modifier.offset {
-                            IntOffset((rw * d.x).roundToInt(), (rh * d.y).roundToInt())
-                        },
                     )
                 }
                 game.pet?.let { pet ->
@@ -169,14 +136,12 @@ fun RoomScreen(
                     .padding(top = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Chip("🛋️ Decor") { panel = RoomPanel.DECOR }
                 Chip("🐾 Thú cưng") { panel = RoomPanel.PET }
                 Chip("🍉 Thả trái") { onOpenMiniGame() }
             }
 
             // ---- bottom panels ----
             when (panel) {
-                RoomPanel.DECOR -> DecorShop(game, onBuyDecor)
                 RoomPanel.PET -> PetPanel(
                     game = game,
                     nowMs = nowMs,
@@ -190,7 +155,7 @@ fun RoomScreen(
     }
 }
 
-private enum class RoomPanel { NONE, DECOR, PET }
+private enum class RoomPanel { NONE, PET }
 
 @Composable
 private fun Chip(label: String, onClick: () -> Unit) {
@@ -241,62 +206,6 @@ private fun PetSprite(
             size = 54.dp,
             modifier = Modifier.scale(scaleX = dir, scaleY = 1f),
         )
-    }
-}
-
-@Composable
-private fun DecorShop(game: GameState, onBuyDecor: (String) -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
-            .padding(10.dp)
-            .height(190.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text("🛋️ Cửa hàng decor", fontWeight = FontWeight.ExtraBold, color = Cocoa)
-        DecorCatalog.ALL.forEach { d -> DecorRow(d, game, onBuyDecor) }
-    }
-}
-
-@Composable
-private fun DecorRow(d: DecorDef, game: GameState, onBuyDecor: (String) -> Unit) {
-    val owned = d.id in game.decorOwned
-    val locked = game.level < d.unlockLevel
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GameArt(d.id, d.emoji, 34.dp)
-        Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Cocoa)
-            val buff = buildList {
-                if (d.orderCoinsPct > 0) add("+${d.orderCoinsPct}% vàng order")
-                if (d.genCooldownPct > 0) add("gen nhanh hơn ${d.genCooldownPct}%")
-                if (d.energyRegenPct > 0) add("⚡ nhanh hơn ${d.energyRegenPct}%")
-            }.joinToString(" · ")
-            if (buff.isNotEmpty()) {
-                Text(buff, fontSize = 11.sp, color = MergeGreen)
-            }
-        }
-        when {
-            owned -> Text("✅", fontSize = 16.sp)
-            locked -> Text("Lv${d.unlockLevel} 🔒", fontSize = 12.sp, color = Cocoa)
-            else -> Text(
-                "🪙${d.cost}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (game.coins >= d.cost) Cocoa else Color.Gray,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (game.coins >= d.cost) Gold else Color(0xFFDDDDDD))
-                    .clickable(enabled = game.coins >= d.cost) { onBuyDecor(d.id) }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        }
     }
 }
 

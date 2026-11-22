@@ -962,22 +962,19 @@ object GameEngine {
             ?.let { PetCatalog.byId(it.defId) }
 
     fun orderCoinPct(state: GameState, nowMs: Long): Int =
-        DecorCatalog.orderCoinsPct(state.decorOwned) +
-            ((fedPetDef(state, nowMs)?.buff as? PetBuff.OrderCoinsPct)?.pct ?: 0)
+        (fedPetDef(state, nowMs)?.buff as? PetBuff.OrderCoinsPct)?.pct ?: 0
 
     fun xpPct(state: GameState, nowMs: Long): Int =
         (fedPetDef(state, nowMs)?.buff as? PetBuff.XpPct)?.pct ?: 0
 
     fun genCooldownMs(state: GameState, nowMs: Long): Long {
-        val pct = DecorCatalog.genCooldownPct(state.decorOwned) +
-            ((fedPetDef(state, nowMs)?.buff as? PetBuff.GenCooldownPct)?.pct ?: 0)
+        val pct = (fedPetDef(state, nowMs)?.buff as? PetBuff.GenCooldownPct)?.pct ?: 0
         // Recharge can at most be halved so cooldowns still matter.
         return GEN_COOLDOWN_MS * (100 - pct).coerceAtLeast(50) / 100
     }
 
     fun energyRegenMs(state: GameState, nowMs: Long): Long {
-        val pct = DecorCatalog.energyRegenPct(state.decorOwned) +
-            ((fedPetDef(state, nowMs)?.buff as? PetBuff.EnergyRegenPct)?.pct ?: 0)
+        val pct = (fedPetDef(state, nowMs)?.buff as? PetBuff.EnergyRegenPct)?.pct ?: 0
         return ENERGY_REGEN_BASE_MS * (100 - pct).coerceAtLeast(60) / 100
     }
 
@@ -991,20 +988,6 @@ object GameEngine {
             (PetCatalog.byId(it.defId).buff as? PetBuff.FeedBonusMs)?.ms
         } ?: 0L
         return PET_FEED_MS + bonus
-    }
-
-    fun buyDecor(state: GameState, decorId: String): Pair<GameState, List<GameEvent>> {
-        val def = DecorCatalog.byId(decorId)
-        if (def.id in state.decorOwned ||
-            state.level < def.unlockLevel ||
-            state.coins < def.cost
-        ) {
-            return state to listOf(GameEvent.NotEnoughCoins)
-        }
-        return state.copy(
-            coins = state.coins - def.cost,
-            decorOwned = state.decorOwned + def.id,
-        ) to listOf(GameEvent.DecorBought(def.id))
     }
 
     fun adoptPet(state: GameState, petId: String, nowMs: Long): Pair<GameState, List<GameEvent>> {

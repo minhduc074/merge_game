@@ -1,5 +1,0 @@
-Cute cartoon game asset, hand-drawn style, thick dark-brown outlines, soft cel shading with subtle highlights, warm pastel color palette, kawaii chibi proportions, clean vector look, cozy bakery/cafe theme, mobile game art, high quality, no text, no watermark, no letters.
-
-A 1x2 grid sprite sheet of 2 DIFFERENT cute cafe room decoration items, each item centered inside its own cell, even spacing, clear gap between cells, each item isolated on a plain solid light-grey background:
-left cell: a cozy round woven rug with warm terracotta and cream zigzag pattern, seen from a slight top-down angle
-right cell: a wooden shelf filled with cute cakes and bread loaves

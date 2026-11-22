@@ -2,7 +2,6 @@ package com.bepngon.merge
 
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
-import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
@@ -1125,52 +1124,6 @@ class GameEngineTest {
     }
 
     // ---------- cafe room / pet / mini game ----------
-
-    @Test
-    fun `buying decor spends coins and marks owned`() {
-        val s = stateWith(coins = 100)
-        val (next, events) = GameEngine.buyDecor(s, "decor_rug")
-        assertEquals(50, next.coins)
-        assertTrue("decor_rug" in next.decorOwned)
-        assertTrue(events.any { it is GameEvent.DecorBought })
-    }
-
-    @Test
-    fun `decor rejects without coins or level`() {
-        // Not enough coins
-        val poor = stateWith(coins = 10)
-        assertEquals(poor, GameEngine.buyDecor(poor, "decor_rug").first)
-        // Level locked (decor_table needs Lv3)
-        val low = stateWith(coins = 999, level = 1)
-        assertEquals(low, GameEngine.buyDecor(low, "decor_table").first)
-        // Already owned
-        val owned = stateWith(coins = 999).let {
-            GameEngine.buyDecor(it, "decor_rug").first
-        }
-        assertEquals(owned, GameEngine.buyDecor(owned, "decor_rug").first)
-    }
-
-    @Test
-    fun `decor order-coins buff raises order payout`() {
-        // decor_counter grants +3% order coins
-        val s = stateWith(
-            0 to "fruit_1",
-            coins = 999,
-            level = 7,
-            orders = listOf(orderOf("fruit_1")),
-        ).let {
-            var st = it
-            DecorCatalog.ALL.forEach { d ->
-                st = GameEngine.buyDecor(st, d.id).first
-            }
-            st
-        }
-        val expectedPct = DecorCatalog.orderCoinsPct(s.decorOwned)
-        assertTrue(expectedPct > 0)
-        val (next, _) = GameEngine.autoFulfillOrder(s, 1, 0)
-        val base = ItemCatalog["fruit_1"].sellPrice * 5 / 4
-        assertEquals(s.coins + base * (100 + expectedPct) / 100, next.coins)
-    }
 
     @Test
     fun `adopting pet costs coins and starts fed`() {

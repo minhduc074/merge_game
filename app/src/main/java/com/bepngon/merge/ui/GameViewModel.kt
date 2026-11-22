@@ -147,8 +147,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(showRoom = false)
     }
 
-    fun buyDecor(decorId: String) = applyEngine { GameEngine.buyDecor(it, decorId) }
-
     fun adoptPet(petId: String) = applyEngine { GameEngine.adoptPet(it, petId, nowMs()) }
 
     fun feedPetCoins() = applyEngine { GameEngine.feedPetCoins(it, nowMs()) }
