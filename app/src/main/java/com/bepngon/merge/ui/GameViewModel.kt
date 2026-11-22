@@ -210,6 +210,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun decorPaint(roomId: String, variantId: String, wallSide: Int? = null) =
         decorOp(roomId) { DecorEngine.setPaint(it, roomId, variantId, wallSide) }
 
+    fun decorReorder(roomId: String, uid: Long, front: Boolean) =
+        decorOp(roomId) { DecorEngine.reorderPlaced(it, roomId, uid, front) }
+
+    fun decorCycleVariant(roomId: String, uid: Long) =
+        decorOp(roomId) { DecorEngine.cycleVariant(it, roomId, uid) }
+
+    fun decorAutoPlace(roomId: String, itemId: String, variantId: String) =
+        decorOp(roomId) { DecorEngine.placeAuto(it, roomId, itemId, variantId) }
+
     fun undoDecor() {
         val (roomId, snap) = decorUndo.removeLastOrNull() ?: return
         _ui.value.game.decor.rooms[roomId]?.let { decorRedo.addLast(roomId to it) }

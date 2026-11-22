@@ -255,6 +255,77 @@ object DecorEngine {
         return next to events
     }
 
+    /** Re-stack a placed item inside its own layer: [front] = top of the
+     *  layer ("Trước"), otherwise bottom ("Sau"). */
+    fun reorderPlaced(
+        state: GameState,
+        roomId: String,
+        uid: Long,
+        front: Boolean,
+    ): Pair<GameState, List<GameEvent>> {
+        val room = roomOf(state.decor, roomId)
+        val p = room.placed.firstOrNull { it.uid == uid } ?: return state to emptyList()
+        val layer = DecorCatalog[p.itemId].layer
+        val others = room.placed.filterNot { it.uid == uid }
+        val newPlaced = if (front) {
+            others + p
+        } else {
+            val idx = others.indexOfFirst { DecorCatalog[it.itemId].layer == layer }
+            others.toMutableList().apply { add(if (idx < 0) size else idx, p) }
+        }
+        return withRoom(state, roomId, room.copy(placed = newPlaced)) to
+            listOf(GameEvent.DecorPlaced(roomId, uid))
+    }
+
+    /** Cycle to the next owned variant of the same item ("Đổi mẫu") —
+     *  unowned looks are skipped so the free button never charges. */
+    fun cycleVariant(
+        state: GameState,
+        roomId: String,
+        uid: Long,
+    ): Pair<GameState, List<GameEvent>> {
+        val room = roomOf(state.decor, roomId)
+        val p = room.placed.firstOrNull { it.uid == uid } ?: return state to emptyList()
+        val item = DecorCatalog[p.itemId]
+        val owned = item.variants.filter { DecorCatalog.isOwned(state.decor, it.id) }
+        if (owned.size < 2) return state to listOf(GameEvent.InvalidDrop)
+        val cur = owned.indexOfFirst { it.id == p.variantId }
+        val next = owned[(cur + 1) % owned.size]
+        return setVariant(state, roomId, uid, next.id)
+    }
+
+    /** Tap-to-place: find the free cell nearest the zone center and drop
+     *  the item there — same atomic buy+place as a manual drop. */
+    fun placeAuto(
+        state: GameState,
+        roomId: String,
+        itemId: String,
+        variantId: String,
+    ): Pair<GameState, List<GameEvent>> {
+        val item = DecorCatalog[itemId]
+        if (item.placement == Placement.PAINT) return state to listOf(GameEvent.InvalidDrop)
+        val def = DecorCatalog.room(roomId)
+        val (w, h) = footprint(item, 0)
+        val gxRange = 0..(def.cols - w)
+        val gyRange = when (item.placement) {
+            Placement.WALL -> 0..(def.wallRows - h)
+            else -> def.wallRows..(def.rows - h)
+        }
+        val cx = gxRange.last / 2f
+        val cy = (gyRange.first + gyRange.last) / 2f
+        val cell = gxRange.flatMap { gx -> gyRange.map { gy -> gx to gy } }
+            .minByOrNull { (gx, gy) ->
+                val dx = gx - cx
+                val dy = gy - cy
+                dx * dx + dy * dy
+            }
+            ?.takeIf { (gx, gy) ->
+                canPlace(state.decor, roomId, itemId, gx, gy, 0)
+            }
+            ?: return state to listOf(GameEvent.InvalidDrop)
+        return placeItem(state, roomId, itemId, variantId, cell.first, cell.second, 0)
+    }
+
     /** Resize a placed item's sprite — visual only, footprint unchanged. */
     fun setScale(
         state: GameState,

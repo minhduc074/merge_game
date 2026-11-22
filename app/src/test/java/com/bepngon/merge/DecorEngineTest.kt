@@ -310,4 +310,73 @@ class DecorEngineTest {
         assertTrue(state.decor.nextPlacedUid > uids.max())
         assertNotEquals(uids[0], uids[1])
     }
+
+    @Test
+    fun `reorderPlaced stacks within the item's own layer`() {
+        val state = stateWith(
+            placed = listOf(
+                placed(1, "chair_wood", 0, 4),
+                placed(2, "table_cafe", 1, 4),
+                placed(3, "rug_big", 0, 4), // RUG layer below FURNITURE
+            ),
+        )
+        // bring chair to the front -> appended last (top of FURNITURE layer)
+        val (front, _) = DecorEngine.reorderPlaced(state, room, 1, true)
+        assertEquals(1L, front.decor.rooms.getValue(room).placed.last().uid)
+        // send table to the back -> inserted before the first FURNITURE
+        // item in the list (layer order still comes from sortKey)
+        val (back, _) = DecorEngine.reorderPlaced(state, room, 2, false)
+        val placed = back.decor.rooms.getValue(room).placed
+        assertEquals(2L, placed.first().uid)
+        assertEquals(1L, placed[1].uid)
+    }
+
+    @Test
+    fun `cycleVariant rotates through owned variants only`() {
+        val item = DecorCatalog["chair_wood"]
+        val owned = item.variants.take(2).map { it.id }.toSet()
+        val state = stateWith(
+            owned = owned,
+            placed = listOf(placed(1, "chair_wood", 0, 4, variantId = owned.first())),
+        )
+        val (next, _) = DecorEngine.cycleVariant(state, room, 1)
+        assertEquals(
+            owned.elementAt(1),
+            next.decor.rooms.getValue(room).placed[0].variantId,
+        )
+        // cycles back to the first owned variant
+        val (next2, _) = DecorEngine.cycleVariant(next, room, 1)
+        assertEquals(
+            owned.first(),
+            next2.decor.rooms.getValue(room).placed[0].variantId,
+        )
+        // nothing to cycle through -> no-op
+        val only = setOf(owned.first())
+        val solo = stateWith(
+            owned = only,
+            placed = listOf(placed(1, "chair_wood", 0, 4, variantId = owned.first())),
+        )
+        val (same, events) = DecorEngine.cycleVariant(solo, room, 1)
+        assertEquals(solo, same)
+        assertEquals(listOf(GameEvent.InvalidDrop), events)
+    }
+
+    @Test
+    fun `placeAuto drops near the zone center and buys on the fly`() {
+        val v = DecorCatalog["chair_wood"].variants.first()
+        val state = stateWith(coins = 0)
+        val (next, events) = DecorEngine.placeAuto(state, room, "chair_wood", v.id)
+        val p = next.decor.rooms.getValue(room).placed.single()
+        assertEquals(v.id, p.variantId)
+        assertTrue(p.gy >= def.wallRows) // floor zone
+        assertTrue(
+            DecorEngine.canPlace(next.decor, room, "chair_wood", p.gx, p.gy, 0),
+        )
+        assertTrue(events.any { it is GameEvent.DecorPlaced })
+        // paint items cannot be tap-placed
+        val paint = DecorCatalog["floor_wood"].variants.first()
+        val (same, ev2) = DecorEngine.placeAuto(state, room, "floor_wood", paint.id)
+        assertEquals(state, same)
+        assertEquals(listOf(GameEvent.InvalidDrop), ev2)
+    }
 }

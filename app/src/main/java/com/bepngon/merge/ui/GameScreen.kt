@@ -180,6 +180,15 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 onPaint = { variantId, wallSide ->
                     vm.decorPaint(DecorEngine.DEFAULT_ROOM, variantId, wallSide)
                 },
+                onReorder = { uid, front ->
+                    vm.decorReorder(DecorEngine.DEFAULT_ROOM, uid, front)
+                },
+                onCycleVariant = { uid ->
+                    vm.decorCycleVariant(DecorEngine.DEFAULT_ROOM, uid)
+                },
+                onAutoPlace = { itemId, variantId ->
+                    vm.decorAutoPlace(DecorEngine.DEFAULT_ROOM, itemId, variantId)
+                },
                 onUndo = vm::undoDecor,
                 onRedo = vm::redoDecor,
                 onClose = vm::closeDecor,

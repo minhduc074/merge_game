@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -29,20 +30,29 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import android.content.ContentValues
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
+import android.provider.MediaStore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -52,10 +62,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -68,6 +80,8 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.drawToBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -78,6 +92,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.DecorEngine
+import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.DecorItem
 import com.bepngon.merge.game.DecorLayer
 import com.bepngon.merge.game.DecorState
@@ -92,6 +107,10 @@ import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
 import com.bepngon.merge.ui.theme.WarnRed
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Where a decor drag came from: catalog uid = 0, a placed item's uid otherwise. */
 private data class DecorDrag(
@@ -230,6 +249,14 @@ private class IsoMap(
     }
 }
 
+/** Cornerlet-style design tokens: warm paper cards with a soft line
+ *  border, pink accents for selection and primary actions. */
+private val Paper = Color(0xFFFFF7E8)
+private val LineC = Color(0xFFE8CFC4)
+private val Accent = Color(0xFFE0708F)
+private val PinkSel = Color(0xFFF6B3C4)
+private val ToastBg = Color(0xFF5A3A3A)
+
 @Composable
 fun DecorScreen(
     game: GameState,
@@ -243,6 +270,9 @@ fun DecorScreen(
     onSetVariant: (uid: Long, variantId: String) -> Unit,
     onScale: (uid: Long, scale: Float) -> Unit,
     onPaint: (variantId: String, wallSide: Int?) -> Unit,
+    onReorder: (uid: Long, front: Boolean) -> Unit,
+    onCycleVariant: (uid: Long) -> Unit,
+    onAutoPlace: (itemId: String, variantId: String) -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onClose: () -> Unit,
@@ -250,6 +280,9 @@ fun DecorScreen(
     val haptics = LocalHapticFeedback.current
     val def = DecorCatalog.room(roomId)
     val room = DecorEngine.roomOf(game.decor, roomId)
+    val ctx = LocalContext.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
 
     var drag by remember { mutableStateOf<DecorDrag?>(null) }
     var menuUid by remember { mutableStateOf<Long?>(null) }
@@ -258,9 +291,20 @@ fun DecorScreen(
     val pickedVariant = remember { mutableStateMapOf<String, String>() }
     var roomBounds by remember { mutableStateOf(Rect.Zero) }
     var roomSize by remember { mutableStateOf(IntSize.Zero) }
+    var toast by remember { mutableStateOf<String?>(null) }
+    var resizePreview by remember { mutableStateOf<Pair<Long, Float>?>(null) }
+
+    LaunchedEffect(toast) {
+        if (toast != null) {
+            delay(1800)
+            toast = null
+        }
+    }
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
+    // hides floating overlays for one frame while a room photo is captured
+    var photoMode by remember { mutableStateOf(false) }
 
     val iso = remember(def) { IsoMap(def.cols, def.floorRows, def.wallRows) }
 
@@ -368,30 +412,67 @@ fun DecorScreen(
             .background(CreamBg)
             .onGloballyPositioned { contentOrigin = it.positionInWindow() },
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp)) {
-            // ---- top bar ----
+        Column(Modifier.fillMaxSize().padding(10.dp)) {
+            // ---- HUD: avatar + level/xp, currency pills, close ----
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "🛋️ ${def.name}",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Cocoa,
-                    modifier = Modifier.weight(1f),
-                )
-                TopChip("🪙 ${game.coins}") {}
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF3DEDE))
+                        .border(2.5.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("🐱", fontSize = 26.sp) }
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text(
+                        "Lv.${game.level}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Cocoa,
+                    )
+                    val xpNeed = GameEngine.xpNeededForLevel(game.level).toFloat()
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 3.dp)
+                            .height(11.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Cocoa.copy(alpha = 0.18f))
+                            .border(1.5.dp, LineC, RoundedCornerShape(6.dp)),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth((game.xp / xpNeed).coerceIn(0f, 1f))
+                                .height(11.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(PinkSel),
+                        )
+                        Text(
+                            "${game.xp} / ${xpNeed.toInt()}",
+                            fontSize = 7.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Cocoa,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
+                }
+                HudPill("🪙", "${game.coins}")
+                HudPill("⚡", "${game.energy}/${GameEngine.ENERGY_CAP}")
                 Text(
                     "✕",
-                    fontSize = 22.sp,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Cocoa,
                     modifier = Modifier
-                        .padding(start = 8.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFFE0B2))
+                        .background(Paper)
+                        .border(2.dp, LineC, CircleShape)
                         .clickable(onClick = onClose)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .wrapContentSize(Alignment.Center),
                 )
             }
 
@@ -477,6 +558,9 @@ fun DecorScreen(
                                         zoom = 1.75f
                                     }
                                 },
+                                // empty-space tap deselects the item (tile
+                                // taps are consumed by the tiles first)
+                                onTap = { menuUid = null },
                             )
                         },
                 ) {
@@ -496,14 +580,20 @@ fun DecorScreen(
                     // placed items, back-to-front
                     room.placed.sortedBy { DecorEngine.sortKey(it) }.forEach { p ->
                         key(p.uid) {
-                            val (origin, sizePx) = itemBox(p)
+                            val pv = if (resizePreview?.first == p.uid) {
+                                p.copy(scale = resizePreview!!.second)
+                            } else {
+                                p
+                            }
+                            val (origin, sizePx) = itemBox(pv)
                             PlacedTile(
-                                p = p,
+                                p = pv,
                                 origin = origin,
                                 sizePx = sizePx,
                                 zoom = zoom,
                                 hidden = drag?.uid == p.uid,
                                 interactive = !stickyMove,
+                                selected = menuUid == p.uid,
                                 onTap = {
                                     // a fresh tap discards any drag left
                                     // over by an interrupted gesture
@@ -513,11 +603,17 @@ fun DecorScreen(
                                 },
                                 onPickup = { start ->
                                     menuUid = null
+                                    resizePreview = null
                                     drag = DecorDrag(p.itemId, p.variantId, p.uid, start, p.rot, p.flip)
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 },
                                 onDragPos = { pos -> drag = drag?.copy(pos = pos) },
                                 onDrop = ::drop,
+                                onResizeDrag = { s -> resizePreview = p.uid to s },
+                                onResizeEnd = {
+                                    resizePreview?.let { (uid, s) -> onScale(uid, s) }
+                                    resizePreview = null
+                                },
                             )
                         }
                     }
@@ -554,53 +650,135 @@ fun DecorScreen(
                 }
                 if (room.placed.isEmpty() && drag == null) {
                     Text(
-                        "Kéo đồ từ khay bên dưới vào tiệm nhé!\nKéo đồ đã đặt để dời, chạm để đổi màu / xoay / cất.",
-                        fontSize = 13.sp,
-                        color = Cocoa.copy(alpha = 0.7f),
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
-                // undo/redo: round buttons floating at the room's bottom-left,
-                // outside the zoom layer (reference layout)
-                Row(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 10.dp, bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    RoundBtn("↶", canUndo, onUndo)
-                    RoundBtn("↷", canRedo, onRedo)
-                }
-                // selected-item menu: pill floating on the room's bottom
-                // edge instead of a panel replacing the tray
-                val menuPlaced = menuUid?.let { id -> room.placed.firstOrNull { it.uid == id } }
-                if (menuPlaced != null) {
-                    ItemMenu(
-                        p = menuPlaced,
-                        game = game,
+                        "Chạm hoặc kéo một nhãn dán vào phòng",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Cocoa,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 10.dp),
-                        onSetVariant = { onSetVariant(menuPlaced.uid, it) },
-                        onScale = { onScale(menuPlaced.uid, it) },
-                        onRotate = { onRotate(menuPlaced.uid) },
-                        onRemove = {
-                            onRemove(menuPlaced.uid)
-                            menuUid = null
-                        },
-                        onMoveMode = {
-                            menuUid = null
-                            stickyMove = true
-                            val (bo, bs) = itemBox(menuPlaced)
-                            drag = DecorDrag(
-                                menuPlaced.itemId, menuPlaced.variantId,
-                                menuPlaced.uid,
-                                roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f) * zoom,
-                                menuPlaced.rot, menuPlaced.flip,
+                            .padding(bottom = 86.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Paper)
+                            .border(2.dp, LineC, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                    )
+                }
+                if (!photoMode) {
+                    // left column: snapshot button (quest/daily have no system
+                    // yet — only features that exist get a button)
+                    Column(
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 8.dp, top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        SideBtn("📷", "Chụp ảnh") {
+                            val r = roomBounds
+                            if (r.width > 0 && r.height > 0) {
+                                scope.launch {
+                                    // hide the floating controls for one frame,
+                                    // then capture — drawToBitmap must run on
+                                    // the main thread or Compose crashes
+                                    photoMode = true
+                                    withFrameNanos { }
+                                    val full = view.drawToBitmap()
+                                    photoMode = false
+                                    val bmp = Bitmap.createBitmap(
+                                        full,
+                                        r.left.roundToInt().coerceIn(0, full.width),
+                                        r.top.roundToInt().coerceIn(0, full.height),
+                                        r.width.roundToInt().coerceAtMost(
+                                            full.width - r.left.roundToInt(),
+                                        ),
+                                        r.height.roundToInt().coerceAtMost(
+                                            full.height - r.top.roundToInt(),
+                                        ),
+                                    )
+                                    toast = withContext(Dispatchers.IO) {
+                                        saveRoomPhoto(ctx, bmp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // right column: zoom controls
+                    Column(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 8.dp, top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ZoomBtn("+") { zoom = (zoom * 1.25f).coerceAtMost(3f) }
+                        ZoomBtn("−") { zoom = (zoom / 1.25f).coerceAtLeast(1f) }
+                        ZoomBtn("⌂") {
+                            zoom = 1f
+                            pan = Offset.Zero
+                        }
+                    }
+                    // undo/redo: round buttons floating at the room's
+                    // bottom-left, outside the zoom layer (reference layout)
+                    Row(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 8.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        RoundBtn("↶", canUndo, onUndo)
+                        RoundBtn("↷", canRedo, onRedo)
+                    }
+                    // big yellow save button — state auto-saves on every op,
+                    // so it just confirms with a toast (reference layout)
+                    Column(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 8.dp, bottom = 6.dp)
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFFFFD96A), Color(0xFFFFBD2E)),
+                                ),
                             )
-                        },
-                        onClose = { menuUid = null },
+                            .border(3.dp, Color.White, RoundedCornerShape(20.dp))
+                            .clickable { toast = "Đã lưu góc nhỏ của bạn 💾" },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text("💾", fontSize = 22.sp)
+                        Text("Lưu", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7A4A10))
+                    }
+                    // selected-item action bar (Cornerlet's 7-button bar)
+                    val menuPlaced = menuUid?.let { id -> room.placed.firstOrNull { it.uid == id } }
+                    if (menuPlaced != null) {
+                        ActionBar(
+                            p = menuPlaced,
+                            game = game,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 12.dp),
+                            onRotate = { onRotate(menuPlaced.uid) },
+                            onReorder = { front -> onReorder(menuPlaced.uid, front) },
+                            onCycle = { onCycleVariant(menuPlaced.uid) },
+                            onScale = { onScale(menuPlaced.uid, it) },
+                            onRemove = {
+                                onRemove(menuPlaced.uid)
+                                menuUid = null
+                            },
+                        )
+                    }
+                }
+                toast?.let {
+                    Text(
+                        it,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 10.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(ToastBg)
+                            .padding(horizontal = 16.dp, vertical = 7.dp),
                     )
                 }
             }
@@ -615,6 +793,7 @@ fun DecorScreen(
                     pickedVariant = pickedVariant,
                     onPickVariant = { itemId, v -> pickedVariant[itemId] = v },
                     onPaint = onPaint,
+                    onAutoPlace = { item -> onAutoPlace(item.id, variantOf(item).id) },
                     onDragStart = { item, start ->
                         if (stickyMove) return@CatalogTray
                         menuUid = null
@@ -665,23 +844,6 @@ private val CATEGORY_ICONS = mapOf(
     "wall" to "🖼️",
     "room" to "🏠",
 )
-
-@Composable
-private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Text(
-        label,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.35f),
-        modifier = Modifier
-            .padding(start = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0x33A0522D), RoundedCornerShape(10.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    )
-}
 
 /** Procedural isometric room shell: painted sky behind, both wall quads
  *  filled with tint + a seamless pattern tile (wainscot band on `panel`
@@ -1117,7 +1279,9 @@ private fun DecorArt(
 /** One placed item in the iso room: sprite standing on its footprint.
  *  [origin]/[sizePx] come from `itemBox` (canvas px). Tap = menu,
  *  drag = move / drag outside room = store. [interactive] disables all
- *  gestures so events pass through to the canvas in sticky-move mode. */
+ *  gestures so events pass through to the canvas in sticky-move mode.
+ *  [selected] draws the dashed pink sticker outline + the resize knob
+ *  (drag it to scale — commits once on release via [onResizeEnd]). */
 @Composable
 private fun PlacedTile(
     p: PlacedDecor,
@@ -1126,21 +1290,45 @@ private fun PlacedTile(
     zoom: Float,
     hidden: Boolean,
     interactive: Boolean,
+    selected: Boolean,
     onTap: () -> Unit,
     onPickup: (Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
+    onResizeDrag: (Float) -> Unit,
+    onResizeEnd: () -> Unit,
 ) {
     val item = DecorCatalog[p.itemId]
     val variant = item.variantOf(p.variantId)
     val density = LocalDensity.current
     var winPos by remember { mutableStateOf(Offset.Zero) }
+    var handleWinPos by remember { mutableStateOf(Offset.Zero) }
+    var startScale = 0f
+    var startDist = 1f
     Box(
         Modifier
             .offset { IntOffset(origin.x.roundToInt(), origin.y.roundToInt()) }
             .size(with(density) { sizePx.toDp() })
             .onGloballyPositioned { winPos = it.positionInWindow() }
             .alpha(if (hidden) 0f else 1f)
+            .then(
+                if (selected) {
+                    Modifier.drawBehind {
+                        drawRoundRect(
+                            color = Accent,
+                            cornerRadius = CornerRadius(14.dp.toPx()),
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(
+                                    floatArrayOf(9f, 7f),
+                                ),
+                            ),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .pointerInput(p.uid, interactive) {
                 if (!interactive) return@pointerInput
                 detectTapGestures(onTap = { onTap() })
@@ -1160,78 +1348,163 @@ private fun PlacedTile(
             p.itemId, variant.tint, with(density) { sizePx.toDp() }, item.emoji,
             rot = p.rot, flip = p.flip,
         )
+        if (selected) {
+            // resize knob: dragging it away/toward the tile center scales
+            // the sprite, like the Cornerlet bottom-right handle
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 6.dp, y = 6.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Accent)
+                    .border(2.5.dp, Color.White, CircleShape)
+                    .onGloballyPositioned { handleWinPos = it.positionInWindow() }
+                    .pointerInput(p.uid) {
+                        detectDragGestures(
+                            onDragStart = { start ->
+                                val center = winPos + Offset(sizePx, sizePx) * zoom / 2f
+                                startScale = p.scale
+                                startDist = (handleWinPos + start * zoom - center)
+                                    .getDistance()
+                                    .coerceAtLeast(1f)
+                            },
+                            onDrag = { change, _ ->
+                                val center = winPos + Offset(sizePx, sizePx) * zoom / 2f
+                                val dist = (handleWinPos + change.position * zoom - center)
+                                    .getDistance()
+                                onResizeDrag(
+                                    (startScale * dist / startDist).coerceIn(0.6f, 1.5f),
+                                )
+                            },
+                            onDragEnd = onResizeEnd,
+                            onDragCancel = onResizeEnd,
+                        )
+                    },
+            )
+        }
     }
 }
 
-/** Tap-menu for a placed item: floating pill on the room's bottom edge —
- *  action buttons (icon over label), then a scrollable variant row with
- *  the size presets appended. */
+/** Selected-item action bar (Cornerlet's floating 7-button bar): flip,
+ *  stack back/front, cycle design, shrink/grow, delete. A little top tab
+ *  makes it read as a tooltip bubble anchored to the item. */
 @Composable
-private fun ItemMenu(
+private fun ActionBar(
     p: PlacedDecor,
     game: GameState,
-    onSetVariant: (String) -> Unit,
-    onScale: (Float) -> Unit,
     onRotate: () -> Unit,
+    onReorder: (front: Boolean) -> Unit,
+    onCycle: () -> Unit,
+    onScale: (Float) -> Unit,
     onRemove: () -> Unit,
-    onMoveMode: () -> Unit,
-    onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val item = DecorCatalog[p.itemId]
-    Column(
+    val ownedCount = item.variants.count { DecorCatalog.isOwned(game.decor, it.id) }
+    // steps anchor to the 1+k*0.15 grid so ± always returns to 100%
+    val k = ((p.scale - 1f) / 0.15f).roundToInt()
+    Row(
         modifier
-            .widthIn(max = 340.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0x33A0522D), RoundedCornerShape(18.dp))
-            .padding(8.dp),
+            .clip(RoundedCornerShape(22.dp))
+            .background(Paper)
+            .border(2.5.dp, LineC, RoundedCornerShape(22.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            MenuIconBtn("✋", "Di chuyển", onMoveMode)
-            // Xoay: rugs rotate for real; oblique art mirrors — same button
-            if (item.canRotate || item.canFlip) {
-                MenuIconBtn("🔄", "Xoay", onRotate)
-            }
-            MenuIconBtn("📦", "Cất vào kho", onRemove)
-            MenuIconBtn("✕", "Đóng", onClose)
+        if (item.canRotate || item.canFlip) {
+            BarBtn("⇆", "Lật", onRotate)
         }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            item.variants.forEach { v ->
-                VariantChip(
-                    v = v,
-                    selected = v.id == p.variantId,
-                    owned = DecorCatalog.isOwned(game.decor, v.id),
-                    levelOk = v.unlockLevel <= game.level,
-                    onClick = { onSetVariant(v.id) },
-                )
-            }
-            // sprite scale stepper — footprint on the grid stays the same.
-            // Steps anchor to the 1+k*0.15 grid so ± always returns to 100%.
-            val k = ((p.scale - 1f) / 0.15f).roundToInt()
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ScaleBtn("➖", k > -3) { onScale(1f + (k - 1) * 0.15f) }
-                Text(
-                    "${(p.scale * 100).roundToInt()}%",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Cocoa,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-                ScaleBtn("➕", k < 3) { onScale(1f + (k + 1) * 0.15f) }
-            }
-        }
+        BarBtn("⤓", "Sau", { onReorder(false) })
+        BarBtn("⤒", "Trước", { onReorder(true) })
+        BarBtn("⟳", "Đổi mẫu", onCycle, enabled = ownedCount >= 2)
+        BarBtn("−", "Nhỏ", { onScale(1f + (k - 1) * 0.15f) }, enabled = k > -3)
+        BarBtn("+", "Lớn", { onScale(1f + (k + 1) * 0.15f) }, enabled = k < 3)
+        BarBtn("✕", "Xóa", onRemove)
     }
+}
+
+/** One action-bar button: bold icon over a tiny label. */
+@Composable
+private fun BarBtn(icon: String, label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            icon,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
+        )
+        Text(
+            label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
+        )
+    }
+}
+
+/** HUD currency pill (coins / energy). */
+@Composable
+private fun HudPill(icon: String, text: String) {
+    Row(
+        Modifier
+            .padding(start = 6.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(Paper)
+            .border(2.dp, LineC, RoundedCornerShape(999.dp))
+            .padding(horizontal = 9.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(icon, fontSize = 13.sp)
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Cocoa,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+    }
+}
+
+/** Paper side-button: emoji + label stacked (📷 in the left column). */
+@Composable
+private fun SideBtn(icon: String, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Paper)
+            .border(2.dp, LineC, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 6.dp),
+    ) {
+        Text(icon, fontSize = 21.sp)
+        Text(label, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Cocoa)
+    }
+}
+
+/** Round paper zoom button (right column: + − ⌂). */
+@Composable
+private fun ZoomBtn(icon: String, onClick: () -> Unit) {
+    Text(
+        icon,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.ExtraBold,
+        color = Cocoa,
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(Paper)
+            .border(2.dp, LineC, CircleShape)
+            .clickable(onClick = onClick)
+            .wrapContentSize(Alignment.Center),
+    )
 }
 
 /** Round white icon button (undo/redo under the room). */
@@ -1239,96 +1512,47 @@ private fun ItemMenu(
 private fun RoundBtn(icon: String, enabled: Boolean, onClick: () -> Unit) {
     Text(
         icon,
-        fontSize = 18.sp,
-        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.ExtraBold,
         color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
         modifier = Modifier
-            .size(38.dp)
+            .size(46.dp)
             .clip(CircleShape)
-            .background(Color.White)
-            .border(1.dp, Color(0x33A0522D), CircleShape)
+            .background(Paper)
+            .border(2.dp, LineC, CircleShape)
             .clickable(enabled = enabled, onClick = onClick)
             .wrapContentSize(Alignment.Center),
     )
 }
 
-/** Small +/- stepper button in the item menu. */
-@Composable
-private fun ScaleBtn(icon: String, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        icon,
-        fontSize = 13.sp,
-        color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
-        modifier = Modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .background(Color(0xFFFFE0B2))
-            .clickable(enabled = enabled, onClick = onClick)
-            .wrapContentSize(Alignment.Center),
-    )
-}
-
-/** Pill-menu button: emoji icon stacked over a small label. */
-@Composable
-private fun MenuIconBtn(icon: String, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(icon, fontSize = 17.sp)
-        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Cocoa)
-    }
-}
-
-@Composable
-private fun VariantChip(
-    v: DecorVariant,
-    selected: Boolean,
-    owned: Boolean,
-    levelOk: Boolean,
-    onClick: () -> Unit,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFFFFE0B2) else CellWhite)
-            .border(
-                2.dp,
-                if (selected) Gold else Color(0x226D4C41),
-                RoundedCornerShape(10.dp),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-    ) {
-        Box(
-            Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(if (levelOk) Color(v.tint) else Color(0xFFBBBBBB)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!levelOk) Text("🔒", fontSize = 8.sp)
+/** Writes the room bitmap to the gallery; returns the toast message. */
+private fun saveRoomPhoto(ctx: android.content.Context, bmp: Bitmap): String {
+    val name = "bepngon_room_${System.currentTimeMillis()}.png"
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, name)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        if (Build.VERSION.SDK_INT >= 29) {
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/BepNgon")
         }
-        Text(v.name, fontSize = 9.sp, color = Cocoa, fontWeight = FontWeight.Bold)
-        Text(
-            when {
-                owned -> "✓"
-                !levelOk -> "Lv${v.unlockLevel}"
-                else -> "🪙${v.priceCoins}"
-            },
-            fontSize = 9.sp,
-            color = if (owned) MergeGreen else if (!levelOk) WarnRed else Cocoa,
-            fontWeight = FontWeight.Bold,
-        )
+    }
+    val uri = ctx.contentResolver.insert(
+        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+        values,
+    ) ?: return "Lưu ảnh lỗi 😿"
+    return try {
+        ctx.contentResolver.openOutputStream(uri)?.use { out ->
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        } ?: throw java.io.IOException("no stream")
+        "Đã lưu ảnh 📷"
+    } catch (e: Exception) {
+        ctx.contentResolver.delete(uri, null, null)
+        "Lưu ảnh lỗi 😿"
     }
 }
 
-/** Bottom tray: category tabs + draggable item cards (or the room-shell
- *  style picker on the "room" tab). */
+/** Bottom dock (Cornerlet's sticker sheet): category tabs on top, then a
+ *  row of square item cards flanked by ‹ › page arrows — tap a card to
+ *  drop the item into the room, or drag it to the exact spot. */
 @Composable
 private fun CatalogTray(
     game: GameState,
@@ -1338,6 +1562,7 @@ private fun CatalogTray(
     pickedVariant: Map<String, String>,
     onPickVariant: (String, String) -> Unit,
     onPaint: (String, Int?) -> Unit,
+    onAutoPlace: (DecorItem) -> Unit,
     onDragStart: (DecorItem, Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
@@ -1345,9 +1570,10 @@ private fun CatalogTray(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.85f))
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Paper)
+            .border(2.5.dp, LineC, RoundedCornerShape(24.dp))
             .padding(8.dp),
     ) {
         Row(
@@ -1361,9 +1587,13 @@ private fun CatalogTray(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (sel) Color(0xFFFADADD) else Color.White)
-                        .border(1.dp, Color(0x33A0522D), RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (sel) PinkSel else Color.White)
+                        .border(
+                            2.dp,
+                            if (sel) Color(0xFFE58AA3) else LineC,
+                            RoundedCornerShape(14.dp),
+                        )
                         .clickable { onTab(id) }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
@@ -1387,29 +1617,54 @@ private fun CatalogTray(
             )
             return@Column
         }
+        val cardScroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            DecorCatalog.inCategory(tab).forEach { item ->
-                key(item.id) {
-                    CatalogCard(
-                        item = item,
-                        game = game,
-                        variant = item.variantOf(
-                            pickedVariant[item.id] ?: item.variants.first().id,
-                        ),
-                        onPickVariant = { onPickVariant(item.id, it) },
-                        onPaint = onPaint,
-                        onDragStart = onDragStart,
-                        onDragPos = onDragPos,
-                        onDrop = onDrop,
-                    )
+            Text(
+                "‹",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Accent.copy(alpha = 0.8f),
+                modifier = Modifier
+                    .clickable { scope.launch { cardScroll.animateScrollBy(-420f) } }
+                    .padding(horizontal = 4.dp),
+            )
+            Row(
+                Modifier
+                    .weight(1f)
+                    .horizontalScroll(cardScroll),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DecorCatalog.inCategory(tab).forEach { item ->
+                    key(item.id) {
+                        CatalogCard(
+                            item = item,
+                            game = game,
+                            variant = item.variantOf(
+                                pickedVariant[item.id] ?: item.variants.first().id,
+                            ),
+                            onPickVariant = { onPickVariant(item.id, it) },
+                            onPaint = onPaint,
+                            onTapPlace = { onAutoPlace(item) },
+                            onDragStart = onDragStart,
+                            onDragPos = onDragPos,
+                            onDrop = onDrop,
+                        )
+                    }
                 }
             }
+            Text(
+                "›",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Accent.copy(alpha = 0.8f),
+                modifier = Modifier
+                    .clickable { scope.launch { cardScroll.animateScrollBy(420f) } }
+                    .padding(horizontal = 4.dp),
+            )
         }
     }
 }
@@ -1627,6 +1882,7 @@ private fun CatalogCard(
     variant: DecorVariant,
     onPickVariant: (String) -> Unit,
     onPaint: (String, Int?) -> Unit,
+    onTapPlace: () -> Unit,
     onDragStart: (DecorItem, Offset) -> Unit,
     onDragPos: (Offset) -> Unit,
     onDrop: () -> Unit,
@@ -1644,14 +1900,20 @@ private fun CatalogCard(
                 if (isPaint) {
                     Modifier.clickable { onPaint(variant.id, null) }
                 } else {
-                    Modifier.pointerInput(item.id) {
-                        detectDragGestures(
-                            onDragStart = { start -> onDragStart(item, origin + start) },
-                            onDrag = { change, _ -> onDragPos(origin + change.position) },
-                            onDragEnd = onDrop,
-                            onDragCancel = onDrop,
-                        )
-                    }
+                    Modifier
+                        // tap = drop it into the room near the center;
+                        // drag = place it on the exact cell
+                        .pointerInput(item.id) {
+                            detectTapGestures { onTapPlace() }
+                        }
+                        .pointerInput(item.id) {
+                            detectDragGestures(
+                                onDragStart = { start -> onDragStart(item, origin + start) },
+                                onDrag = { change, _ -> onDragPos(origin + change.position) },
+                                onDragEnd = onDrop,
+                                onDragCancel = onDrop,
+                            )
+                        }
                 },
             )
             .padding(8.dp),
