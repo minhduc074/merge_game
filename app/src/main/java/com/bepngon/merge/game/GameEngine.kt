@@ -796,13 +796,13 @@ object GameEngine {
     ): Pair<GameState, List<GameEvent>> {
         val coinsGained = orderCoinReward(order)
         val xpGained =
-            (order.required.sumOf { ItemCatalog[it].tier * 2 } + 5)
+            (order.required.sumOf { ItemCatalog[it].tier } + 3)
 
         // Combo: consecutive completed orders inside the window build a chain;
         // from the 3rd onward each pays a growing bonus.
         val combo = if (nowMs < state.comboUntilMs) state.comboCount + 1 else 1
         val comboCoins = if (combo >= COMBO_MIN) 10 * combo else 0
-        val comboXp = if (combo >= COMBO_MIN) 4 * combo else 0
+        val comboXp = if (combo >= COMBO_MIN) 2 * combo else 0
         val events = mutableListOf<GameEvent>(
             GameEvent.OrderCompleted(order, coinsGained, xpGained)
         )

@@ -408,7 +408,7 @@ class GameEngineTest {
         val (next, events) = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0)
         assertTrue(next.orders.isEmpty())
         assertEquals(1, next.coins) // fruit_1 sell=1, x1.5 → 1
-        assertEquals(7, next.xp) // tier1*2 + 5
+        assertEquals(4, next.xp) // tier1 + 3
         assertTrue(events.any { it is GameEvent.OrderCompleted })
     }
 
@@ -425,7 +425,7 @@ class GameEngineTest {
 
     @Test
     fun `big order completion triggers level up and reward`() {
-        // fruit_5 x2 + fruit_4 → xp = (10+10+8)+5 = 33; +30 base = 63 ≥ xpNeeded(1)=42
+        // fruit_5 x2 + fruit_4 → xp = (5+5+4)+3 = 17; +30 base = 47 ≥ xpNeeded(1)=42
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5", 2 to "fruit_4",
             orders = listOf(orderOf("fruit_5", "fruit_5", "fruit_4")),
@@ -436,18 +436,18 @@ class GameEngineTest {
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 1).also { cur = it.first }
         val (next, events) = GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 2)
         assertEquals(2, next.level)
-        assertEquals(21, next.xp)
+        assertEquals(5, next.xp)
         assertTrue(next.orders.isEmpty())
         assertTrue(events.any { it is GameEvent.LevelUp && it.level == 2 })
     }
 
     @Test
     fun `level 3 reward grants drink generator and inventory slot`() {
-        // level 2 + 40xp; order fruit_5 x2 → +25xp = 65 ≥ xpNeeded(2)=62
+        // level 2 + 60xp; order fruit_5 x2 → +13xp = 73 ≥ xpNeeded(2)=62
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5",
             orders = listOf(orderOf("fruit_5", "fruit_5")),
-            xp = 40, level = 2,
+            xp = 60, level = 2,
         )
         var cur = s
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 0).also { cur = it.first }
@@ -705,7 +705,7 @@ class GameEngineTest {
             0 to "fruit_1",
             lockedCells = setOf(cell),
             orders = listOf(orderOf("fruit_1")),
-            xp = 36, // +7xp from fruit_1 order -> 43 >= xpNeeded(1)=42
+            xp = 39, // +4xp from fruit_1 order -> 43 >= xpNeeded(1)=42
         )
         val (next, _) = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0)
         assertEquals(2, next.level)
@@ -1147,12 +1147,12 @@ class GameEngineTest {
         complete(2, 5_000)
         assertEquals(2, s.comboCount)
 
-        // Order 3 inside the window: bonus +30 coins +12 xp (10*x, 4*x)
+        // Order 3 inside the window: bonus +30 coins +6 xp (10*x, 2*x)
         val (s3, events3) = GameEngine.autoFulfillOrder(s, 3, 10_000)
         val bonus = events3.filterIsInstance<GameEvent.ComboBonus>().single()
         assertEquals(3, bonus.combo)
         assertEquals(30, bonus.coins)
-        assertEquals(12, bonus.xp)
+        assertEquals(6, bonus.xp)
         // Order pays sellPrice*5/4 for fruit_3 (=6) plus the combo bonus.
         assertEquals(s.coins + 6 + 30, s3.coins)
         assertEquals(3, s3.comboCount)
