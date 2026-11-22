@@ -533,6 +533,20 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 GameEvent.OnboardingFinished -> {
                     SoundManager.play(SoundManager.Sfx.Complete)
                 }
+                is GameEvent.GeneratorUpgraded -> {
+                    SoundManager.playMerge()
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val pos = cellBounds[e.cellIndex]?.center ?: Offset(540f, 1500f)
+                    pushFloater("⬆️ -${e.cost}🪙", pos, Gold)
+                    infoItem = infoItem?.copy(
+                        defId = e.newDefId,
+                        charges = ItemCatalog[e.newDefId].maxCharges,
+                    )
+                    genListItem = genListItem?.copy(
+                        defId = e.newDefId,
+                        charges = ItemCatalog[e.newDefId].maxCharges,
+                    )
+                }
                 GameEvent.NotEnoughCoins -> {
                     SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
@@ -683,6 +697,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 item = item,
                 nowMs = ui.nowMs,
                 onDismiss = { infoItem = null },
+                onUpgrade = { vm.upgradeGenerator(item.uid) },
             )
         }
     }
@@ -700,6 +715,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 item = item,
                 nowMs = ui.nowMs,
                 onDismiss = { genListItem = null },
+                onUpgrade = { vm.upgradeGenerator(item.uid) },
             )
         }
     }
@@ -1088,7 +1104,7 @@ private fun ItemTile(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        val boxSize = maxWidth * 0.74f
+        val boxSize = maxWidth * 0.66f
         Box(
             Modifier
                 .size(boxSize)
@@ -1261,7 +1277,12 @@ private fun LevelBanner(text: String) {
 }
 
 @Composable
-private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
+private fun ItemInfoCard(
+    item: BoardItem,
+    nowMs: Long,
+    onDismiss: () -> Unit,
+    onUpgrade: (() -> Unit)? = null,
+) {
     val def = ItemCatalog[item.defId]
     LaunchedEffect(item.uid) {
         kotlinx.coroutines.delay(6_000)
@@ -1338,6 +1359,21 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                         color = Cocoa,
                     )
                 }
+            }
+            val nextGen = def.mergeResult?.let { ItemCatalog[it] }
+            if (nextGen != null && !item.frozen) {
+                Text(
+                    "⬆️ Nâng lên ${nextGen.emoji} ${nextGen.name} — 🪙${GameEngine.genUpgradeCost(nextGen)}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MergeGreen,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .clickable { onUpgrade?.invoke() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
             }
         } else {
             val next = def.mergeResult?.let { ItemCatalog[it] }
@@ -1424,7 +1460,12 @@ private fun MergeChainStrip(currentDefId: String) {
 }
 
 @Composable
-private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
+private fun GenSpawnListCard(
+    item: BoardItem,
+    nowMs: Long,
+    onDismiss: () -> Unit,
+    onUpgrade: (() -> Unit)? = null,
+) {
     val def = ItemCatalog[item.defId]
     LaunchedEffect(item.uid) {
         kotlinx.coroutines.delay(10_000)
@@ -1515,6 +1556,21 @@ private fun GenSpawnListCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit
                     }
                 }
             }
+        }
+        val nextGen = def.mergeResult?.let { ItemCatalog[it] }
+        if (nextGen != null && !item.frozen) {
+            Text(
+                "⬆️ Nâng lên ${nextGen.emoji} ${nextGen.name} — 🪙${GameEngine.genUpgradeCost(nextGen)}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MergeGreen,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFE8F5E9))
+                    .clickable { onUpgrade?.invoke() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
         }
     }
 }

@@ -152,6 +152,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun adoptPet(petId: String) = applyEngine { GameEngine.adoptPet(it, petId, nowMs()) }
 
     fun feedPetCoins() = applyEngine { GameEngine.feedPetCoins(it, nowMs()) }
+    fun upgradeGenerator(uid: Long) = applyEngine { GameEngine.upgradeGenerator(it, uid) }
 
     fun openMiniGame() {
         // plays are unlimited — just show the game

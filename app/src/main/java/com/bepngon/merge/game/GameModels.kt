@@ -182,6 +182,7 @@ sealed interface GameEvent {
     data class LevelUp(val level: Int, val reward: LevelReward) : GameEvent
     data class CellsUnlocked(val count: Int) : GameEvent
     data class GeneratorReady(val cellIndex: Int) : GameEvent
+    data class GeneratorUpgraded(val cellIndex: Int, val cost: Int, val newDefId: String) : GameEvent
     data class SlotBought(val newCap: Int) : GameEvent
     data class AchievementUnlocked(val achievement: Achievement) : GameEvent
     data class AchievementClaimed(val achievement: Achievement) : GameEvent

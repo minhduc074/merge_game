@@ -47,6 +47,7 @@ object GameEngine {
     // Cafe room, pet and mini-game (Suika fruit drop).
     const val ENERGY_REGEN_BASE_MS = 60_000L
     const val PET_FEED_COINS = 15
+    const val GEN_UPGRADE_PRICE_MULT = 10
     const val PET_FEED_MS = 30 * 60_000L
     const val PANDA_GIFT_MS = 4 * 3_600_000L
     const val MINI_MAX_PLAYS = 3
@@ -952,6 +953,42 @@ object GameEngine {
         )
         return state.copy(coins = state.coins - def.cost, pet = pet) to
             listOf(GameEvent.PetAdopted(def.id))
+    }
+
+    /** Coin cost to upgrade a generator one tier — priced at 10x the next
+     *  tier's sell value so merging two gens stays the cheaper path. */
+    fun genUpgradeCost(nextTierDef: ItemDef): Int = nextTierDef.sellPrice * GEN_UPGRADE_PRICE_MULT
+
+    /** Upgrade the generator holding [uid] (board cell or inventory slot)
+     *  to its next tier for coins. Fresh charges, no cooldown. */
+    fun upgradeGenerator(state: GameState, uid: Long): Pair<GameState, List<GameEvent>> {
+        val cellIdx = state.cells.indexOfFirst { it?.uid == uid }
+        val invIdx = state.inventory.indexOfFirst { it?.uid == uid }
+        val item = when {
+            cellIdx >= 0 -> state.cells[cellIdx]
+            invIdx in 0 until state.inventoryCap -> state.inventory[invIdx]
+            else -> null
+        } ?: return state to emptyList()
+        val def = ItemCatalog[item.defId]
+        val nextId = def.mergeResult
+        if (!def.isGenerator || nextId == null || item.frozen) return state to emptyList()
+        val cost = genUpgradeCost(ItemCatalog[nextId])
+        if (state.coins < cost) return state to listOf(GameEvent.NotEnoughCoins)
+        val upgraded = item.copy(
+            defId = nextId,
+            charges = ItemCatalog[nextId].maxCharges,
+            cooldownUntilMs = 0,
+        )
+        val next = when {
+            cellIdx >= 0 -> state.copy(
+                cells = state.cells.toMutableList().also { it[cellIdx] = upgraded },
+            )
+            else -> state.copy(
+                inventory = state.inventory.toMutableList().also { it[invIdx] = upgraded },
+            )
+        }
+        return next.copy(coins = state.coins - cost) to
+            listOf(GameEvent.GeneratorUpgraded(cellIdx, cost, nextId))
     }
 
     fun feedPetCoins(state: GameState, nowMs: Long): Pair<GameState, List<GameEvent>> {

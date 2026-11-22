@@ -586,6 +586,42 @@ class GameEngineTest {
     }
 
     @Test
+    fun `coin upgrade bumps generator tier for a steep price`() {
+        val s = stateWith(0 to "gen_fruit_1", coins = 1000)
+        val uid = s.cells[0]!!.uid
+        val (next, events) = GameEngine.upgradeGenerator(s, uid)
+        assertEquals("gen_fruit_2", next.cells[0]?.defId)
+        assertEquals(ItemCatalog["gen_fruit_2"].maxCharges, next.cells[0]?.charges)
+        assertEquals(
+            1000 - GameEngine.genUpgradeCost(ItemCatalog["gen_fruit_2"]),
+            next.coins,
+        )
+        assertTrue(events.single() is GameEvent.GeneratorUpgraded)
+    }
+
+    @Test
+    fun `gen upgrade rejected when broke or not a generator`() {
+        val broke = stateWith(0 to "gen_fruit_1", coins = 0)
+        val (s1, e1) = GameEngine.upgradeGenerator(broke, broke.cells[0]!!.uid)
+        assertEquals(broke.cells, s1.cells)
+        assertTrue(e1.single() is GameEvent.NotEnoughCoins)
+        val s = stateWith(0 to "fruit_1", coins = 9999)
+        assertEquals(s, GameEngine.upgradeGenerator(s, s.cells[0]!!.uid).first)
+        val s2 = stateWith(0 to "gen_fruit_3", coins = 9999)
+        assertEquals(s2, GameEngine.upgradeGenerator(s2, s2.cells[0]!!.uid).first)
+    }
+
+    @Test
+    fun `inventory generator upgrades too`() {
+        val s = stateWith(coins = 2000).copy(
+            inventory = MutableList<BoardItem?>(GameEngine.MAX_INVENTORY) { null }
+                .also { it[0] = GameEngine.newItem(99, "gen_drink_1") },
+        )
+        val (next, _) = GameEngine.upgradeGenerator(s, s.inventory[0]!!.uid)
+        assertEquals("gen_drink_2", next.inventory[0]?.defId)
+    }
+
+    @Test
     fun `merge resets generator charges`() {
         // drain a gen to 3 charges, then merge with fresh one
         var s = stateWith(0 to "gen_fruit_1", 1 to "gen_fruit_1")
