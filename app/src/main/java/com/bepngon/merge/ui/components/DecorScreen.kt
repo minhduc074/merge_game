@@ -1183,20 +1183,17 @@ private fun ItemMenu(
                     onClick = { onSetVariant(v.id) },
                 )
             }
-            // sprite scale presets — footprint on the grid stays the same
-            listOf("Nhỏ" to 0.75f, "Vừa" to 1f, "Lớn" to 1.25f).forEach { (label, s) ->
-                val sel = kotlin.math.abs(p.scale - s) < 0.01f
+            // sprite scale stepper — footprint on the grid stays the same
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ScaleBtn("➖", p.scale > 0.65f) { onScale(p.scale - 0.15f) }
                 Text(
-                    "🔍 $label",
+                    "${(p.scale * 100).roundToInt()}%",
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (sel) Color.White else Cocoa,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (sel) Cocoa else Color(0xFFFFE0B2))
-                        .clickable { onScale(s) }
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Cocoa,
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 )
+                ScaleBtn("➕", p.scale < 1.45f) { onScale(p.scale + 0.15f) }
             }
         }
     }
@@ -1215,6 +1212,22 @@ private fun RoundBtn(icon: String, enabled: Boolean, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(Color.White)
             .border(1.dp, Color(0x33A0522D), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .wrapContentSize(Alignment.Center),
+    )
+}
+
+/** Small +/- stepper button in the item menu. */
+@Composable
+private fun ScaleBtn(icon: String, enabled: Boolean, onClick: () -> Unit) {
+    Text(
+        icon,
+        fontSize = 13.sp,
+        color = if (enabled) Cocoa else Cocoa.copy(alpha = 0.3f),
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFFE0B2))
             .clickable(enabled = enabled, onClick = onClick)
             .wrapContentSize(Alignment.Center),
     )
