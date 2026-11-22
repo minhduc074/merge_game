@@ -36,6 +36,10 @@ data class DecorItem(
     val h: Int,
     val canRotate: Boolean = true,
     val canFlip: Boolean = false,
+    /** Top-down art (rugs): "Xoay" rotates the sprite 90° + swaps the
+     *  footprint. Oblique-view art would look broken turned, so for
+     *  everything else "Xoay" mirrors it horizontally instead. */
+    val topDown: Boolean = false,
     val variants: List<DecorVariant>,
 ) {
     fun variantOf(variantId: String): DecorVariant = variants.first { it.id == variantId }

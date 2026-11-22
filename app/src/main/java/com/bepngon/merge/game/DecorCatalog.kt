@@ -27,12 +27,13 @@ object DecorCatalog {
         vararg vars: V,
         canRotate: Boolean = true,
         canFlip: Boolean = false,
+        topDown: Boolean = false,
     ) {
         put(
             id, DecorItem(
                 id = id, name = name, emoji = emoji, category = category,
                 placement = placement, layer = layer, w = w, h = h,
-                canRotate = canRotate, canFlip = canFlip,
+                canRotate = canRotate, canFlip = canFlip, topDown = topDown,
                 variants = vars.map { v ->
                     DecorVariant(
                         id = "${id}_${v.suffix}",
@@ -106,12 +107,14 @@ object DecorCatalog {
             V("do", "Đỏ", 0xFFEF9A9A, 0),
             V("kem", "Kem", 0xFFFFF1D6, 140),
             V("xanh", "Xanh", 0xFF90CAF9, 200, 3, DecorStyle.HIEN_DAI),
+            topDown = true,
         )
         item(
             "rug_big", "Thảm lớn", "🟧", "decor", Placement.FLOOR, DecorLayer.RUG, 4, 3,
             V("cam", "Cam", 0xFFFFCC80, 260, 2),
             V("xam", "Xám", 0xFFB0BEC5, 320, 3, DecorStyle.HIEN_DAI),
             V("hoatiet", "Họa tiết", 0xFFCE93D8, 450, 5, DecorStyle.CO_DIEN, rare = true),
+            topDown = true,
         )
         // ---- wall ----
         item(

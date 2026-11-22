@@ -171,7 +171,6 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 },
                 onRemove = { uid -> vm.decorRemove(DecorEngine.DEFAULT_ROOM, uid) },
                 onRotate = { uid -> vm.decorRotate(DecorEngine.DEFAULT_ROOM, uid) },
-                onFlip = { uid -> vm.decorFlip(DecorEngine.DEFAULT_ROOM, uid) },
                 onSetVariant = { uid, variantId ->
                     vm.decorSetVariant(DecorEngine.DEFAULT_ROOM, uid, variantId)
                 },

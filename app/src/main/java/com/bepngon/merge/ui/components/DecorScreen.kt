@@ -90,7 +90,6 @@ fun DecorScreen(
     onMove: (uid: Long, gx: Int, gy: Int, rot: Int) -> Unit,
     onRemove: (uid: Long) -> Unit,
     onRotate: (uid: Long) -> Unit,
-    onFlip: (uid: Long) -> Unit,
     onSetVariant: (uid: Long, variantId: String) -> Unit,
     onPaint: (variantId: String) -> Unit,
     onUndo: () -> Unit,
@@ -269,7 +268,13 @@ fun DecorScreen(
                                 cellPx = cellPxNow(),
                                 hidden = drag?.uid == p.uid,
                                 interactive = !stickyMove,
-                                onTap = { menuUid = p.uid },
+                                onTap = {
+                                    // a fresh tap discards any drag left
+                                    // over by an interrupted gesture
+                                    drag = null
+                                    stickyMove = false
+                                    menuUid = p.uid
+                                },
                                 onPickup = { start ->
                                     menuUid = null
                                     drag = DecorDrag(p.itemId, p.variantId, p.uid, start, p.rot, p.flip)
@@ -353,7 +358,6 @@ fun DecorScreen(
                     game = game,
                     onSetVariant = { onSetVariant(menuPlaced.uid, it) },
                     onRotate = { onRotate(menuPlaced.uid) },
-                    onFlip = { onFlip(menuPlaced.uid) },
                     onRemove = {
                         onRemove(menuPlaced.uid)
                         menuUid = null
@@ -487,14 +491,20 @@ private fun DecorArt(
                 ColorFilter.tint(Color(it).copy(alpha = 0.5f), BlendMode.Modulate)
             },
             modifier = modifier.size(size).alpha(alpha)
-                .graphicsLayer { rotationZ = rot.toFloat() },
+                .graphicsLayer {
+                    // bitmap rotation only for top-down art (rugs) —
+                    // oblique sprites mirror via scaleX on the tile
+                    rotationZ = if (DecorCatalog[itemId].topDown) rot.toFloat() else 0f
+                },
         )
     } else {
         Text(
             emoji,
             fontSize = (size.value * 0.6f).sp,
             modifier = modifier.alpha(alpha)
-                .graphicsLayer { rotationZ = rot.toFloat() },
+                .graphicsLayer {
+                    rotationZ = if (DecorCatalog[itemId].topDown) rot.toFloat() else 0f
+                },
         )
     }
 }
@@ -573,7 +583,6 @@ private fun ItemMenu(
     game: GameState,
     onSetVariant: (String) -> Unit,
     onRotate: () -> Unit,
-    onFlip: () -> Unit,
     onRemove: () -> Unit,
     onMoveMode: () -> Unit,
     onClose: () -> Unit,
@@ -623,11 +632,9 @@ private fun ItemMenu(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             MenuBtn("✋ Di chuyển", onMoveMode)
-            if (item.canRotate && item.placement == Placement.FLOOR && item.w != item.h) {
+            // Xoay: rugs rotate for real; oblique art mirrors — same button
+            if (item.canRotate || item.canFlip) {
                 MenuBtn("🔄 Xoay", onRotate)
-            }
-            if (item.canFlip) {
-                MenuBtn("↔️ Lật", onFlip)
             }
         }
     }

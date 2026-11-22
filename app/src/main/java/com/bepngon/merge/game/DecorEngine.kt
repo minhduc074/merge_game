@@ -13,7 +13,7 @@ object DecorEngine {
     // ---------- geometry ----------
 
     fun footprint(item: DecorItem, rot: Int): Pair<Int, Int> =
-        if (rot % 180 != 0) item.h to item.w else item.w to item.h
+        if (item.topDown && rot % 180 != 0) item.h to item.w else item.w to item.h
 
     /** Z-order inside the room Box: paint < rug < furniture < wall/surface
      *  decor, then back-to-front by row so lower items overlap upper ones. */
@@ -180,16 +180,26 @@ object DecorEngine {
         val room = roomOf(state.decor, roomId)
         val p = room.placed.firstOrNull { it.uid == uid } ?: return state to emptyList()
         val item = DecorCatalog[p.itemId]
-        if (!item.canRotate || item.placement != Placement.FLOOR) {
+        if (!item.canRotate && !item.canFlip) {
             return state to listOf(GameEvent.InvalidDrop)
         }
-        val newRot = (p.rot + 90) % 360
-        if (!canPlace(state.decor, roomId, p.itemId, p.gx, p.gy, newRot, ignoreUid = uid)) {
-            return state to listOf(GameEvent.InvalidDrop)
+        // Oblique sprites look wrong turned 90° — for them "rotate" means
+        // mirror. Only top-down art (rugs) gets a real bitmap rotation.
+        val nextRoom = if (item.topDown && item.placement == Placement.FLOOR) {
+            val newRot = (p.rot + 90) % 360
+            if (!canPlace(state.decor, roomId, p.itemId, p.gx, p.gy, newRot, ignoreUid = uid)) {
+                return state to listOf(GameEvent.InvalidDrop)
+            }
+            room.copy(
+                placed = room.placed.map { if (it.uid == uid) it.copy(rot = newRot) else it },
+            )
+        } else {
+            room.copy(
+                placed = room.placed.map {
+                    if (it.uid == uid) it.copy(flip = !it.flip, rot = 0) else it
+                },
+            )
         }
-        val nextRoom = room.copy(
-            placed = room.placed.map { if (it.uid == uid) it.copy(rot = newRot) else it },
-        )
         return withRoom(state, roomId, nextRoom) to
             listOf(GameEvent.DecorPlaced(roomId, uid))
     }

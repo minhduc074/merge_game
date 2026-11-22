@@ -152,9 +152,9 @@ class DecorEngineTest {
 
     @Test
     fun `rotate swaps footprint and respects collisions`() {
-        // armchair 2x1 at (0,4); a table sitting where rotation would reach
-        val p = placed(1, "armchair", 0, 4)
-        val state = stateWith(placed = listOf(p, placed(2, "table_cafe", 0, 5)))
+        // rug_big 4x3 top-down at (0,4); another rug where rotation would reach
+        val p = placed(1, "rug_big", 0, 4)
+        val state = stateWith(placed = listOf(p, placed(2, "rug_round", 0, 6)))
         val (blocked, ev) = DecorEngine.rotatePlaced(state, room, 1)
         assertEquals(listOf(GameEvent.InvalidDrop), ev)
         assertEquals(0, blocked.decor.rooms.getValue(room).placed[0].rot)
@@ -163,6 +163,17 @@ class DecorEngineTest {
         val (rotated, ev2) = DecorEngine.rotatePlaced(free, room, 1)
         assertTrue(ev2.any { it is GameEvent.DecorPlaced })
         assertEquals(90, rotated.decor.rooms.getValue(room).placed[0].rot)
+    }
+
+    @Test
+    fun `rotate mirrors oblique items instead of turning the sprite`() {
+        // furniture art would look wrong rotated 90° — "Xoay" mirrors it
+        val state = stateWith(placed = listOf(placed(1, "armchair", 0, 4)))
+        val (next, ev) = DecorEngine.rotatePlaced(state, room, 1)
+        assertTrue(ev.any { it is GameEvent.DecorPlaced })
+        val p = next.decor.rooms.getValue(room).placed[0]
+        assertTrue(p.flip)
+        assertEquals(0, p.rot)
     }
 
     @Test

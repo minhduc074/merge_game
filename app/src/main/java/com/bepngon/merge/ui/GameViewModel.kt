@@ -201,9 +201,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun decorRotate(roomId: String, uid: Long) =
         decorOp(roomId) { DecorEngine.rotatePlaced(it, roomId, uid) }
 
-    fun decorFlip(roomId: String, uid: Long) =
-        decorOp(roomId) { DecorEngine.flipPlaced(it, roomId, uid) }
-
     fun decorSetVariant(roomId: String, uid: Long, variantId: String) =
         decorOp(roomId) { DecorEngine.setVariant(it, roomId, uid, variantId) }
 
