@@ -18,6 +18,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
+import org.junit.Assert.assertNotEquals
 
 private fun stateWith(
     vararg placements: Pair<Int, String>,
@@ -527,6 +528,51 @@ class GameEngineTest {
         val (next, events) = GameEngine.boardToInventory(s, 0, 0)
         assertEquals("fruit_3", next.cells[0]?.defId)
         assertEquals(listOf(GameEvent.InvalidDrop), events)
+    }
+
+    @Test
+    fun `fresh board hides a frozen item under every locked cell`() {
+        val s = GameEngine.initialState(Random(1))
+        GameEngine.INITIAL_LOCKED.forEach { cell ->
+            val item = s.cells[cell]
+            assertNotNull("locked cell $cell should hide an item", item)
+            assertTrue("locked cell $cell should be frozen", item!!.frozen)
+        }
+    }
+
+    @Test
+    fun `fresh board scatters frozen items on random open cells`() {
+        fun openFrozen(s: GameState) = s.cells.indices.filter {
+            it !in GameEngine.INITIAL_LOCKED && s.cells[it]?.frozen == true
+        }
+        val frozen = openFrozen(GameEngine.initialState(Random(2)))
+        assertEquals(3, frozen.size)
+        // never placed in the locked bottom rows
+        assertTrue(frozen.all { it < GameEngine.INITIAL_LOCKED.min() })
+        // different seeds land on different cells
+        assertNotEquals(
+            openFrozen(GameEngine.initialState(Random(2))),
+            openFrozen(GameEngine.initialState(Random(99))),
+        )
+    }
+
+    @Test
+    fun `level-up unlock reveals a frozen item in sparse saves`() {
+        // save from before locked cells were pre-seeded: empty underneath
+        val cell = GameEngine.INITIAL_LOCKED.first()
+        val s = stateWith(
+            0 to "fruit_1",
+            lockedCells = setOf(cell),
+            orders = listOf(orderOf("fruit_1")),
+            xp = 36, // +7xp from fruit_1 order -> 43 >= xpNeeded(1)=42
+        )
+        val (next, _) = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0)
+        assertEquals(2, next.level)
+        assertTrue(next.lockedCells.isEmpty())
+        assertTrue(
+            "unlocked cell should reveal a frozen item",
+            next.cells[cell]?.frozen == true,
+        )
     }
 
     // ---------- locked cells ----------

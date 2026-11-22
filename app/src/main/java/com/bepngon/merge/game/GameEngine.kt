@@ -81,19 +81,18 @@ object GameEngine {
         return INITIAL_LOCKED.drop(unlocks).toSet()
     }
 
-    /** Frozen high-tier items hidden under locked cells (revealed on level-up)
-     *  plus a few on the open board at start. */
-    private val FROZEN_SEEDS: Map<Int, String> = mapOf(
-        idx(4, 0) to "fruit_4",   // under web, unlocks Lv2
-        idx(4, 4) to "bakery_4",  // under web, unlocks Lv2
-        idx(5, 2) to "fruit_5",
-        idx(5, 4) to "drink_3",
-        idx(6, 1) to "viet_3",
-        idx(6, 3) to "fruit_6",
-        idx(6, 0) to "bakery_5",
+    /** High-tier frozen items: every locked cell hides one (revealed on
+     *  level-up) and a few are scattered at random open cells on a
+     *  fresh board. */
+    private val FROZEN_POOL = listOf(
+        "fruit_4", "fruit_5", "fruit_6",
+        "bakery_4", "bakery_5",
+        "drink_3", "drink_4",
+        "viet_3", "viet_4",
     )
+    private const val OPEN_FROZEN_COUNT = 3
 
-    fun initialState(): GameState {
+    fun initialState(random: Random = Random): GameState {
         val cells = MutableList<BoardItem?>(CELLS) { null }
         var uid = 1L
         fun place(defId: String, index: Int, frozen: Boolean = false) {
@@ -105,9 +104,15 @@ object GameEngine {
         place("fruit_1", idx(1, 1))
         place("fruit_1", idx(1, 3))
         place("bakery_1", idx(3, 3))
-        place("fruit_3", idx(3, 0), frozen = true)
-        place("bakery_3", idx(4, 2), frozen = true)
-        FROZEN_SEEDS.forEach { (cell, defId) -> place(defId, cell, frozen = true) }
+        // 100% of level-locked cells hide a frozen item
+        INITIAL_LOCKED.forEach { place(FROZEN_POOL.random(random), it, frozen = true) }
+        // plus a few frozen items scattered at random open cells
+        // (upper board only — the bottom rows are the locked area)
+        cells.indices
+            .filter { cells[it] == null && it < INITIAL_LOCKED.min() }
+            .shuffled(random)
+            .take(OPEN_FROZEN_COUNT)
+            .forEach { place(FROZEN_POOL.random(random), it, frozen = true) }
         return GameState(
             cells = cells,
             inventory = List(MAX_INVENTORY) { null },
@@ -863,11 +868,27 @@ object GameEngine {
         return null
     }
 
-    private fun applyLevelReward(state: GameState, reward: LevelReward): GameState {
+    private fun applyLevelReward(
+        state: GameState,
+        reward: LevelReward,
+        random: Random = Random,
+    ): GameState {
         val toUnlock = INITIAL_LOCKED
             .filter { it in state.lockedCells }
             .take(reward.unlockCells)
+        val cells = state.cells.toMutableList()
+        var nextUid = state.nextUid
+        // freshly unlocked cells always reveal a frozen item — fills gaps
+        // in saves created before locked cells were pre-seeded
+        for (cell in toUnlock) {
+            if (cells[cell] == null) {
+                cells[cell] = newItem(nextUid++, FROZEN_POOL.random(random))
+                    .copy(frozen = true)
+            }
+        }
         var next = state.copy(
+            cells = cells,
+            nextUid = nextUid,
             coins = state.coins + reward.coins,
             inventoryCap = minOf(MAX_INVENTORY, state.inventoryCap + reward.inventoryCapBonus),
             lockedCells = state.lockedCells - toUnlock.toSet(),
