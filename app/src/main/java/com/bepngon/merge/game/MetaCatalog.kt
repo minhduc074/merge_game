@@ -19,27 +19,29 @@ data class DecorDef(
 
 object DecorCatalog {
     val ALL = listOf(
-        DecorDef("decor_rug", "Thảm kẻ", "🟫", 50, 1, x = 0.28f, y = 0.78f, w = 0.44f),
-        DecorDef("decor_plant", "Chậu cây", "🪴", 60, 1, x = 0.26f, y = 0.68f, w = 0.14f),
-        DecorDef("decor_painting", "Tranh hoa", "🖼️", 80, 1, x = 0.40f, y = 0.08f, w = 0.20f),
+        // Positions derived from the AI-furnished room render (art_out/furnished_room.png):
+        // the generator placed each item itself, so bought decor lands on a designed spot.
+        DecorDef("decor_rug", "Thảm kẻ", "🟫", 50, 1, x = 0.20f, y = 0.65f, w = 0.61f),
+        DecorDef("decor_plant", "Chậu cây", "🪴", 60, 1, x = 0.15f, y = 0.56f, w = 0.17f),
+        DecorDef("decor_painting", "Tranh hoa", "🖼️", 80, 1, x = 0.34f, y = 0.26f, w = 0.16f),
         DecorDef("decor_clock", "Đồng hồ", "🕰️", 120, 2,
-            genCooldownPct = 5, x = 0.66f, y = 0.08f, w = 0.12f),
-        DecorDef("decor_lamp", "Đèn lồng", "🏮", 150, 2, x = 0.84f, y = 0.40f, w = 0.12f),
-        DecorDef("decor_curtain", "Rèm cửa", "🪟", 180, 3, x = 0.06f, y = 0.06f, w = 0.26f),
+            genCooldownPct = 5, x = 0.61f, y = 0.26f, w = 0.18f),
+        DecorDef("decor_lamp", "Đèn lồng", "🏮", 150, 2, x = 0.87f, y = 0.25f, w = 0.11f),
+        DecorDef("decor_curtain", "Rèm cửa", "🪟", 180, 3, x = -0.03f, y = 0.28f, w = 0.29f),
         DecorDef("decor_table", "Bàn ghế gỗ", "🪑", 250, 3,
-            orderCoinsPct = 2, x = 0.55f, y = 0.66f, w = 0.30f),
-        DecorDef("decor_shelf", "Kệ bánh", "🍰", 300, 4, x = 0.40f, y = 0.55f, w = 0.22f),
+            orderCoinsPct = 2, x = 0.50f, y = 0.60f, w = 0.31f),
+        DecorDef("decor_shelf", "Kệ bánh", "🍰", 300, 4, x = 0.46f, y = 0.49f, w = 0.26f),
         DecorDef("decor_flowers", "Chậu hoa lớn", "🌻", 350, 4,
-            energyRegenPct = 5, x = 0.88f, y = 0.71f, w = 0.10f),
+            energyRegenPct = 5, x = 0.80f, y = 0.60f, w = 0.16f),
         DecorDef("decor_counter", "Quầy bar mới", "☕", 500, 5,
-            orderCoinsPct = 3, x = 0.03f, y = 0.55f, w = 0.30f),
+            orderCoinsPct = 3, x = 0.00f, y = 0.42f, w = 0.49f),
         DecorDef("decor_oven", "Lò nướng đá", "🔥", 600, 5,
-            genCooldownPct = 5, x = 0.70f, y = 0.55f, w = 0.22f),
-        DecorDef("decor_piano", "Piano mini", "🎹", 700, 6, x = 0.03f, y = 0.68f, w = 0.22f),
+            genCooldownPct = 5, x = 0.73f, y = 0.50f, w = 0.26f),
+        DecorDef("decor_piano", "Piano mini", "🎹", 700, 6, x = -0.04f, y = 0.63f, w = 0.24f),
         DecorDef("decor_aquarium", "Bể cá", "🐠", 800, 6,
-            energyRegenPct = 5, x = 0.80f, y = 0.68f, w = 0.16f),
+            energyRegenPct = 5, x = 0.90f, y = 0.64f, w = 0.12f),
         DecorDef("decor_goldcat", "Mèo thần tài", "🐈", 1000, 7,
-            orderCoinsPct = 5, x = 0.43f, y = 0.69f, w = 0.12f),
+            orderCoinsPct = 5, x = 0.36f, y = 0.58f, w = 0.15f),
     )
 
     fun byId(id: String): DecorDef = ALL.first { it.id == id }

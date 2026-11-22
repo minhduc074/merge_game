@@ -126,17 +126,30 @@ fun RoomScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                DecorCatalog.ALL.forEach { d ->
-                    if (d.id in game.decorOwned) {
-                        GameArt(
-                            name = d.id,
-                            emoji = d.emoji,
-                            size = with(density) { (rw * d.w).toDp() },
-                            modifier = Modifier.offset {
-                                IntOffset((rw * d.x).roundToInt(), (rh * d.y).roundToInt())
-                            },
-                        )
-                    }
+                // Painter's order: rug mats the floor first, then items sorted by
+                // bottom edge (lower on screen = closer to viewer = drawn later).
+                fun bottomFrac(d: DecorDef): Float {
+                    val res = artRes(ctx, d.id)
+                    val asp = if (res != 0) {
+                        val dr = ctx.resources.getDrawable(res, null)
+                        if (dr.intrinsicWidth > 0) {
+                            dr.intrinsicHeight.toFloat() / dr.intrinsicWidth
+                        } else 1f
+                    } else 1f
+                    return d.y + d.w * asp * (rw / rh)
+                }
+                val ownedDecor = DecorCatalog.ALL.filter { it.id in game.decorOwned }
+                val depthSorted = ownedDecor.filter { it.id == "decor_rug" } +
+                    ownedDecor.filter { it.id != "decor_rug" }.sortedBy { bottomFrac(it) }
+                depthSorted.forEach { d ->
+                    GameArt(
+                        name = d.id,
+                        emoji = d.emoji,
+                        size = with(density) { (rw * d.w).toDp() },
+                        modifier = Modifier.offset {
+                            IntOffset((rw * d.x).roundToInt(), (rh * d.y).roundToInt())
+                        },
+                    )
                 }
                 game.pet?.let { pet ->
                     PetSprite(

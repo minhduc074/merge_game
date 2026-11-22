@@ -1,0 +1,7 @@
+Cute cartoon game asset, hand-drawn style, thick dark-brown outlines, soft cel shading with subtle highlights, warm pastel color palette, kawaii chibi proportions, clean vector look, cozy bakery/cafe theme, mobile game art, high quality, no text, no watermark, no letters.
+
+A 2x2 grid sprite sheet of 4 DIFFERENT cute cafe room decoration furniture items, each item centered inside its own cell, even spacing, clear gaps between cells, each item isolated on a plain solid light-grey background:
+top-left cell: a framed flower painting with a light wooden frame, pastel sunflower art inside
+top-right cell: a cute round wooden wall clock with a smiling sun face
+bottom-left cell: a window with soft cream curtains tied back, morning light coming through, rounded cartoon window frame
+bottom-right cell: a red paper lantern with warm glow, hanging tassel
