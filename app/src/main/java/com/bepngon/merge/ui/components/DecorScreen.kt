@@ -46,7 +46,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -142,7 +144,7 @@ private class IsoMap(
     }
 
     private fun wallAxis(side: Int) = if (side == 0) ex else ey
-    private fun wallLen(side: Int) = if (side == 0) cols else floorRows
+    fun wallLen(side: Int) = if (side == 0) cols else floorRows
 
     private fun wallHAt(side: Int, a: Float): Float {
         val h1 = if (side == 0) wallHR else wallHL
@@ -649,7 +651,17 @@ private fun RoomShell(decor: DecorState, roomId: String) {
         drawWall(iso, 0, Color(wallVR.tint), wallTexR, if (wallItemR.panel) panelTex else null)
         val floor = iso.path(iso.floorPath(), cw, ch)
         drawPath(floor, floorTint)
-        floorTex?.let { tilePath(floor, it, cw * 0.13f) }
+        floorTex?.let {
+            tileQuad(
+                clip = floor,
+                bmp = it,
+                uMax = def.cols.toFloat(),
+                vMax = def.floorRows.toFloat(),
+                uStep = 3f,
+                vStep = 3f,
+                corner = { u, v -> iso.cellOrigin(u, v) },
+            )
+        }
         drawPath(
             floor,
             Brush.verticalGradient(
@@ -669,24 +681,52 @@ private fun skyStops(type: String): List<Color> = when (type) {
     else -> listOf(Color(0xFF9FCFEF), Color(0xFFC8E4F8), Color(0xFFE4F3FC))
 }
 
-/** Seamless pattern tile repeated over [path], clipped to it. */
-private fun DrawScope.tilePath(path: Path, bmp: ImageBitmap, tilePx: Float) {
-    val th = tilePx * bmp.height / bmp.width
-    clipPath(path) {
-        var y = 0f
-        while (y < size.height) {
-            var x = 0f
-            while (x < size.width) {
-                drawImage(
-                    image = bmp,
-                    srcOffset = IntOffset.Zero,
-                    srcSize = IntSize(bmp.width, bmp.height),
-                    dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
-                    dstSize = IntSize(tilePx.roundToInt(), th.roundToInt()),
-                )
-                x += tilePx
+/** Tile [bmp] across a quad grid: each grid cell gets the bitmap
+ *  perspective-mapped onto its own sub-quad via poly-to-poly, so the
+ *  pattern follows the surface direction (iso floor diamond, sloped
+ *  walls) instead of lying axis-aligned on screen. [corner] maps
+ *  texture space (u → image x, v → image y) to canvas fractions; tiles
+ *  overrunning [uMax]/[vMax] are clipped, never squashed. */
+private fun DrawScope.tileQuad(
+    clip: Path,
+    bmp: ImageBitmap,
+    uMax: Float,
+    vMax: Float,
+    uStep: Float,
+    vStep: Float,
+    corner: (u: Float, v: Float) -> Offset,
+) {
+    val cw = size.width
+    val ch = size.height
+    val ab = bmp.asAndroidBitmap()
+    val src = floatArrayOf(
+        0f, 0f, ab.width.toFloat(), 0f,
+        ab.width.toFloat(), ab.height.toFloat(), 0f, ab.height.toFloat(),
+    )
+    val dst = FloatArray(8)
+    val m = android.graphics.Matrix()
+    val p = android.graphics.Paint().apply {
+        isAntiAlias = true
+        isFilterBitmap = true
+    }
+    clipPath(clip) {
+        var v = 0f
+        while (v < vMax) {
+            var u = 0f
+            while (u < uMax) {
+                val tl = corner(u, v)
+                val tr = corner(u + uStep, v)
+                val br = corner(u + uStep, v + vStep)
+                val bl = corner(u, v + vStep)
+                dst[0] = tl.x * cw; dst[1] = tl.y * ch
+                dst[2] = tr.x * cw; dst[3] = tr.y * ch
+                dst[4] = br.x * cw; dst[5] = br.y * ch
+                dst[6] = bl.x * cw; dst[7] = bl.y * ch
+                m.setPolyToPoly(src, 0, dst, 0, 4)
+                drawContext.canvas.nativeCanvas.drawBitmap(ab, m, p)
+                u += uStep
             }
-            y += th
+            v += vStep
         }
     }
 }
@@ -702,7 +742,17 @@ private fun DrawScope.drawWall(
     val ch = size.height
     val wall = iso.path(iso.wallPath(side), cw, ch)
     drawPath(wall, tint)
-    tex?.let { tilePath(wall, it, cw * 0.115f) }
+    tex?.let {
+        tileQuad(
+            clip = wall,
+            bmp = it,
+            uMax = iso.wallLen(side).toFloat(),
+            vMax = 1f,
+            uStep = 2.5f,
+            vStep = 0.3f,
+            corner = { u, v -> iso.wallPoint(side, u, 1f - v) },
+        )
+    }
     // ambient shadow deepening toward the floor line
     drawPath(
         wall,
@@ -715,7 +765,15 @@ private fun DrawScope.drawWall(
         val hTop = 0.42f
         val band = iso.path(iso.wallBandPath(side, hTop), cw, ch)
         drawPath(band, shade(tint, 1.06f).let { Color(it.red, it.green, it.blue).lerpToWhite(0.55f) })
-        tilePath(band, panelTex, cw * 0.085f)
+        tileQuad(
+            clip = band,
+            bmp = panelTex,
+            uMax = iso.wallLen(side).toFloat(),
+            vMax = hTop,
+            uStep = 1.5f,
+            vStep = hTop,
+            corner = { u, v -> iso.wallPoint(side, u, hTop - v) },
+        )
         val (a, b) = iso.wallRail(side, hTop)
         drawLine(
             Color(0xFF8A6A55).copy(alpha = 0.6f),
