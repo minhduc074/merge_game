@@ -1357,9 +1357,10 @@ private fun ItemInfoCard(
                 def.spawnTable.forEach { entry ->
                     val spawnDef = ItemCatalog[entry.itemId]
                     Text(
-                        "${spawnDef.emoji} ${entry.weight * 100 / total}%",
+                        "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji} " +
+                            "${entry.weight * 100 / total}%",
                         fontSize = 12.sp,
-                        color = Cocoa,
+                        color = if (spawnDef.isRare) Gold else Cocoa,
                     )
                 }
             }
@@ -1523,6 +1524,22 @@ private fun GenSpawnListCard(
         }
 
         Spacer(Modifier.height(8.dp))
+        val totalWeight = def.spawnTable.sumOf { it.weight }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Sinh ra:", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.7f))
+            def.spawnTable.forEach { entry ->
+                val spawnDef = ItemCatalog[entry.itemId]
+                Text(
+                    "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji} " +
+                        "${entry.weight * 100 / totalWeight}%",
+                    fontSize = 12.sp,
+                    color = if (spawnDef.isRare) Gold else Cocoa,
+                )
+            }
+        }
         val chain = def.spawnTable.firstOrNull()?.let { ItemCatalog.chainOf(it.itemId) }
         if (chain != null && chain.size > 1) {
             Text("🔗 Chuỗi merge:", fontSize = 12.sp, color = Cocoa.copy(alpha = 0.7f))
