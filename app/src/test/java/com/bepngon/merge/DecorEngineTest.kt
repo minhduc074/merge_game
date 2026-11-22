@@ -143,13 +143,15 @@ class DecorEngineTest {
     fun `movePlaced validates and keeps position on invalid drop`() {
         val p = placed(1, "chair_wood", 0, 4)
         val state = stateWith(placed = listOf(p, placed(2, "table_cafe", 3, 4)))
-        // valid move
+        // valid move — moved item re-appends to the end (renders on top)
         val (next, _) = DecorEngine.movePlaced(state, room, 1, 0, 5, 0)
-        assertEquals(5, next.decor.rooms.getValue(room).placed[0].gy)
+        val moved = next.decor.rooms.getValue(room).placed
+        assertEquals(5, moved.last { it.uid == 1L }.gy)
+        assertEquals(1L, moved.last().uid)
         // moving out of bounds -> rejected, state untouched
         val (next2, events2) = DecorEngine.movePlaced(next, room, 1, def.cols, 5, 0)
         assertEquals(listOf(GameEvent.InvalidDrop), events2)
-        assertEquals(5, next2.decor.rooms.getValue(room).placed[0].gy)
+        assertEquals(5, next2.decor.rooms.getValue(room).placed.last { it.uid == 1L }.gy)
     }
 
     @Test

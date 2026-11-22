@@ -1106,7 +1106,7 @@ private fun PlacedTile(
             .offset { IntOffset(origin.x.roundToInt(), origin.y.roundToInt()) }
             .size(with(density) { sizePx.toDp() })
             .onGloballyPositioned { winPos = it.positionInWindow() }
-            .alpha(if (hidden) 0.25f else 1f)
+            .alpha(if (hidden) 0f else 1f)
             .pointerInput(p.uid, interactive) {
                 if (!interactive) return@pointerInput
                 detectTapGestures(onTap = { onTap() })

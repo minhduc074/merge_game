@@ -15,13 +15,11 @@ object DecorEngine {
     fun footprint(item: DecorItem, rot: Int): Pair<Int, Int> =
         if (item.topDown && rot % 180 != 0) item.h to item.w else item.w to item.h
 
-    /** Z-order inside the room Box: paint < rug < furniture < wall/surface
-     *  decor, then back-to-front by iso depth (gx+gy grows toward the
-     *  viewer in the corner room). */
-    fun sortKey(p: PlacedDecor): Int {
-        val item = DecorCatalog[p.itemId]
-        return item.layer.ordinal * 100_000 + (p.gx + p.gy) * 100 + p.gx
-    }
+    /** Z-order inside the room Box: layer buckets (paint < rug <
+     *  furniture < wall/surface decor); within a bucket the list order
+     *  wins — a stable sort keeps the most recently placed/moved item on
+     *  top, so items stack visibly instead of sinking behind others. */
+    fun sortKey(p: PlacedDecor): Int = DecorCatalog[p.itemId].layer.ordinal
 
     fun roomOf(decor: DecorState, roomId: String): RoomSave =
         decor.rooms.getValue(roomId)
@@ -161,10 +159,11 @@ object DecorEngine {
         if (!canPlace(state.decor, roomId, p.itemId, gx, gy, rot)) {
             return state to listOf(GameEvent.InvalidDrop)
         }
+        // moved item re-appends to the end of the list — the stable render
+        // sort keeps it on top of anything it overlaps
         val nextRoom = room.copy(
-            placed = room.placed.map {
-                if (it.uid == uid) it.copy(gx = gx, gy = gy, rot = rot) else it
-            },
+            placed = room.placed.filterNot { it.uid == uid } +
+                p.copy(gx = gx, gy = gy, rot = rot),
         )
         return withRoom(state, roomId, nextRoom) to
             listOf(GameEvent.DecorPlaced(roomId, uid))
