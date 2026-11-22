@@ -197,20 +197,23 @@ fun DecorScreen(
                 ) {
                     val density = LocalDensity.current
                     val wallH = roomBounds.height * def.wallRows / def.rows
-                    // wall band + floor — painted colors come from paint variants
+                    // wall band + floor — texture under a translucent tint
+                    // when a paint variant is applied; flat color fallback
                     Column(Modifier.fillMaxSize()) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(def.wallRows.toFloat())
-                                .background(Color(DecorEngine.wallTint(game.decor, roomId))),
-                        )
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(def.floorRows.toFloat())
-                                .background(Color(DecorEngine.floorTint(game.decor, roomId))),
-                        )
+                        Box(Modifier.fillMaxWidth().weight(def.wallRows.toFloat())) {
+                            RoomBg(
+                                "decor_bg_wall",
+                                Color(DecorEngine.wallTint(game.decor, roomId)),
+                                room.wallPaint != null,
+                            )
+                        }
+                        Box(Modifier.fillMaxWidth().weight(def.floorRows.toFloat())) {
+                            RoomBg(
+                                "decor_bg_floor",
+                                Color(DecorEngine.floorTint(game.decor, roomId)),
+                                room.floorPaint != null,
+                            )
+                        }
                     }
                     Box(
                         Modifier
@@ -349,6 +352,27 @@ private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     )
+}
+
+/** Room band background: generated texture when present (with a
+ *  translucent paint tint over it), flat paint color otherwise. */
+@Composable
+private fun RoomBg(resName: String, tint: Color, painted: Boolean) {
+    val ctx = LocalContext.current
+    val res = remember(resName) { artRes(ctx, resName) }
+    if (res == 0) {
+        Box(Modifier.fillMaxSize().background(tint))
+        return
+    }
+    Image(
+        painter = painterResource(res),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize(),
+    )
+    if (painted) {
+        Box(Modifier.fillMaxSize().background(tint.copy(alpha = 0.5f)))
+    }
 }
 
 /** Decor sprite `decor_<itemId>` recolored toward the variant tint

@@ -60,6 +60,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Phòng = grid `RoomDef.cols`×`rows`, `wallRows` đầu là vùng treo tường (WALL item). Va chạy chỉ trong cùng `DecorLayer` → thảm nằm dưới bàn OK. Paint = `Placement.PAINT`, mua là phủ cả mặt (`wallPaint`/`floorPaint`, màu = `variant.tint`).
 - Variant `priceCoins = 0` = starter (luôn dùng được); còn lại vào `ownedVariants` khi mua — `placeItem`/`setVariant`/`setPaint` mua+áp dụng atomic (trừ coin 1 lần).
 - Art = sprite `decor_<itemId>.png` trong drawable-nodpi render qua `DecorArt` (DecorScreen) + recolor variant bằng `ColorFilter.tint(tint, BlendMode.Modulate)` (API-safe minSdk 26 — `BlendMode.Color` cần API 29); fallback emoji khi thiếu PNG.
+- Nền phòng = `decor_bg_wall.jpg` (band tường) + `decor_bg_floor.jpg` (sàn) render qua `RoomBg` — texture full-bleed flat-view, paint variant phủ tint alpha 0.5 lên trên; thiếu file → màu phẳng như cũ. `bg_cafe.png` (phối cảnh) KHÔNG tái dùng được vì vạch tường/sàn không khớp grid 25%/75%.
 - Undo/redo = snapshot `RoomSave` trong `GameViewModel` (session-only, 50 bước; undo KHÔNG hoàn coin đã mua variant — ownership giữ lại).
 - Save trong `SaveData.decor`; `RoomSave.version` riêng để migrate (version lạ → reset phòng đó về trống).
 - Phase sau chưa có: surface decor trên bàn (`hostUid`), brief/rating thưởng, sell, camera zoom/pan, room thứ 2.

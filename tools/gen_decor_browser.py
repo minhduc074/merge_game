@@ -20,8 +20,8 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 pyautogui.FAILSAFE = False
 
 HWND = 0x10696
-CHAT = (1090, 110, 1860, 920)
-INPUT_POS = (1485, 930)
+CHAT = (1100, 95, 1850, 880)
+INPUT_POS = (1480, 925)
 VIEWER_DL = (1696, 124)
 VIEWER_BACK = (1096, 123)
 SCROLL_PT = (1480, 500)
@@ -48,6 +48,10 @@ ITEMS = [
     ("clock", "a cute round wall clock with wooden frame showing 10:10, straight front view"),
     ("shelf_wall", "a small wooden wall-mounted shelf holding a tiny plant and two books, straight front view"),
     ("window", "a cute window with light blue curtains and a view of blue sky, straight front view"),
+    # room backgrounds — full-bleed textures, NOT sprites (custom prompt,
+    # no STYLE suffix): flat straight-on views that tile under the grid.
+    ("bg_wall", "a cute cafe interior wall seen straight on, flat front view, warm cream wallpaper with a subtle tiny polka dot pattern, thin white baseboard along the very bottom edge, kawaii cozy cartoon style, soft hand-drawn look, mobile game background, full bleed edge to edge, no furniture, no objects, no window, no text, no watermark", ""),
+    ("bg_floor", "cute light wooden floor planks texture seen from directly above, flat top-down view, horizontal planks in warm honey beige with visible wood grain, kawaii cozy cartoon style, soft hand-drawn look, mobile game background, full bleed edge to edge, no objects, no rug, no text, no watermark", ""),
 ]
 
 
@@ -237,7 +241,9 @@ def batch(only):
     seen_hashes = set()
     for f in glob.glob(os.path.join(OUT_DIR, "*.png")):
         seen_hashes.add(md5(f))
-    for item_id, subj in ITEMS:
+    for entry in ITEMS:
+        item_id, subj = entry[0], entry[1]
+        style = entry[2] if len(entry) > 2 else STYLE
         if only and item_id not in only:
             continue
         out = os.path.join(OUT_DIR, f"decor_{item_id}.png")
@@ -246,7 +252,7 @@ def batch(only):
             continue
         print(f"[gen ] {item_id}", flush=True)
         ensure_chat()
-        send(f"Generate an image: {subj}{STYLE}")
+        send(f"Generate an image: {subj}{style}")
         box, sig = wait_new_image(prev_sig, seen_sigs)
         if not box:
             print(f"[fail] {item_id}: no new image")
