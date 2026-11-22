@@ -924,7 +924,7 @@ private fun InventoryBar(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .padding(bottom = 18.dp),
+            .padding(bottom = 44.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

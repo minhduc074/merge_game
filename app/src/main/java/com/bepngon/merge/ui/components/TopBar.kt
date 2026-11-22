@@ -54,7 +54,12 @@ fun TopBar(
     onStatTap: (String) -> Unit,
     onLevelTap: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .padding(top = 18.dp, bottom = 8.dp),
+    ) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
