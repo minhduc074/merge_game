@@ -147,6 +147,7 @@ fun FruitDropGame(
                             .border(2.dp, CellBorder, RoundedCornerShape(20.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
+                        tick // engine vars are plain Kotlin — subscribe to frames
                         FruitSprite(engine.nextFruitIndex, 30.dp)
                     }
                 }
@@ -154,6 +155,7 @@ fun FruitDropGame(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(end = 14.dp),
                 ) {
+                    tick // engine vars are plain Kotlin — subscribe to frames
                     Text("SCORE", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         color = CText, letterSpacing = 1.sp)
                     Text(
