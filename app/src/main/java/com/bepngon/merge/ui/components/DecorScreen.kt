@@ -1,5 +1,6 @@
 package com.bepngon.merge.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +39,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -80,6 +82,119 @@ private data class DecorDrag(
     val flip: Boolean,
 )
 
+/** Isometric corner-room landmarks, in canvas fractions, measured on
+ *  decor_bg_room.jpg (cropped to 2000×1536 → aspect 1.302). */
+private object Iso {
+    const val ASPECT = 2000f / 1536f
+    val CT = Offset(0.497f, 0.0195f) // top of the corner (ceiling)
+    val CF = Offset(0.497f, 0.4121f) // corner where walls meet the floor
+    val FL = Offset(0.1195f, 0.6823f) // floor diamond: left vertex
+    val FR = Offset(0.8765f, 0.7025f) // floor diamond: right vertex
+    val FB = Offset(0.496f, 0.9759f) // floor diamond: bottom vertex
+    val LT = Offset(0.1195f, 0.3132f) // left wall outer-top (above FL)
+    val RT = Offset(0.8765f, 0.3008f) // right wall outer-top (above FR)
+}
+
+/** Grid ↔ screen mapping for the isometric room. All math happens in
+ *  canvas fractions (0..1); multiply by the canvas size for pixels.
+ *
+ *  Floor: gx runs down-right along [ex], floor-row gy down-left along [ey].
+ *  Walls: rot encodes the side — 0 = right wall (+x axis), 90 = left
+ *  wall (+y axis). gx = cells along the wall, gy = rows up from the floor
+ *  (gy = 0 is the top wall row, like the old flat band). */
+private class IsoMap(
+    private val cols: Int,
+    private val floorRows: Int,
+    private val wallRows: Int,
+) {
+    val ex = Offset((Iso.FR.x - Iso.CF.x) / cols, (Iso.FR.y - Iso.CF.y) / cols)
+    val ey = Offset((Iso.FL.x - Iso.CF.x) / floorRows, (Iso.FL.y - Iso.CF.y) / floorRows)
+    private val wallH0 = Iso.CF.y - Iso.CT.y // wall height at the corner
+    private val wallHL = Iso.FL.y - Iso.LT.y // at the left outer edge
+    private val wallHR = Iso.FR.y - Iso.RT.y // at the right outer edge
+    private val det = ex.x * ey.y - ex.y * ey.x
+
+    fun cellOrigin(gx: Float, fy: Float) = Offset(
+        Iso.CF.x + gx * ex.x + fy * ey.x,
+        Iso.CF.y + gx * ex.y + fy * ey.y,
+    )
+
+    /** Continuous floor coords of a canvas-fraction point (unclamped). */
+    fun solveFloor(p: Offset): Offset {
+        val dx = p.x - Iso.CF.x
+        val dy = p.y - Iso.CF.y
+        return Offset(
+            (dx * ey.y - dy * ey.x) / det,
+            (ex.x * dy - ex.y * dx) / det,
+        )
+    }
+
+    private fun wallAxis(side: Int) = if (side == 0) ex else ey
+    private fun wallLen(side: Int) = if (side == 0) cols else floorRows
+
+    private fun wallHAt(side: Int, a: Float): Float {
+        val h1 = if (side == 0) wallHR else wallHL
+        return wallH0 + (h1 - wallH0) * a / wallLen(side)
+    }
+
+    /** Point on a wall: [a] cells along the wall, [h] 0=floor → 1=ceiling. */
+    fun wallPoint(side: Int, a: Float, h: Float): Offset {
+        val axis = wallAxis(side)
+        val bx = Iso.CF.x + a * axis.x
+        val by = Iso.CF.y + a * axis.y
+        return Offset(bx, by - h * wallHAt(side, a))
+    }
+
+    /** Continuous (a, h) on the wall plane; null when clearly outside. */
+    fun solveWall(side: Int, p: Offset): Offset? {
+        val axis = wallAxis(side)
+        val a = (p.x - Iso.CF.x) / axis.x
+        if (a < -0.7f || a > wallLen(side) + 0.7f) return null
+        val baseY = Iso.CF.y + a * axis.y
+        val h = (baseY - p.y) / wallHAt(side, a)
+        if (h < -0.15f || h > 1.15f) return null
+        return Offset(a, h)
+    }
+
+    fun heightFracAt(gy: Int, h: Int): Pair<Float, Float> {
+        val hTop = (wallRows - gy).toFloat() / wallRows
+        return hTop to hTop - h.toFloat() / wallRows
+    }
+
+    fun path(pts: List<Offset>, w: Float, h: Float): Path = Path().apply {
+        pts.forEachIndexed { i, o -> if (i == 0) moveTo(o.x * w, o.y * h) else lineTo(o.x * w, o.y * h) }
+        close()
+    }
+
+    fun floorPath(): List<Offset> =
+        listOf(Iso.CF, Iso.FR, Iso.FB, Iso.FL)
+
+    fun wallPath(side: Int): List<Offset> {
+        val len = wallLen(side).toFloat()
+        return listOf(
+            wallPoint(side, 0f, 0f), wallPoint(side, len, 0f),
+            wallPoint(side, len, 1f), wallPoint(side, 0f, 1f),
+        )
+    }
+
+    fun footprintPts(gx: Int, fy: Int, w: Int, h: Int): List<Offset> = listOf(
+        cellOrigin(gx.toFloat(), fy.toFloat()),
+        cellOrigin(gx + w.toFloat(), fy.toFloat()),
+        cellOrigin(gx + w.toFloat(), fy + h.toFloat()),
+        cellOrigin(gx.toFloat(), fy + h.toFloat()),
+    )
+
+    fun wallFootprintPts(side: Int, gx: Int, gy: Int, w: Int, h: Int): List<Offset> {
+        val (hTop, hBot) = heightFracAt(gy, h)
+        return listOf(
+            wallPoint(side, gx.toFloat(), hBot),
+            wallPoint(side, gx + w.toFloat(), hBot),
+            wallPoint(side, gx + w.toFloat(), hTop),
+            wallPoint(side, gx.toFloat(), hTop),
+        )
+    }
+}
+
 @Composable
 fun DecorScreen(
     game: GameState,
@@ -108,28 +223,82 @@ fun DecorScreen(
     var roomBounds by remember { mutableStateOf(Rect.Zero) }
     var contentOrigin by remember { mutableStateOf(Offset.Zero) }
 
+    val iso = remember(def) { IsoMap(def.cols, def.floorRows, def.wallRows) }
+
     fun variantOf(item: DecorItem): DecorVariant =
         item.variantOf(pickedVariant[item.id] ?: item.variants.first().id)
 
     // Function, not a val: pointerInput closures capture `drop`/`snapToCell`
-    // once, so cell size must re-read roomBounds every call (0 until measured).
-    fun cellPxNow(): Float = roomBounds.width / def.cols
+    // once, so sizes must re-read roomBounds every call (0 until measured).
+    fun cellW(): Float = iso.ex.x * roomBounds.width
 
-    /** Snap a window position to the grid cell under the footprint's center. */
-    fun snapToCell(pos: Offset, itemId: String, rot: Int): Pair<Int, Int>? {
-        val cell = cellPxNow()
-        if (cell <= 0 || !roomBounds.inflate(cell * 2).contains(pos)) return null
-        val (w, h) = DecorEngine.footprint(DecorCatalog[itemId], rot)
-        val gx = ((pos.x - roomBounds.left) / cell - w / 2f).roundToInt()
-        val gy = ((pos.y - roomBounds.top) / cell - h / 2f).roundToInt()
-        return gx to gy
+    /** Snap a window position to a grid cell: (gx, gy, rot). For wall
+     *  items the wall plane under the pointer picks the side in rot. */
+    fun snapToCell(pos: Offset, itemId: String, rot: Int): Triple<Int, Int, Int>? {
+        if (roomBounds.width <= 0 || !roomBounds.inflate(roomBounds.width).contains(pos)) return null
+        val item = DecorCatalog[itemId]
+        val (w, h) = DecorEngine.footprint(item, rot)
+        val local = Offset(
+            (pos.x - roomBounds.left) / roomBounds.width,
+            (pos.y - roomBounds.top) / roomBounds.height,
+        )
+        return when (item.placement) {
+            Placement.FLOOR -> {
+                val s = iso.solveFloor(local)
+                if (s.x < -w || s.x > def.cols + w || s.y < -h || s.y > def.floorRows + h) return null
+                Triple(
+                    (s.x - w / 2f).roundToInt(),
+                    (s.y - h / 2f).roundToInt() + def.wallRows,
+                    rot,
+                )
+            }
+            Placement.WALL -> listOf(0, 90).firstNotNullOfOrNull { side ->
+                iso.solveWall(if (side == 0) 0 else 1, local)?.let { ah ->
+                    Triple(
+                        (ah.x - w / 2f).roundToInt(),
+                        (def.wallRows - ah.y * def.wallRows - h / 2f).roundToInt(),
+                        side,
+                    )
+                }
+            }
+            Placement.PAINT -> null
+        }
     }
 
-    val ghost: Triple<Int, Int, Boolean>? = drag?.let { d ->
-        snapToCell(d.pos, d.itemId, d.rot)?.let { (gx, gy) ->
+    /** Sprite box (top-left px in canvas coords + square size) for a
+     *  placed item: floor sprites stand on their footprint's bottom
+     *  vertex, wall sprites hang centered on their wall patch. */
+    fun itemBox(p: PlacedDecor): Pair<Offset, Float> {
+        val item = DecorCatalog[p.itemId]
+        val (w, h) = DecorEngine.footprint(item, p.rot)
+        val cw = roomBounds.width
+        val ch = roomBounds.height
+        if (item.placement == Placement.WALL) {
+            val side = if (p.rot == 90) 1 else 0
+            val pt = iso.wallPoint(side, p.gx + w / 2f, (def.wallRows - p.gy - h / 2f) / def.wallRows)
+            val size = w * cellW() * 1.45f
+            return Offset(pt.x * cw - size / 2, pt.y * ch - size * 0.55f) to size
+        }
+        val fy = p.gy - def.wallRows
+        val cx = Iso.CF.x + (p.gx + w / 2f) * iso.ex.x + (fy + h / 2f) * iso.ey.x
+        val botY = Iso.CF.y + (p.gx + w) * iso.ex.y + (fy + h) * iso.ey.y
+        val size = (w + h) * cellW() * 0.8f
+        return Offset(cx * cw - size / 2, botY * ch - size * 0.92f) to size
+    }
+
+    val ghost: Triple<Triple<Int, Int, Int>, Boolean, List<Offset>>? = drag?.let { d ->
+        snapToCell(d.pos, d.itemId, d.rot)?.let { (gx, gy, rot) ->
+            val item = DecorCatalog[d.itemId]
+            val (w, h) = DecorEngine.footprint(item, rot)
+            val pts = if (item.placement == Placement.WALL) {
+                iso.wallFootprintPts(if (rot == 90) 1 else 0, gx, gy, w, h)
+            } else {
+                iso.footprintPts(gx, gy - def.wallRows, w, h)
+            }
             Triple(
-                gx, gy,
-                DecorEngine.canPlace(game.decor, roomId, d.itemId, gx, gy, d.rot, d.uid),
+                Triple(gx, gy, rot),
+                DecorEngine.canPlace(game.decor, roomId, d.itemId, gx, gy, rot, d.uid),
+                pts,
             )
         }
     }
@@ -140,9 +309,9 @@ fun DecorScreen(
             roomBounds.contains(d.pos) -> {
                 // let the engine re-validate — an invalid drop keeps state
                 // untouched and answers InvalidDrop for the error feedback
-                snapToCell(d.pos, d.itemId, d.rot)?.let { (gx, gy) ->
-                    if (d.uid == 0L) onPlace(d.itemId, d.variantId, gx, gy, d.rot)
-                    else onMove(d.uid, gx, gy, d.rot)
+                snapToCell(d.pos, d.itemId, d.rot)?.let { (gx, gy, rot) ->
+                    if (d.uid == 0L) onPlace(d.itemId, d.variantId, gx, gy, rot)
+                    else onMove(d.uid, gx, gy, rot)
                 }
             }
             // placed item dragged out → store it (except in sticky-move
@@ -189,11 +358,11 @@ fun DecorScreen(
                 )
             }
 
-            // ---- room canvas ----
+            // ---- room canvas (isometric corner room) ----
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier
-                        .aspectRatio(def.cols.toFloat() / def.rows)
+                        .aspectRatio(Iso.ASPECT)
                         .clip(RoundedCornerShape(16.dp))
                         .onGloballyPositioned { roomBounds = it.boundsInWindow() }
                         // sticky-move mode (from the item menu): the picked-up
@@ -203,13 +372,13 @@ fun DecorScreen(
                             detectTapGestures { local ->
                                 val d = drag ?: return@detectTapGestures
                                 snapToCell(roomBounds.topLeft + local, d.itemId, d.rot)
-                                    ?.let { (gx, gy) ->
+                                    ?.let { (gx, gy, rot) ->
                                         if (DecorEngine.canPlace(
                                                 game.decor, roomId, d.itemId,
-                                                gx, gy, d.rot, d.uid,
+                                                gx, gy, rot, d.uid,
                                             )
                                         ) {
-                                            onMove(d.uid, gx, gy, d.rot)
+                                            onMove(d.uid, gx, gy, rot)
                                             drag = null
                                             stickyMove = false
                                         }
@@ -234,38 +403,37 @@ fun DecorScreen(
                         },
                 ) {
                     val density = LocalDensity.current
-                    val wallH = roomBounds.height * def.wallRows / def.rows
-                    // wall band + floor — texture under a translucent tint
-                    // when a paint variant is applied; flat color fallback
-                    Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(def.wallRows.toFloat())) {
-                            RoomBg(
-                                "decor_bg_wall",
-                                Color(DecorEngine.wallTint(game.decor, roomId)),
-                                room.wallPaint != null,
+                    RoomShell(room.wallPaint != null, room.floorPaint != null)
+                    // paint tints + ghost preview, clipped to the room quads
+                    Canvas(Modifier.fillMaxSize()) {
+                        val cw = size.width
+                        val ch = size.height
+                        if (room.wallPaint != null) {
+                            val tint = Color(DecorEngine.wallTint(game.decor, roomId))
+                            drawPath(iso.path(iso.wallPath(1), cw, ch), tint.copy(alpha = 0.35f))
+                            drawPath(iso.path(iso.wallPath(0), cw, ch), tint.copy(alpha = 0.35f))
+                        }
+                        if (room.floorPaint != null) {
+                            drawPath(
+                                iso.path(iso.floorPath(), cw, ch),
+                                Color(DecorEngine.floorTint(game.decor, roomId)).copy(alpha = 0.35f),
                             )
                         }
-                        Box(Modifier.fillMaxWidth().weight(def.floorRows.toFloat())) {
-                            RoomBg(
-                                "decor_bg_floor",
-                                Color(DecorEngine.floorTint(game.decor, roomId)),
-                                room.floorPaint != null,
+                        ghost?.let { (_, ok, pts) ->
+                            drawPath(
+                                iso.path(pts, cw, ch),
+                                if (ok) Color(0x8866BB6A) else Color(0x88EF5350),
                             )
                         }
                     }
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .offset(y = with(density) { wallH.toDp() })
-                            .height(3.dp)
-                            .background(Color(0x406D4C41)),
-                    )
                     // placed items, back-to-front
                     room.placed.sortedBy { DecorEngine.sortKey(it) }.forEach { p ->
                         key(p.uid) {
+                            val (origin, sizePx) = itemBox(p)
                             PlacedTile(
                                 p = p,
-                                cellPx = cellPxNow(),
+                                origin = origin,
+                                sizePx = sizePx,
                                 hidden = drag?.uid == p.uid,
                                 interactive = !stickyMove,
                                 onTap = {
@@ -282,29 +450,6 @@ fun DecorScreen(
                                 },
                                 onDragPos = { pos -> drag = drag?.copy(pos = pos) },
                                 onDrop = ::drop,
-                            )
-                        }
-                    }
-                    // ghost preview while dragging
-                    drag?.let { d ->
-                        ghost?.let { (gx, gy, ok) ->
-                            val (w, h) = DecorEngine.footprint(DecorCatalog[d.itemId], d.rot)
-                            Box(
-                                Modifier
-                                    .offset {
-                                        IntOffset(
-                                            (gx * cellPxNow()).roundToInt(),
-                                            (gy * cellPxNow()).roundToInt(),
-                                        )
-                                    }
-                                    .size(
-                                        with(density) { (w * cellPxNow()).toDp() },
-                                        with(density) { (h * cellPxNow()).toDp() },
-                                    )
-                                    .background(
-                                        if (ok) Color(0x8866BB6A) else Color(0x88EF5350),
-                                        RoundedCornerShape(8.dp),
-                                    ),
                             )
                         }
                     }
@@ -365,17 +510,11 @@ fun DecorScreen(
                     onMoveMode = {
                         menuUid = null
                         stickyMove = true
-                        val (w, h) = DecorEngine.footprint(
-                            DecorCatalog[menuPlaced.itemId], menuPlaced.rot,
-                        )
-                        val cell = cellPxNow()
+                        val (bo, bs) = itemBox(menuPlaced)
                         drag = DecorDrag(
                             menuPlaced.itemId, menuPlaced.variantId,
                             menuPlaced.uid,
-                            Offset(
-                                roomBounds.left + (menuPlaced.gx + w / 2f) * cell,
-                                roomBounds.top + (menuPlaced.gy + h / 2f) * cell,
-                            ),
+                            roomBounds.topLeft + Offset(bo.x + bs / 2, bo.y + bs * 0.8f),
                             menuPlaced.rot, menuPlaced.flip,
                         )
                     },
@@ -405,22 +544,23 @@ fun DecorScreen(
         drag?.let { d ->
             val item = DecorCatalog[d.itemId]
             val dv = DecorCatalog.variant(d.variantId)
+            val cw = cellW() * 2f // cell diagonal ≈ flat-view cell size
             Box(
                 Modifier
                     .offset {
                         IntOffset(
-                            (d.pos.x - contentOrigin.x - cellPxNow()).roundToInt(),
-                            (d.pos.y - contentOrigin.y - cellPxNow() * 1.5f).roundToInt(),
+                            (d.pos.x - contentOrigin.x - cw).roundToInt(),
+                            (d.pos.y - contentOrigin.y - cw * 1.5f).roundToInt(),
                         )
                     }
                     .zIndex(10f)
-                    .size(with(LocalDensity.current) { (cellPxNow() * 2).toDp() })
+                    .size(with(LocalDensity.current) { (cw * 2).toDp() })
                     .alpha(0.9f),
                 contentAlignment = Alignment.Center,
             ) {
                 DecorArt(
                     d.itemId, dv.tint,
-                    with(LocalDensity.current) { (cellPxNow() * 1.9f).toDp() },
+                    with(LocalDensity.current) { (cw * 1.9f).toDp() },
                     item.emoji,
                     rot = d.rot,
                 )
@@ -446,24 +586,24 @@ private fun TopChip(label: String, enabled: Boolean = true, onClick: () -> Unit)
     )
 }
 
-/** Room band background: generated texture when present (with a
- *  translucent paint tint over it), flat paint color otherwise. */
+/** Isometric room shell: the generated corner-room art filling the
+ *  canvas. Falls back to flat wall/floor bands when the JPG is missing. */
 @Composable
-private fun RoomBg(resName: String, tint: Color, painted: Boolean) {
+private fun RoomShell(wallPainted: Boolean, floorPainted: Boolean) {
     val ctx = LocalContext.current
-    val res = remember(resName) { artRes(ctx, resName) }
-    if (res == 0) {
-        Box(Modifier.fillMaxSize().background(tint))
-        return
-    }
-    Image(
-        painter = painterResource(res),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize(),
-    )
-    if (painted) {
-        Box(Modifier.fillMaxSize().background(tint.copy(alpha = 0.5f)))
+    val res = remember { artRes(ctx, "decor_bg_room") }
+    if (res != 0) {
+        Image(
+            painter = painterResource(res),
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxWidth().weight(0.41f).background(Color(0xFFE8DFF0)))
+            Box(Modifier.fillMaxWidth().weight(0.59f).background(Color(0xFFF5DDBB)))
+        }
     }
 }
 
@@ -509,13 +649,15 @@ private fun DecorArt(
     }
 }
 
-/** One placed item on the floor/wall: tinted tile + emoji, tap = menu,
+/** One placed item in the iso room: sprite standing on its footprint.
+ *  [origin]/[sizePx] come from `itemBox` (canvas px). Tap = menu,
  *  drag = move / drag outside room = store. [interactive] disables all
  *  gestures so events pass through to the canvas in sticky-move mode. */
 @Composable
 private fun PlacedTile(
     p: PlacedDecor,
-    cellPx: Float,
+    origin: Offset,
+    sizePx: Float,
     hidden: Boolean,
     interactive: Boolean,
     onTap: () -> Unit,
@@ -525,17 +667,13 @@ private fun PlacedTile(
 ) {
     val item = DecorCatalog[p.itemId]
     val variant = item.variantOf(p.variantId)
-    val (w, h) = DecorEngine.footprint(item, p.rot)
     val density = LocalDensity.current
-    var origin by remember { mutableStateOf(Offset.Zero) }
+    var winPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
-            .offset { IntOffset((p.gx * cellPx).roundToInt(), (p.gy * cellPx).roundToInt()) }
-            .size(
-                with(density) { (w * cellPx).toDp() },
-                with(density) { (h * cellPx).toDp() },
-            )
-            .onGloballyPositioned { origin = it.positionInWindow() }
+            .offset { IntOffset(origin.x.roundToInt(), origin.y.roundToInt()) }
+            .size(with(density) { sizePx.toDp() })
+            .onGloballyPositioned { winPos = it.positionInWindow() }
             .alpha(if (hidden) 0.25f else 1f)
             .graphicsLayer { scaleX = if (p.flip) -1f else 1f }
             .pointerInput(p.uid, interactive) {
@@ -545,34 +683,15 @@ private fun PlacedTile(
             .pointerInput(p.uid, interactive) {
                 if (!interactive) return@pointerInput
                 detectDragGestures(
-                    onDragStart = { start -> onPickup(origin + start) },
-                    onDrag = { change, _ -> onDragPos(origin + change.position) },
+                    onDragStart = { start -> onPickup(winPos + start) },
+                    onDrag = { change, _ -> onDragPos(winPos + change.position) },
                     onDragEnd = onDrop,
                     onDragCancel = {},
                 )
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(1.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(variant.tint).copy(alpha = 0.45f))
-                .border(
-                    1.dp,
-                    Color(variant.tint).copy(alpha = 0.8f),
-                    RoundedCornerShape(8.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            DecorArt(
-                p.itemId, variant.tint,
-                with(density) { (cellPx * 0.92f * maxOf(w, h)).toDp() },
-                item.emoji,
-                rot = p.rot,
-            )
-        }
+        DecorArt(p.itemId, variant.tint, with(density) { sizePx.toDp() }, item.emoji, rot = p.rot)
     }
 }
 

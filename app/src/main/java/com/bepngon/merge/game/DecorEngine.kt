@@ -16,10 +16,11 @@ object DecorEngine {
         if (item.topDown && rot % 180 != 0) item.h to item.w else item.w to item.h
 
     /** Z-order inside the room Box: paint < rug < furniture < wall/surface
-     *  decor, then back-to-front by row so lower items overlap upper ones. */
+     *  decor, then back-to-front by iso depth (gx+gy grows toward the
+     *  viewer in the corner room). */
     fun sortKey(p: PlacedDecor): Int {
         val item = DecorCatalog[p.itemId]
-        return item.layer.ordinal * 100_000 + p.gy * 100 + p.gx
+        return item.layer.ordinal * 100_000 + (p.gx + p.gy) * 100 + p.gx
     }
 
     fun roomOf(decor: DecorState, roomId: String): RoomSave =
@@ -61,9 +62,12 @@ object DecorEngine {
         }
         // Same layer = same collision group; rugs fit under furniture and
         // floor items never clash with things hanging on the wall band.
+        // Wall items: rot encodes the wall side (0 = right, 90 = left) —
+        // items on different walls never overlap even at the same (gx, gy).
         return room.placed.asSequence()
             .filter { it.uid != ignoreUid }
             .filter { DecorCatalog[it.itemId].layer == item.layer }
+            .filter { item.placement != Placement.WALL || it.rot == rot }
             .none { overlaps(it, gx, gy, w, h) }
     }
 

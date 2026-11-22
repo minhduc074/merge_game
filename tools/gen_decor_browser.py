@@ -52,6 +52,7 @@ ITEMS = [
     # no STYLE suffix): flat straight-on views that tile under the grid.
     ("bg_wall", "a cute cafe interior wall seen straight on, flat front view, warm cream wallpaper with a subtle tiny polka dot pattern, thin white baseboard along the very bottom edge, kawaii cozy cartoon style, soft hand-drawn look, mobile game background, full bleed edge to edge, no furniture, no objects, no window, no text, no watermark", ""),
     ("bg_floor", "cute light wooden floor planks texture seen from directly above, flat top-down view, horizontal planks in warm honey beige with visible wood grain, kawaii cozy cartoon style, soft hand-drawn look, mobile game background, full bleed edge to edge, no objects, no rug, no text, no watermark", ""),
+    ("bg_room", "an empty cute cafe room interior in isometric corner view, two walls meeting at a vertical back corner in the upper center, lavender floral wallpaper above white wainscot wall panels, light wooden plank floor forming a wide diamond shape in the lower half, soft pastel blue sky with a few clouds visible outside the room silhouette, kawaii cozy cartoon style, thick dark-brown outlines, soft cel shading, mobile game background art, no furniture, no objects, no people, no text, no watermark", ""),
 ]
 
 
