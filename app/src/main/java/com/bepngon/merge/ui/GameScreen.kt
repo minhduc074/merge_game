@@ -1340,19 +1340,20 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
             val next = def.mergeResult?.let { ItemCatalog[it] }
             if (item.frozen) {
                 Text(
-                    "❄️ Đóng băng — kéo ${def.emoji} khác vào để mở khóa" +
-                        if (next != null) " (merge lên ${next.emoji})" else "",
+                    "❄️ Đóng băng — kéo ${def.emoji} khác vào để mở khóa",
                     fontSize = 12.sp,
                     color = Color(0xFF0288D1),
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.height(4.dp))
             }
-            Text(
-                if (next != null) "➡️ Merge lên: ${next.emoji} ${next.name}" else "🏆 Đã max tier!",
-                fontSize = 12.sp,
-                color = Cocoa,
-            )
+            if (next == null) {
+                Text(
+                    "🏆 Đã max tier!",
+                    fontSize = 12.sp,
+                    color = Cocoa,
+                )
+            }
             if (item.defId == GameEngine.MAGIC_WILD_ID) {
                 Text(
                     "🪄 Kéo lên item bất kì để nhân bản nó!",
@@ -1361,14 +1362,7 @@ private fun ItemInfoCard(item: BoardItem, nowMs: Long, onDismiss: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            val prev = ItemCatalog.previousOf(item.defId)
-            if (prev != null) {
-                Text(
-                    "🔗 Ghép từ: ${prev.emoji} ${prev.name} + ${prev.emoji} ${prev.name}",
-                    fontSize = 12.sp,
-                    color = Cocoa.copy(alpha = 0.8f),
-                )
-            }
+
             val gens = ItemCatalog.generatorsFor(item.defId)
             Spacer(Modifier.height(4.dp))
             Text(
