@@ -333,7 +333,7 @@ fun DecorScreen(
             }
             Triple(
                 Triple(gx, gy, rot),
-                DecorEngine.canPlace(game.decor, roomId, d.itemId, gx, gy, rot, d.uid),
+                DecorEngine.canPlace(game.decor, roomId, d.itemId, gx, gy, rot),
                 pts,
             )
         }
@@ -420,7 +420,7 @@ fun DecorScreen(
                                     ?.let { (gx, gy, rot) ->
                                         if (DecorEngine.canPlace(
                                                 game.decor, roomId, d.itemId,
-                                                gx, gy, rot, d.uid,
+                                                gx, gy, rot,
                                             )
                                         ) {
                                             onMove(d.uid, gx, gy, rot)
@@ -638,8 +638,7 @@ fun DecorScreen(
                         )
                     }
                     .zIndex(10f)
-                    .size(with(LocalDensity.current) { (cw * 2).toDp() })
-                    .alpha(0.9f),
+                    .size(with(LocalDensity.current) { (cw * 2).toDp() }),
                 contentAlignment = Alignment.Center,
             ) {
                 DecorArt(

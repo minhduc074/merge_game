@@ -75,17 +75,18 @@ class DecorEngineTest {
     }
 
     @Test
-    fun `same layer collides but rug fits under furniture`() {
+    fun `canPlace allows overlapping items`() {
         val state = stateWith(
             placed = listOf(placed(1, "sofa", 0, 4)),
         )
-        // overlapping the sofa with a table -> no
-        assertFalse(DecorEngine.canPlace(state.decor, room, "table_cafe", 0, 4, 0))
-        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", 2, 5, 0))
-        // right next to it -> yes
-        assertTrue(DecorEngine.canPlace(state.decor, room, "table_cafe", 3, 4, 0))
-        // rug overlapping furniture is a different layer -> yes
+        // stacking onto the sofa's cells -> allowed (any layer)
+        assertTrue(DecorEngine.canPlace(state.decor, room, "table_cafe", 0, 4, 0))
+        assertTrue(DecorEngine.canPlace(state.decor, room, "chair_wood", 2, 5, 0))
         assertTrue(DecorEngine.canPlace(state.decor, room, "rug_big", 0, 4, 0))
+        // bounds + zones still enforced
+        assertFalse(DecorEngine.canPlace(state.decor, room, "wall_art", 0, def.wallRows, 0))
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", 0, 0, 0))
+        assertFalse(DecorEngine.canPlace(state.decor, room, "chair_wood", def.cols, 5, 0))
     }
 
     @Test
@@ -126,13 +127,13 @@ class DecorEngineTest {
         assertEquals(listOf(GameEvent.NotEnoughCoins), events)
         assertEquals(state, next)
 
-        // enough coins but overlapping an existing sofa
+        // enough coins but the spot is out of bounds
         state = stateWith(
             coins = 999,
             placed = listOf(placed(1, "sofa", 0, 4)),
         )
         val (next2, events2) = DecorEngine.placeItem(
-            state, room, "armchair", v.id, 0, 4, 0,
+            state, room, "armchair", v.id, -1, def.wallRows, 0,
         )
         assertEquals(listOf(GameEvent.InvalidDrop), events2)
         assertEquals(state, next2)
@@ -145,24 +146,19 @@ class DecorEngineTest {
         // valid move
         val (next, _) = DecorEngine.movePlaced(state, room, 1, 0, 5, 0)
         assertEquals(5, next.decor.rooms.getValue(room).placed[0].gy)
-        // moving onto the table -> rejected, state untouched
-        val (next2, events2) = DecorEngine.movePlaced(next, room, 1, 3, 4, 0)
+        // moving out of bounds -> rejected, state untouched
+        val (next2, events2) = DecorEngine.movePlaced(next, room, 1, def.cols, 5, 0)
         assertEquals(listOf(GameEvent.InvalidDrop), events2)
         assertEquals(5, next2.decor.rooms.getValue(room).placed[0].gy)
     }
 
     @Test
-    fun `rotate swaps footprint and respects collisions`() {
-        // rug_big 4x3 top-down at (0,4); another rug where rotation would reach
+    fun `rotate swaps footprint for top-down items`() {
+        // rug_big 4x3 top-down at (0,4); overlapping another rug is fine
         val p = placed(1, "rug_big", 0, 4)
         val state = stateWith(placed = listOf(p, placed(2, "rug_round", 0, 6)))
-        val (blocked, ev) = DecorEngine.rotatePlaced(state, room, 1)
-        assertEquals(listOf(GameEvent.InvalidDrop), ev)
-        assertEquals(0, blocked.decor.rooms.getValue(room).placed[0].rot)
-
-        val free = stateWith(placed = listOf(p))
-        val (rotated, ev2) = DecorEngine.rotatePlaced(free, room, 1)
-        assertTrue(ev2.any { it is GameEvent.DecorPlaced })
+        val (rotated, ev) = DecorEngine.rotatePlaced(state, room, 1)
+        assertTrue(ev.any { it is GameEvent.DecorPlaced })
         assertEquals(90, rotated.decor.rooms.getValue(room).placed[0].rot)
     }
 

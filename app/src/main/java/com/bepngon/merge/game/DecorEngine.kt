@@ -61,6 +61,8 @@ object DecorEngine {
 
     // ---------- validation ----------
 
+    /** Placement rules: bounds + zone only. Items are allowed to overlap
+     *  each other freely — stacking is part of the decor fun. */
     fun canPlace(
         decor: DecorState,
         roomId: String,
@@ -68,7 +70,6 @@ object DecorEngine {
         gx: Int,
         gy: Int,
         rot: Int,
-        ignoreUid: Long = 0,
     ): Boolean {
         val room = decor.rooms[roomId] ?: return false
         val def = DecorCatalog.room(roomId)
@@ -76,25 +77,11 @@ object DecorEngine {
         if (item.placement == Placement.PAINT) return false
         val (w, h) = footprint(item, rot)
         if (gx < 0 || gy < 0 || gx + w > def.cols || gy + h > def.rows) return false
-        when (item.placement) {
-            Placement.WALL -> if (gy + h > def.wallRows) return false
-            Placement.FLOOR -> if (gy < def.wallRows) return false
-            else -> {}
+        return when (item.placement) {
+            Placement.WALL -> gy + h <= def.wallRows
+            Placement.FLOOR -> gy >= def.wallRows
+            else -> true
         }
-        // Same layer = same collision group; rugs fit under furniture and
-        // floor items never clash with things hanging on the wall band.
-        // Wall items: rot encodes the wall side (0 = right, 90 = left) —
-        // items on different walls never overlap even at the same (gx, gy).
-        return room.placed.asSequence()
-            .filter { it.uid != ignoreUid }
-            .filter { DecorCatalog[it.itemId].layer == item.layer }
-            .filter { item.placement != Placement.WALL || it.rot == rot }
-            .none { overlaps(it, gx, gy, w, h) }
-    }
-
-    private fun overlaps(p: PlacedDecor, gx: Int, gy: Int, w: Int, h: Int): Boolean {
-        val (pw, ph) = footprint(DecorCatalog[p.itemId], p.rot)
-        return gx < p.gx + pw && p.gx < gx + w && gy < p.gy + ph && p.gy < gy + h
     }
 
     /** Non-null when [v] cannot be acquired (level-gated or too pricey). */
@@ -141,7 +128,7 @@ object DecorEngine {
     ): Pair<GameState, List<GameEvent>> {
         val item = DecorCatalog[itemId]
         val v = item.variantOf(variantId)
-        if (!canPlace(state.decor, roomId, itemId, gx, gy, rot, 0)) {
+        if (!canPlace(state.decor, roomId, itemId, gx, gy, rot)) {
             return state to listOf(GameEvent.InvalidDrop)
         }
         failReason(state, v)?.let { return state to listOf(it) }
@@ -171,7 +158,7 @@ object DecorEngine {
     ): Pair<GameState, List<GameEvent>> {
         val room = roomOf(state.decor, roomId)
         val p = room.placed.firstOrNull { it.uid == uid } ?: return state to emptyList()
-        if (!canPlace(state.decor, roomId, p.itemId, gx, gy, rot, ignoreUid = uid)) {
+        if (!canPlace(state.decor, roomId, p.itemId, gx, gy, rot)) {
             return state to listOf(GameEvent.InvalidDrop)
         }
         val nextRoom = room.copy(
@@ -212,7 +199,7 @@ object DecorEngine {
         // mirror. Only top-down art (rugs) gets a real bitmap rotation.
         val nextRoom = if (item.topDown && item.placement == Placement.FLOOR) {
             val newRot = (p.rot + 90) % 360
-            if (!canPlace(state.decor, roomId, p.itemId, p.gx, p.gy, newRot, ignoreUid = uid)) {
+            if (!canPlace(state.decor, roomId, p.itemId, p.gx, p.gy, newRot)) {
                 return state to listOf(GameEvent.InvalidDrop)
             }
             room.copy(
