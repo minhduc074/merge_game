@@ -60,9 +60,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
- * Fruit-drop minigame — a faithful port of takempf/subak-game
- * (https://github.com/takempf/subak-game, CC BY-NC 4.0):
- * same physics constants (see SubakEngine), same visuals.
+ * Fruit-drop minigame — Suika-style: drop fruits, identical ones merge
+ * into a bigger fruit, overflow the box and it's game over.
  */
 
 private val FRUIT_EMOJI = listOf(
@@ -70,7 +69,7 @@ private val FRUIT_EMOJI = listOf(
 )
 private fun fruitRes(i: Int) = "subak_${Subak.FRUIT_NAMES[i]}"
 
-// board tokens — subak layout, Bếp Ngon palette
+// board tokens — Bếp Ngon palette
 private val CBorder = Color(0x1A6D4C41)       // cocoa 10%
 private val CBorderLight = Color(0x136D4C41)  // cocoa ~7.5%
 private val CText = Color(0xFF6D4C41)         // Cocoa
@@ -127,7 +126,7 @@ fun FruitDropGame(
                 )
             }
 
-            // sidebar row — subak's narrow-layout sidebar: NEXT | SCORE | CYCLE
+            // sidebar row: NEXT | SCORE | CYCLE
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -196,7 +195,7 @@ fun FruitDropGame(
             }
 
             // gameplay area — warm cream tub with a cocoa border, like the
-            // merge board: keeps subak's 2:3 field but in the game's palette
+            // merge board: 2:3 field in the game's palette
             BoxWithConstraints(
                 Modifier
                     .fillMaxWidth()
@@ -303,7 +302,7 @@ fun FruitDropGame(
                     }
                 }
 
-                // fruits — interpolated transforms + real rotation like subak
+                // fruits — interpolated transforms + real rotation
                 val density = LocalDensity.current
                 val t = engine.interpolationT()
                 engine.fruits.forEach { f ->

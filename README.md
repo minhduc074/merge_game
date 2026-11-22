@@ -33,8 +33,7 @@ thả trái kiểu Suika kiếm thêm năng lượng.
 ### Minigame: Thả trái 🍉
 
 Suika-like: thả trái vào khung, 2 trái cùng loại chạm nhau merge lên trái to hơn,
-tràn khung là thua. Physics = **JBox2D** (port từ
-[takempf/subak-game](https://github.com/takempf/subak-game), CC BY-NC 4.0).
+tràn khung là thua. Physics = **JBox2D**.
 Không giới hạn lượt chơi; thưởng `min(20⚡, điểm/10)` — 10 điểm = 1⚡.
 
 ## Tech stack
@@ -85,8 +84,3 @@ defId (`fruit_4.png`, `gen_bakery_2.png`, `rare_viet_1.png`, `cust_koala.png`).
 
 Build DEBUG: bấm badge **Lv.xx** 10 lần → nhảy Lv30, mở hết ô, +99,999🪙,
 full energy/inventory (đếm lặng, không hiện UI). Reset game: nút ↻ góc trên.
-
-## License
-
-Minigame "Thả trái" port từ [takempf/subak-game](https://github.com/takempf/subak-game)
-(**CC BY-NC 4.0** — chỉ dùng phi thương mại).

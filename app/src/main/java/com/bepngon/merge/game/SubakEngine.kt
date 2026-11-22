@@ -15,11 +15,9 @@ import kotlin.math.PI
 import kotlin.random.Random
 
 /**
- * Port of takempf/subak-game (CC BY-NC 4.0) physics/gameplay onto jbox2d.
- * https://github.com/takempf/subak-game
+ * Fruit-drop minigame physics on jbox2d.
  *
- * Original runs Rapier2D; jbox2d (Box2D) uses the same impulse-solver model,
- * so the original constants port directly:
+ * Tuned constants:
  *   gravity 9.86*0.15 m/s² · restitution 0.25 · friction 0.35
  *   linearDamping 0.2 · angularDamping 0.4 · mass 0.1 kg · 8 solver iterations
  * World units are METERS: play field is 0.6 x 0.9 m, +y points DOWN.
