@@ -16,6 +16,8 @@ object GameEngine {
     const val FIRST_ORDER_DELAY_MS = 8_000L
     const val ORDER_INTERVAL_MIN_MS = 6_000L
     const val ORDER_INTERVAL_MAX_MS = 28_000L
+    const val BASE_ORDER_TIER = 5
+    const val MAX_ORDER_TIER = 8
     const val GEN_COOLDOWN_MS = 45_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
@@ -527,8 +529,11 @@ object GameEngine {
 
     private fun generateOrder(state: GameState, random: Random): Order {
         val produceable = produceableFamilies(state)
+        // Higher player level unlocks higher-tier requests: Lv1-4 caps at
+        // tier 5, Lv5-9 at 6, Lv10-14 at 7, Lv15+ at 8.
+        val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 5)
         val candidates = ItemCatalog.allInFamilies(produceable)
-            .filter { it.tier <= 5 }
+            .filter { it.tier <= maxTier }
 
         val count = when (random.nextInt(100)) {
             in 0 until 50 -> 1
@@ -537,7 +542,7 @@ object GameEngine {
         }
         val picked = mutableListOf<String>()
         repeat(count) {
-            val def = pickOrderItem(candidates, random)
+            val def = pickOrderItem(candidates, random, state.level)
             picked += def.id
         }
         val customer = Customers.ALL.random(random)
@@ -548,15 +553,19 @@ object GameEngine {
         )
     }
 
-    private fun pickOrderItem(candidates: List<ItemDef>, random: Random): ItemDef {
+    private fun pickOrderItem(candidates: List<ItemDef>, random: Random, level: Int): ItemDef {
         val weights = candidates.map { def ->
-            when (def.tier) {
+            val base = when (def.tier) {
                 1 -> 40
                 2 -> 30
                 3 -> 18
                 4 -> 9
                 else -> 3
             }
+            // Level bonus tilts the distribution upward: each tier above 1
+            // gains level/3 weight, so around Lv15+ high tiers match the
+            // low-tier demand and at Lv30 they dominate it.
+            base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)

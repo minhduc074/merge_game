@@ -644,6 +644,50 @@ class GameEngineTest {
     }
 
     @Test
+    fun `low level orders stay within tier 5`() {
+        val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = 2)
+        var cur = s.copy(nextOrderId = 2)
+        repeat(20) { i ->
+            val (next, events) = GameEngine.maybeSpawnOrder(
+                cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                100 + i * 1000L, Random(i),
+            )
+            cur = next
+            val order = (events.single() as GameEvent.OrderSpawned).order
+            order.required.forEach { id ->
+                assertTrue("tier>5 at low level: $id", ItemCatalog[id].tier <= 5)
+            }
+        }
+    }
+
+    @Test
+    fun `high level orders request higher tiers`() {
+        // Lv25 → maxTier 8 and the level bonus makes tier-6+ requests likely
+        val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = 25)
+        var cur = s.copy(nextOrderId = 2)
+        var sawHighTier = false
+        var highTierShare = 0
+        var totalItems = 0
+        repeat(30) { i ->
+            val (next, events) = GameEngine.maybeSpawnOrder(
+                cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                100 + i * 1000L, Random(i + 100),
+            )
+            cur = next
+            val order = (events.single() as GameEvent.OrderSpawned).order
+            order.required.forEach { id ->
+                totalItems++
+                if (ItemCatalog[id].tier >= 6) { sawHighTier = true; highTierShare++ }
+            }
+        }
+        assertTrue("no tier-6+ item requested at level 25", sawHighTier)
+        assertTrue(
+            "high-tier share too low: $highTierShare/$totalItems",
+            highTierShare * 100 / totalItems >= 10,
+        )
+    }
+
+    @Test
     fun `first order still respects the initial delay`() {
         // nextOrderId == 1 → nothing has spawned yet, keep FIRST_ORDER_DELAY
         val s = stateWith(
