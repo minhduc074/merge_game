@@ -115,6 +115,9 @@ data class GameState(
     val miniPlaysLeft: Int = 3,
     val miniRefillAtMs: Long = 0,
     val miniBest: Int = 0,
+    /** EMA of ms between completed orders — drives adaptive spawn pacing. */
+    val orderPaceMs: Long = 0,
+    val lastOrderDoneAtMs: Long = 0,
 ) {
     fun metricOf(metric: Metric): Int = when (metric) {
         Metric.MERGES -> stats.merges

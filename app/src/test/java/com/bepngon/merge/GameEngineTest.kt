@@ -610,6 +610,39 @@ class GameEngineTest {
     }
 
     @Test
+    fun `order spawn pacing adapts to completion speed`() {
+        // Fast finisher (pace 40s/order): base = pace/4 = 10s, jittered 6..14s
+        val fast = stateWith(0 to "gen_fruit_1", nextOrderAtMs = 10)
+            .copy(orderPaceMs = 40_000)
+        val (fastNext, _) = GameEngine.maybeSpawnOrder(fast, 100, Random(1))
+        val fastDelay = fastNext.nextOrderAtMs - 100
+        assertTrue("fast delay $fastDelay", fastDelay in 6_000..14_000)
+
+        // Slow player (pace 200s/order): delay clamps to the 28s ceiling
+        val slow = stateWith(0 to "gen_fruit_1", nextOrderAtMs = 10)
+            .copy(orderPaceMs = 200_000)
+        val (slowNext, _) = GameEngine.maybeSpawnOrder(slow, 100, Random(1))
+        assertTrue(slowNext.nextOrderAtMs - 100 >= 15_000)
+
+        // Completing an order updates the pace tracker
+        val s = stateWith(
+            0 to "fruit_1",
+            orders = listOf(orderOf("fruit_1")),
+        )
+        val (done, _) = GameEngine.autoFulfillOrder(s, 1, 60_000)
+        assertEquals(60_000, done.lastOrderDoneAtMs)
+        val (done2, _) = GameEngine.autoFulfillOrder(
+            done.copy(
+                orders = listOf(orderOf("fruit_1").copy(id = 2)),
+                cells = done.cells.toMutableList()
+                    .also { it[0] = GameEngine.newItem(99, "fruit_1") },
+            ),
+            2, 90_000,
+        )
+        assertEquals(30_000, done2.orderPaceMs)
+    }
+
+    @Test
     fun `first order still respects the initial delay`() {
         // nextOrderId == 1 → nothing has spawned yet, keep FIRST_ORDER_DELAY
         val s = stateWith(

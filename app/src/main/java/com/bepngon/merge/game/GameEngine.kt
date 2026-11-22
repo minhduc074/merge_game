@@ -14,8 +14,8 @@ object GameEngine {
     const val START_INVENTORY_CAP = 4
     const val MAX_ACTIVE_ORDERS = 5
     const val FIRST_ORDER_DELAY_MS = 8_000L
-    const val ORDER_INTERVAL_MIN_MS = 20_000L
-    const val ORDER_INTERVAL_MAX_MS = 35_000L
+    const val ORDER_INTERVAL_MIN_MS = 6_000L
+    const val ORDER_INTERVAL_MAX_MS = 28_000L
     const val GEN_COOLDOWN_MS = 45_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
@@ -506,12 +506,25 @@ object GameEngine {
         return state.copy(
             orders = state.orders + order,
             nextOrderId = state.nextOrderId + 1,
-            nextOrderAtMs = nowMs + nextOrderDelay(random),
+            nextOrderAtMs = nowMs + nextOrderDelay(state, random),
         ) to listOf(GameEvent.OrderSpawned(order))
     }
 
-    private fun nextOrderDelay(random: Random): Long =
-        ORDER_INTERVAL_MIN_MS + random.nextLong(ORDER_INTERVAL_MAX_MS - ORDER_INTERVAL_MIN_MS)
+    /**
+     * Adaptive spawn pacing: orders arrive ~4x faster than the player's
+     * measured completion pace (EMA in GameState.orderPaceMs), with ±40%
+     * jitter so arrivals don't feel metronomic. Fast finishers get a new
+     * order every ~6-10s; slow players stretch toward the 28s ceiling.
+     */
+    private fun nextOrderDelay(state: GameState, random: Random): Long {
+        val base = if (state.orderPaceMs > 0) {
+            state.orderPaceMs / 4
+        } else {
+            (ORDER_INTERVAL_MIN_MS + ORDER_INTERVAL_MAX_MS) / 2
+        }
+        val jittered = base * (0.6f + random.nextFloat() * 0.8f)
+        return jittered.toLong().coerceIn(ORDER_INTERVAL_MIN_MS, ORDER_INTERVAL_MAX_MS)
+    }
 
     private fun generateOrder(state: GameState, random: Random): Order {
         val produceable = produceableFamilies(state)
@@ -673,12 +686,26 @@ object GameEngine {
             events += GameEvent.ComboBonus(combo, comboCoins, comboXp)
         }
 
+        // completion pace (EMA α=0.25) — feeds adaptive order spawn timing
+        val dt = if (state.lastOrderDoneAtMs > 0) {
+            (nowMs - state.lastOrderDoneAtMs).coerceAtLeast(0)
+        } else {
+            0L
+        }
+        val pace = when {
+            dt <= 0L -> state.orderPaceMs
+            state.orderPaceMs <= 0L -> dt
+            else -> (state.orderPaceMs * 3 + dt) / 4
+        }
+
         var next = state.copy(
             orders = state.orders.filterNot { it.id == order.id },
             coins = state.coins + coinsGained + comboCoins,
             xp = state.xp + xpGained + comboXp,
             comboCount = combo,
             comboUntilMs = nowMs + comboWindowMs(state, nowMs),
+            orderPaceMs = pace,
+            lastOrderDoneAtMs = nowMs,
             stats = state.stats.copy(
                 ordersDone = state.stats.ordersDone + 1,
                 coinsEarned = state.stats.coinsEarned + coinsGained + comboCoins,
