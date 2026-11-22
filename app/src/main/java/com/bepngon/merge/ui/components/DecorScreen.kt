@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -101,17 +103,18 @@ private data class DecorDrag(
     val flip: Boolean,
 )
 
-/** Isometric corner-room landmarks, in canvas fractions, measured on
- *  decor_bg_room.jpg (cropped to 2000×1536 → aspect 1.302). */
+/** Isometric corner-room landmarks, in canvas fractions. The floor
+ *  diamond spans 90% of the width (5% margins both sides), with a sky
+ *  band above the walls and a ground band below the floor vertex. */
 private object Iso {
-    const val ASPECT = 2000f / 1536f
-    val CT = Offset(0.497f, 0.0195f) // top of the corner (ceiling)
-    val CF = Offset(0.497f, 0.4121f) // corner where walls meet the floor
-    val FL = Offset(0.1195f, 0.6823f) // floor diamond: left vertex
-    val FR = Offset(0.8765f, 0.7025f) // floor diamond: right vertex
-    val FB = Offset(0.496f, 0.9759f) // floor diamond: bottom vertex
-    val LT = Offset(0.1195f, 0.3132f) // left wall outer-top (above FL)
-    val RT = Offset(0.8765f, 0.3008f) // right wall outer-top (above FR)
+    const val ASPECT = 1.15f
+    val CT = Offset(0.5f, 0.07f) // top of the corner (ceiling)
+    val CF = Offset(0.5f, 0.35f) // corner where walls meet the floor
+    val FL = Offset(0.05f, 0.62f) // floor diamond: left vertex
+    val FR = Offset(0.95f, 0.62f) // floor diamond: right vertex
+    val FB = Offset(0.5f, 0.89f) // floor diamond: bottom vertex
+    val LT = Offset(0.05f, 0.36f) // left wall outer-top (above FL)
+    val RT = Offset(0.95f, 0.36f) // right wall outer-top (above FR)
 }
 
 /** Grid ↔ screen mapping for the isometric room. All math happens in
@@ -697,16 +700,21 @@ private fun RoomShell(decor: DecorState, roomId: String) {
     val wallItemL = DecorCatalog.itemOfVariant(wallVL.id)
     val wallItemR = DecorCatalog.itemOfVariant(wallVR.id)
     val floorItem = DecorCatalog.itemOfVariant(floorV.id)
+    val groundV = DecorEngine.groundVariant(room, def)
     val skyType = DecorCatalog.itemOfVariant(skyV.id).tex ?: "day"
     val wallTexL = rememberTex(wallItemL.tex?.takeIf { wallItemL.layer == DecorLayer.WALL_PAINT })
     val wallTexR = rememberTex(wallItemR.tex?.takeIf { wallItemR.layer == DecorLayer.WALL_PAINT })
     val floorTex = rememberTex(floorItem.tex?.takeIf { floorItem.layer == DecorLayer.FLOOR_PAINT })
     val panelTex = rememberTex("wtex_panel")
     val floorTint = Color(floorV.tint)
+    val groundTint = Color(groundV.tint)
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width
         val ch = size.height
-        drawSky(skyType)
+        if (skyType == "garden") drawGarden(groundTint) else {
+            drawSky(skyType)
+            drawGroundBand(groundTint)
+        }
         // floor thickness skirt under the two front edges
         val dy = 0.052f
         drawPath(
@@ -876,13 +884,25 @@ private fun DrawScope.cloud(cx: Float, cy: Float, r: Float, color: Color) {
     drawCircle(color, r * 0.68f, Offset(cx + r * 0.9f, cy + r * 0.3f))
 }
 
+/** Outdoor ground band wrapping the room from just under the wall/floor
+ *  edges down to the frame bottom — painted with the chosen Đất variant. */
+private fun DrawScope.drawGroundBand(tint: Color) {
+    val cw = size.width
+    val ch = size.height
+    val top = ch * 0.61f
+    drawRect(
+        Brush.verticalGradient(
+            listOf(shade(tint, 1.08f), shade(tint, 0.82f)),
+            startY = top, endY = ch,
+        ),
+        Offset(0f, top),
+        Size(cw, ch - top),
+    )
+}
+
 private fun DrawScope.drawSky(type: String) {
     val cw = size.width
     val ch = size.height
-    if (type == "garden") {
-        drawGarden()
-        return
-    }
     drawRect(Brush.verticalGradient(skyStops(type)))
     when (type) {
         "night" -> {
@@ -922,17 +942,17 @@ private fun DrawScope.drawSky(type: String) {
 /** Garden scenery behind the room (reference look): sky + clouds peeking
  *  over a grass field, white picket fence, trees at the top corners,
  *  bushes, stepping stones and scattered daisies. */
-private fun DrawScope.drawGarden() {
+private fun DrawScope.drawGarden(grassTint: Color = Color(0xFF9CCC65)) {
     val cw = size.width
     val ch = size.height
     // sky band behind everything
     drawRect(Brush.verticalGradient(listOf(Color(0xFF9FCFEF), Color(0xFFD4ECFA))))
     cloud(cw * 0.30f, ch * 0.06f, cw * 0.05f, Color.White.copy(alpha = 0.95f))
     cloud(cw * 0.66f, ch * 0.10f, cw * 0.04f, Color.White.copy(alpha = 0.9f))
-    // grass field
+    // grass field (tinted by the Đất variant)
     val grassTop = ch * 0.24f
     drawRect(
-        Brush.verticalGradient(listOf(Color(0xFFA9D98E), Color(0xFF8CC473))),
+        Brush.verticalGradient(listOf(shade(grassTint, 1.1f), shade(grassTint, 0.88f))),
         Offset(0f, grassTop),
         Size(cw, ch - grassTop),
     )
@@ -1416,8 +1436,15 @@ private fun RoomStyleTray(
         Triple("Tường", DecorLayer.WALL_PAINT, null as DecorVariant?),
         Triple("Sàn", DecorLayer.FLOOR_PAINT, DecorEngine.floorVariant(room, def)),
         Triple("Trời", DecorLayer.SKY_PAINT, DecorEngine.skyVariant(room, def)),
+        Triple("Đất", DecorLayer.GROUND_PAINT, DecorEngine.groundVariant(room, def)),
     )
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .heightIn(max = 300.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
         sections.forEach { (label, layer, sectionV) ->
             val isWall = layer == DecorLayer.WALL_PAINT
             val appliedV = if (isWall) when (wallSide) {

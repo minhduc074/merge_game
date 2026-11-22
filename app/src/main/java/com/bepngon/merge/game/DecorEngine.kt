@@ -47,6 +47,9 @@ object DecorEngine {
     fun skyVariant(room: RoomSave, def: RoomDef): DecorVariant =
         paintVariant(room.skyPaint, def.defaultSky)
 
+    fun groundVariant(room: RoomSave, def: RoomDef): DecorVariant =
+        paintVariant(room.groundPaint, def.defaultGround)
+
     fun wallTint(decor: DecorState, roomId: String): Long {
         val def = DecorCatalog.room(roomId)
         return wallVariant(roomOf(decor, roomId), def).tint
@@ -293,6 +296,7 @@ object DecorEngine {
                 else -> room.copy(wallPaint = variantId, wallPaintL = null, wallPaintR = null)
             }
             DecorLayer.SKY_PAINT -> room.copy(skyPaint = variantId)
+            DecorLayer.GROUND_PAINT -> room.copy(groundPaint = variantId)
             else -> room.copy(floorPaint = variantId)
         }
         next = withRoom(next, roomId, nextRoom)

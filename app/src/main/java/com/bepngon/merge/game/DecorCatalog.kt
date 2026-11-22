@@ -710,6 +710,27 @@ object DecorCatalog {
             V("dem", "Đêm", 0xFF3D4A78, 500),
             canRotate = false, tex = "night",
         )
+        // Ground: the outdoor band under/around the room (grass, dirt...).
+        // Tint-only paints — the renderer fills the ground band with it.
+        item(
+            "ground_grass", "Cỏ", "🌿", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
+            V("xanh", "Cỏ xanh", 0xFF9CCC65, 0),
+            V("vang", "Cỏ nắng", 0xFFCED36B, 200),
+            V("mint", "Cỏ non", 0xFF9FD8A4, 200),
+            canRotate = false,
+        )
+        item(
+            "ground_dirt", "Đất", "🟤", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
+            V("nau", "Đất nâu", 0xFFC09A76, 250),
+            V("do", "Đất đỏ", 0xFFC9897B, 250),
+            canRotate = false,
+        )
+        item(
+            "ground_stone", "Đá sân", "⬜", "room", Placement.PAINT, DecorLayer.GROUND_PAINT, 0, 0,
+            V("xam", "Đá xám", 0xFFBCC4C9, 350),
+            V("kem", "Đá kem", 0xFFDDD4BC, 350),
+            canRotate = false,
+        )
         // ---- legacy paint ids kept so old saves still resolve ----
         item(
             "paint_wall", "Sơn tường", "🎨", "legacy", Placement.PAINT, DecorLayer.WALL_PAINT, 0, 0,
@@ -739,6 +760,7 @@ object DecorCatalog {
             defaultWall = "wall_floral_tim",
             defaultFloor = "floor_wood_sang",
             defaultSky = "sky_garden_xanh",
+            defaultGround = "ground_grass_xanh",
         ),
     )
 

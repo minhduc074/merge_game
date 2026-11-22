@@ -6,7 +6,7 @@ enum class Placement { FLOOR, WALL, PAINT }
 
 /** Draw order + collision group: items collide only inside their own layer,
  *  so a rug slides under furniture and wall art never blocks the sofa. */
-enum class DecorLayer { FLOOR_PAINT, WALL_PAINT, SKY_PAINT, RUG, FURNITURE, WALL_DECOR, SURFACE_DECOR }
+enum class DecorLayer { FLOOR_PAINT, WALL_PAINT, SKY_PAINT, GROUND_PAINT, RUG, FURNITURE, WALL_DECOR, SURFACE_DECOR }
 
 enum class DecorStyle { AM_CUNG, HIEN_DAI, CO_DIEN }
 
@@ -75,6 +75,7 @@ data class RoomDef(
     val defaultWall: String,
     val defaultFloor: String,
     val defaultSky: String,
+    val defaultGround: String,
     val priceCoins: Int = 0,
     val unlockLevel: Int = 1,
 ) {
@@ -92,6 +93,7 @@ data class RoomSave(
     val wallPaintL: String? = null,
     val wallPaintR: String? = null,
     val skyPaint: String? = null,
+    val groundPaint: String? = null,
 )
 
 data class DecorState(
