@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -114,7 +115,8 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             .fillMaxSize()
             .background(CreamBg)
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .displayCutoutPadding(),
     ) {
         if (ui.loading) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -940,7 +942,7 @@ private fun InventoryBar(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .padding(bottom = 44.dp),
+            .padding(bottom = 60.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
