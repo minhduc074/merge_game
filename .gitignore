@@ -11,3 +11,5 @@ art_out/z_*.png
 local.properties
 art_out/decor_slices/
 tools/__pycache__/
+art_out/furniture_pack/slices/
+art_out/furniture_pack/contact*.png
