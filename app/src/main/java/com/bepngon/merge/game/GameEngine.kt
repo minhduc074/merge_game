@@ -4,8 +4,8 @@ import kotlin.math.ceil
 import kotlin.random.Random
 
 object GameEngine {
-    const val COLS = 7
-    const val ROWS = 9
+    const val COLS = 5
+    const val ROWS = 7
     const val CELLS = COLS * ROWS
     const val ENERGY_CAP = 100
     const val ENERGY_PER_SPAWN = 1
@@ -53,27 +53,26 @@ object GameEngine {
 
     // Cells locked at game start, in unlock order (first entries unlock first).
     val INITIAL_LOCKED: List<Int> = listOf(
-        idx(5, 0), idx(5, 6), idx(6, 0), idx(6, 1), idx(6, 5), idx(6, 6),
-        idx(7, 0), idx(7, 1), idx(7, 2), idx(7, 3), idx(7, 4), idx(7, 5), idx(7, 6),
-        idx(8, 0), idx(8, 1), idx(8, 2), idx(8, 3), idx(8, 4), idx(8, 5), idx(8, 6),
+        idx(4, 0), idx(4, 4),
+        idx(5, 0), idx(5, 2), idx(5, 4),
+        idx(5, 1), idx(5, 3), idx(6, 0),
+        idx(6, 1), idx(6, 2), idx(6, 3), idx(6, 4),
     )
 
     private val UNLOCK_SCHEDULE: Map<Int, Int> = mapOf(
-        2 to 2, 3 to 3, 4 to 3, 5 to 4, 6 to 4, 7 to 4,
+        2 to 2, 3 to 3, 4 to 3, 5 to 4,
     )
 
     /** Frozen high-tier items hidden under locked cells (revealed on level-up)
      *  plus a few on the open board at start. */
     private val FROZEN_SEEDS: Map<Int, String> = mapOf(
-        idx(5, 0) to "fruit_4",   // under web, unlocks Lv2
-        idx(5, 6) to "bakery_4",  // under web, unlocks Lv2
-        idx(6, 1) to "fruit_5",
-        idx(6, 5) to "drink_3",
-        idx(7, 1) to "viet_3",
-        idx(7, 3) to "fruit_6",
-        idx(7, 5) to "bakery_5",
-        idx(8, 1) to "drink_4",
-        idx(8, 5) to "viet_4",
+        idx(4, 0) to "fruit_4",   // under web, unlocks Lv2
+        idx(4, 4) to "bakery_4",  // under web, unlocks Lv2
+        idx(5, 2) to "fruit_5",
+        idx(5, 4) to "drink_3",
+        idx(6, 1) to "viet_3",
+        idx(6, 3) to "fruit_6",
+        idx(6, 0) to "bakery_5",
     )
 
     fun initialState(): GameState {
@@ -82,14 +81,14 @@ object GameEngine {
         fun place(defId: String, index: Int, frozen: Boolean = false) {
             cells[index] = newItem(uid++, defId).copy(frozen = frozen)
         }
-        place("gen_fruit_1", idx(3, 3))
-        place("gen_fruit_1", idx(3, 5))
-        place("gen_bakery_1", idx(5, 4))
-        place("fruit_1", idx(1, 2))
-        place("fruit_1", idx(1, 4))
-        place("bakery_1", idx(4, 3))
-        place("fruit_3", idx(4, 1), frozen = true)
-        place("bakery_3", idx(6, 3), frozen = true)
+        place("gen_fruit_1", idx(2, 1))
+        place("gen_fruit_1", idx(2, 3))
+        place("gen_bakery_1", idx(3, 2))
+        place("fruit_1", idx(1, 1))
+        place("fruit_1", idx(1, 3))
+        place("bakery_1", idx(3, 3))
+        place("fruit_3", idx(3, 0), frozen = true)
+        place("bakery_3", idx(4, 2), frozen = true)
         FROZEN_SEEDS.forEach { (cell, defId) -> place(defId, cell, frozen = true) }
         return GameState(
             cells = cells,

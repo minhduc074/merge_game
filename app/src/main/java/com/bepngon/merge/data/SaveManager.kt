@@ -96,6 +96,33 @@ class SaveManager(private val context: Context) {
     private val keyV2 = stringPreferencesKey("save_v2")
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Old saves stored a 7-wide board; anything still inside the current
+     *  5×7 grid keeps its row/col position, cells outside are dropped. */
+    private fun <T> remapCells(cells: List<T>): List<T> {
+        if (cells.size == GameEngine.CELLS) return cells
+        val legacyCols = 7
+        val out = MutableList<T?>(GameEngine.CELLS) { null }
+        cells.forEachIndexed { i, c ->
+            val r = i / legacyCols
+            val col = i % legacyCols
+            if (c != null && r < GameEngine.ROWS && col < GameEngine.COLS) {
+                out[r * GameEngine.COLS + col] = c
+            }
+        }
+        @Suppress("UNCHECKED_CAST")
+        return out as List<T>
+    }
+
+    private fun remapIndex(i: Int, legacyCols: Int = 7): Int? {
+        val r = i / legacyCols
+        val c = i % legacyCols
+        return if (r < GameEngine.ROWS && c < GameEngine.COLS) {
+            r * GameEngine.COLS + c
+        } else {
+            null
+        }
+    }
+
     suspend fun save(state: GameState, nowMs: Long) {
         val data = SaveData(
             cells = state.cells.map {
@@ -149,10 +176,10 @@ class SaveManager(private val context: Context) {
     private suspend fun loadV3(nowMs: Long): GameState? = runCatching {
         val raw = context.saveStore.data.first()[keyV3] ?: return null
         val data = json.decodeFromString<SaveData>(raw)
-        if (data.cells.size != GameEngine.CELLS) return null
         if (data.inventory.size != GameEngine.MAX_INVENTORY) return null
+        val cells = remapCells(data.cells)
         GameState(
-            cells = data.cells.mapIndexed { i, c ->
+            cells = cells.mapIndexed { i, c ->
                 c?.let {
                     BoardItem(
                         uid = 10_000L + i,
@@ -178,7 +205,7 @@ class SaveManager(private val context: Context) {
             xp = data.xp,
             level = data.level,
             nextUid = maxOf(data.nextUid, 30_000L),
-            lockedCells = data.lockedCells.toSet(),
+            lockedCells = data.lockedCells.mapNotNull { remapIndex(it) }.toSet(),
             stats = data.stats.let {
                 Stats(it.merges, it.ordersDone, it.coinsEarned, it.maxTier)
             },
@@ -214,10 +241,10 @@ class SaveManager(private val context: Context) {
     private suspend fun loadV2(nowMs: Long): GameState? = runCatching {
         val raw = context.saveStore.data.first()[keyV2] ?: return null
         val data = json.decodeFromString<SaveDataV2>(raw)
-        if (data.cells.size != GameEngine.CELLS) return null
         if (data.inventory.size != GameEngine.MAX_INVENTORY) return null
+        val cells = remapCells(data.cells)
         GameState(
-            cells = data.cells.mapIndexed { i, defId ->
+            cells = cells.mapIndexed { i, defId ->
                 defId?.let { id ->
                     val def = ItemCatalog[id]
                     BoardItem(
