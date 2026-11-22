@@ -327,6 +327,7 @@ fun DecorScreen(
                     d.itemId, dv.tint,
                     with(LocalDensity.current) { (cellPxNow() * 1.9f).toDp() },
                     item.emoji,
+                    rot = d.rot,
                 )
             }
         }
@@ -361,6 +362,7 @@ private fun DecorArt(
     emoji: String,
     modifier: Modifier = Modifier,
     alpha: Float = 1f,
+    rot: Int = 0,
 ) {
     val ctx = LocalContext.current
     val res = remember(itemId) { artRes(ctx, "decor_$itemId") }
@@ -372,13 +374,15 @@ private fun DecorArt(
             colorFilter = tint?.let {
                 ColorFilter.tint(Color(it).copy(alpha = 0.5f), BlendMode.Modulate)
             },
-            modifier = modifier.size(size).alpha(alpha),
+            modifier = modifier.size(size).alpha(alpha)
+                .graphicsLayer { rotationZ = rot.toFloat() },
         )
     } else {
         Text(
             emoji,
             fontSize = (size.value * 0.6f).sp,
-            modifier = modifier.alpha(alpha),
+            modifier = modifier.alpha(alpha)
+                .graphicsLayer { rotationZ = rot.toFloat() },
         )
     }
 }
@@ -440,6 +444,7 @@ private fun PlacedTile(
                 p.itemId, variant.tint,
                 with(density) { (cellPx * 0.92f * maxOf(w, h)).toDp() },
                 item.emoji,
+                rot = p.rot,
             )
         }
     }
