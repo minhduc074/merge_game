@@ -134,7 +134,7 @@ object ItemCatalog {
         )
         chain(
             "rare_viet", Family.VIET,
-            Triple("🥟", "Há cảo tôm", 40 to 50),
+            Triple("🌶️", "Mì cay", 40 to 50),
             Triple("🍤", "Tôm sú nướng", 100 to 120),
             Triple("🦞", "Tôm hùm bơ tỏi", 250 to 300),
         )

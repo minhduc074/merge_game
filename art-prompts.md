@@ -348,7 +348,7 @@ rare_drink_3  → a champagne bottle with a popping cork and golden bubbles
 
 ### Rare viet (`rare_viet_1` → `rare_viet_3`)
 ```
-rare_viet_1   → a steamed crystal shrimp dumpling, translucent wrapper
+rare_viet_1   → a bowl of spicy red-chili instant noodles with chili flakes and steam
 rare_viet_2   → a grilled jumbo prawn on a skewer, char marks, herbs
 rare_viet_3   → a whole garlic-butter lobster on a plate, glossy red shell
 ```
