@@ -72,7 +72,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 
 ## Code conventions
 
-- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 2, orders hỏi với `RARE_ORDER_WEIGHT` (=1).
+- Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 2, orders hỏi với `RARE_ORDER_WEIGHT` (=1) + gate tier theo level (`rareOrderTierCap`: chỉ rare_1 tới Lv8, rare_2 tới Lv16, rare_3 từ Lv16+).
 - **Spawn table convention**: tier 1 luôn weight cao nhất ở mọi gen tier; gen càng cao chỉ kéo dài đuôi (gen_2 thêm t4/t5, gen_3 chạm t6) chứ không dịch band. Mọi bảng tổng = 100. Pattern: gen_1 `73/22/3`, gen_2 `53/27/13/4/1`, gen_3 `45/26/14/8/4/1` + rare 2.
 - **Generator hồi lượt** (`GameEngine.tapGenerator`/`tick`): `maxCharges = 6 * tier` trong `generator()`; hết sạch (0 lượt) → `cooldownUntilMs` = `GEN_COOLDOWN_MS` (45s) → về full như cũ; còn dư → `rechargeAtMs` hồi +1 lượt mỗi `GEN_REGEN_MS` (2 phút, catch-up nhiều interval trong `tick`, gen save cũ tự arm timer). `rechargeAtMs` persist qua `rechargeInMs` trong `CellData`. Info card hiện "+1 sau Xs".
 - `GameEngine` là pure functions: `(GameState, args) -> Pair<GameState, List<GameEvent>>`; UI animate dựa trên `GameEvent` qua SharedFlow.

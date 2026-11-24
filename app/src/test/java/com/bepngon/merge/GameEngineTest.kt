@@ -831,6 +831,29 @@ class GameEngineTest {
     }
 
     @Test
+    fun `rare order tiers are gated by player level`() {
+        fun rareTiers(level: Int, seed0: Int): Set<Int> {
+            val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = level)
+            var cur = s.copy(nextOrderId = 2)
+            val tiers = mutableSetOf<Int>()
+            repeat(200) { i ->
+                val (next, events) = GameEngine.maybeSpawnOrder(
+                    cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                    100 + i * 1000L, Random(seed0 + i),
+                )
+                cur = next
+                (events.single() as GameEvent.OrderSpawned).order.required
+                    .filter { ItemCatalog[it].isRare }
+                    .forEach { tiers += ItemCatalog[it].tier }
+            }
+            return tiers
+        }
+        assertTrue(rareTiers(5, 0).all { it == 1 })
+        assertTrue(rareTiers(10, 0).all { it <= 2 })
+        assertTrue(rareTiers(24, 0).all { it <= 3 })
+    }
+
+    @Test
     fun `rare items merge up their own short chain`() {
         val s = stateWith(0 to "rare_fruit_1", 1 to "rare_fruit_1")
         val (next, _) = GameEngine.moveOrMerge(s, 0, 1)

@@ -632,6 +632,11 @@ object GameEngine {
         return minOf(globalCap, 2 + (level - unlock).coerceAtLeast(0) / 3)
     }
 
+    /** Rare-side-chain asks are gated separately since each tier costs ~2x
+     *  the drops of the last at 2% spawn weight: Lv1-7 only rare_1, Lv8-15
+     *  adds rare_2 (~100 taps), Lv16+ the rare_3 jackpot (~200 taps). */
+    private fun rareOrderTierCap(level: Int): Int = 1 + (level / 8).coerceAtMost(2)
+
     /** Later families pay more per item — harder unlocks deserve better orders. */
     private val FAMILY_ORDER_BONUS_PCT = mapOf(
         Family.FRUIT to 0,
@@ -655,6 +660,7 @@ object GameEngine {
         val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 8)
         val candidates = ItemCatalog.allInFamilies(produceable)
             .filter { it.tier <= familyMaxTier(it.family, state.level, maxTier) }
+            .filter { !it.isRare || it.tier <= rareOrderTierCap(state.level) }
 
         val count = when (random.nextInt(100)) {
             in 0 until 50 -> 1
@@ -686,7 +692,8 @@ object GameEngine {
             // Level bonus tilts the distribution upward: each tier above 1
             // gains level/3 weight, so past ~Lv24 high tiers match the
             // low-tier demand and at Lv30+ they dominate it. Rare items stay
-            // a flat tiny weight — a lucky premium ask, not a staple.
+            // a flat tiny weight — a lucky premium ask, not a staple. Rare
+            // tiers are pre-filtered by rareOrderTierCap.
             if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
