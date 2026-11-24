@@ -25,7 +25,8 @@ tests that assert old numbers.
   achievement/minigame rewards overflow past it), `ENERGY_PER_SPAWN` 1.
 - `ORDER_INTERVAL_MIN/MAX_MS` 6s/28s — adaptive pacing = `orderPaceMs/4` ±40% jitter.
 - `RARE_ORDER_WEIGHT` 1 — flat weight per rare item in `pickOrderItem` (normal items:
-  base by tier `40/30/18/9/3` + `(tier-1)*(level/3)`; cap `5 + level/8` → t8 ở Lv24).
+  base by tier `40/30/18/9/3` (t1/t2 decay theo level: `40-3L` sàn 5, `30-L` sàn 8)
+  + `(tier-1)*(level/3)`; cap `5 + level/8` → t8 ở Lv24; rare gate `rareOrderTierCap`).
 - `COMBO_WINDOW_MS` 30s, `COMBO_MIN` 3 — combo coins `10*combo`, xp `2*combo`.
 - `QTE_*`, `FRENZY_MS` 90s, `QTE_WILD_WHEN_COOLING` 0.5.
 - Order XP: `completeOrder` → `tier + 3` per item.

@@ -682,9 +682,11 @@ object GameEngine {
 
     private fun pickOrderItem(candidates: List<ItemDef>, random: Random, level: Int): ItemDef {
         val weights = candidates.map { def ->
+            // Low-tier base weight decays as the player levels — tier-1 asks
+            // stop flooding orders (~55% at Lv1, ~35% at Lv5, ~5% past Lv15).
             val base = when (def.tier) {
-                1 -> 40
-                2 -> 30
+                1 -> (40 - level * 3).coerceAtLeast(5)
+                2 -> (30 - level).coerceAtLeast(8)
                 3 -> 18
                 4 -> 9
                 else -> 3
