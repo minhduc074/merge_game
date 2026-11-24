@@ -693,10 +693,10 @@ object GameEngine {
             }
             // Level bonus tilts the distribution upward: each tier above 1
             // gains level/3 weight, so past ~Lv24 high tiers match the
-            // low-tier demand and at Lv30+ they dominate it. Rare items stay
-            // a flat tiny weight — a lucky premium ask, not a staple. Rare
-            // tiers are pre-filtered by rareOrderTierCap.
-            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 3)
+            // low-tier demand and at Lv30+ they dominate it. Rare asks grow
+            // slowly too — 1 + level/8 per rare item — as players build a
+            // real supply. Rare tiers are pre-filtered by rareOrderTierCap.
+            if (def.isRare) RARE_ORDER_WEIGHT + level / 8 else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)
