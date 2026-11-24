@@ -425,29 +425,29 @@ class GameEngineTest {
 
     @Test
     fun `big order completion triggers level up and reward`() {
-        // fruit_5 x2 + fruit_4 → xp = (5+5+4)+3 = 17; +40 base = 57 ≥ xpNeeded(1)=54
+        // fruit_5 x2 + fruit_4 → xp = (5+5+4)+3 = 17; +65 base = 82 ≥ xpNeeded(1)=80
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5", 2 to "fruit_4",
             orders = listOf(orderOf("fruit_5", "fruit_5", "fruit_4")),
-            xp = 40,
+            xp = 65,
         )
         var cur = s
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 0).also { cur = it.first }
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 1).also { cur = it.first }
         val (next, events) = GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 2)
         assertEquals(2, next.level)
-        assertEquals(3, next.xp)
+        assertEquals(2, next.xp)
         assertTrue(next.orders.isEmpty())
         assertTrue(events.any { it is GameEvent.LevelUp && it.level == 2 })
     }
 
     @Test
     fun `level 3 reward grants drink generator and inventory slot`() {
-        // level 2 + 70xp; order fruit_5 x2 → +13xp = 83 ≥ xpNeeded(2)=76
+        // level 2 + 100xp; order fruit_5 x2 → +13xp = 113 ≥ xpNeeded(2)=110
         val s = stateWith(
             0 to "fruit_5", 1 to "fruit_5",
             orders = listOf(orderOf("fruit_5", "fruit_5")),
-            xp = 70, level = 2,
+            xp = 100, level = 2,
         )
         var cur = s
         GameEngine.deliverToOrder(cur, 1, ItemSource.BOARD, 0).also { cur = it.first }
@@ -713,7 +713,7 @@ class GameEngineTest {
             0 to "fruit_1",
             lockedCells = setOf(cell),
             orders = listOf(orderOf("fruit_1")),
-            xp = 50, // +4xp from fruit_1 order -> 54 >= xpNeeded(1)=54
+            xp = 76, // +4xp from fruit_1 order -> 80 >= xpNeeded(1)=80
         )
         val (next, _) = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0)
         assertEquals(2, next.level)
@@ -747,18 +747,20 @@ class GameEngineTest {
         val s = stateWith(
             0 to "fruit_5",
             orders = listOf(orderOf("fruit_5", "fruit_5")),
-            xp = 70, level = 2,
+            xp = 100, level = 2, // +13xp = 113 → Lv3 only; odd levels unlock nothing
             lockedCells = GameEngine.INITIAL_LOCKED.toSet(),
         )
         var cur = GameEngine.deliverToOrder(s, 1, ItemSource.BOARD, 0).first
         val lockedBefore = cur.lockedCells.size
-        // force xp over level 3 threshold via another order
+        // first delivery was partial (no xp) — still Lv2. bump xp so the next
+        // order (+8) crosses xpNeeded(2)+xpNeeded(3)=260 — even levels unlock
         cur = cur.copy(
+            xp = 253,
             orders = listOf(orderOf("fruit_5").copy(id = 2)),
             cells = cur.cells.toMutableList().also { it[0] = GameEngine.newItem(99, "fruit_5") },
         )
         val (next, events) = GameEngine.deliverToOrder(cur, 2, ItemSource.BOARD, 0)
-        assertTrue(next.level >= 3)
+        assertTrue(next.level >= 4)
         assertTrue(next.lockedCells.size < lockedBefore)
         assertTrue(events.any { it is GameEvent.CellsUnlocked })
     }
@@ -766,12 +768,12 @@ class GameEngineTest {
     @Test
     fun `locked cells derive from level and heal stale saves`() {
         assertEquals(GameEngine.INITIAL_LOCKED.toSet(), GameEngine.lockedCellsForLevel(1))
-        // 1 cell per level: Lv5 -> 4 unlocks -> 8 still locked
+        // 1 cell every 2 levels: Lv5 -> unlocks at 2,4 -> 10 still locked
         assertEquals(
-            GameEngine.INITIAL_LOCKED.drop(4).toSet(),
+            GameEngine.INITIAL_LOCKED.drop(2).toSet(),
             GameEngine.lockedCellsForLevel(5),
         )
-        assertTrue(GameEngine.lockedCellsForLevel(13).isEmpty())
+        assertTrue(GameEngine.lockedCellsForLevel(24).isEmpty())
         // migrated saves honor the old faster schedule: Lv5 had all unlocked
         assertTrue(GameEngine.lockedCellsForLevel(5, legacy = true).isEmpty())
         assertEquals(

@@ -64,8 +64,8 @@ object GameEngine {
         idx(6, 1), idx(6, 2), idx(6, 3), idx(6, 4),
     )
 
-    // one locked cell per level — Lv2..13 covers all 12
-    private val UNLOCK_SCHEDULE: Map<Int, Int> = (2..13).associateWith { 1 }
+    // one locked cell every 2 levels — Lv2..24 covers all 12
+    private val UNLOCK_SCHEDULE: Map<Int, Int> = (2..24 step 2).associateWith { 1 }
 
     // Legacy 7×9 schedule — only for honoring unlocks earned in migrated saves.
     private val LEGACY_UNLOCK_SCHEDULE: Map<Int, Int> = mapOf(
@@ -926,9 +926,9 @@ object GameEngine {
         state.copy(onboardingDone = true) to listOf(GameEvent.OnboardingFinished)
 
     /** Quadratic curve: each level costs noticeably more than the last.
-     *  Front-loaded constants — early levels are ~25% pricier than they
-     *  used to be while the late game stays about the same. */
-    fun xpNeededForLevel(level: Int): Int = 40 + level * 10 + level * level * 4
+     *  ~40% pricier than the previous tune so leveling slows across the board —
+     *  pairs with cells unlocking every 2 levels. */
+    fun xpNeededForLevel(level: Int): Int = 60 + level * 15 + level * level * 5
 
     fun rewardForLevel(level: Int): LevelReward {
         val unlock = UNLOCK_SCHEDULE[level] ?: 0
