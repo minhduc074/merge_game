@@ -35,7 +35,7 @@ import com.bepngon.merge.ui.theme.MergeGreen
 private data class Step(val emoji: String, val title: String, val desc: String)
 
 private val STEPS = listOf(
-    Step("🧺", "Bấm vào giỏ", "Giỏ đồ sẽ cho ra nguyên liệu mới.\nMỗi lần bấm tốn 1⚡ năng lượng."),
+    Step("🧺", "Bấm vào giỏ", "Giỏ đồ sẽ cho ra nguyên liệu mới.\nMỗi lần bấm tốn 1⚡ năng lượng.\nMón thường ra nhiều, món ngon hiếm hơn —\ntỉ lệ % xem trong thẻ thông tin của giỏ."),
     Step("🍒", "Merge 2 item giống nhau", "Kéo item chồng lên item giống nó\nđể tạo ra món cao cấp hơn!"),
     Step("🐰", "Giao đơn cho khách", "Khách đòi món gì thì kéo món đó lên thẻ,\nhoặc bấm nút ✓ khi đủ đồ. Kiếm 🪙 + ⭐!"),
     Step("🎒", "Kho đồ & túi mở rộng", "Kéo item xuống 🎒 để cất giữ.\nDùng vàng mua thêm ô kho trong trang Kho đồ."),

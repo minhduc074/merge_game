@@ -1398,13 +1398,21 @@ private fun ItemInfoCard(
                 Modifier.padding(top = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val totalWeight = def.spawnTable.sumOf { it.weight }
                 def.spawnTable.forEach { entry ->
                     val spawnDef = ItemCatalog[entry.itemId]
-                    Text(
-                        "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
-                        fontSize = 12.sp,
-                        color = if (spawnDef.isRare) Gold else Cocoa,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
+                            fontSize = 12.sp,
+                            color = if (spawnDef.isRare) Gold else Cocoa,
+                        )
+                        Text(
+                            "${entry.weight * 100 / totalWeight}%",
+                            fontSize = 9.sp,
+                            color = if (spawnDef.isRare) Gold else Cocoa.copy(alpha = 0.6f),
+                        )
+                    }
                 }
             }
             def.spawnTable.firstOrNull { ItemCatalog[it.itemId].isRare }?.let { rare ->
@@ -1586,13 +1594,21 @@ private fun GenSpawnListCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Sinh ra:", fontSize = 11.sp, color = Cocoa.copy(alpha = 0.7f))
+            val totalWeight = def.spawnTable.sumOf { it.weight }
             def.spawnTable.forEach { entry ->
                 val spawnDef = ItemCatalog[entry.itemId]
-                Text(
-                    "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
-                    fontSize = 12.sp,
-                    color = if (spawnDef.isRare) Gold else Cocoa,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${if (spawnDef.isRare) "✨" else ""}${spawnDef.emoji}",
+                        fontSize = 12.sp,
+                        color = if (spawnDef.isRare) Gold else Cocoa,
+                    )
+                    Text(
+                        "${entry.weight * 100 / totalWeight}%",
+                        fontSize = 9.sp,
+                        color = if (spawnDef.isRare) Gold else Cocoa.copy(alpha = 0.6f),
+                    )
+                }
             }
         }
         val chains = def.spawnTable
