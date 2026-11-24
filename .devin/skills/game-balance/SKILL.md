@@ -12,8 +12,8 @@ tests that assert old numbers.
 ## `ItemCatalog.kt`
 - Merge chains: `chain("fruit", Family.FRUIT, Triple(emoji, name, sellPrice to score), ...)`.
 - Spawn tables: `generator("gen_x_N", tier, emoji, name, next, sellPrice, "item" to weight, ...)`.
-  Convention: tier-1 weight luôn cao nhất, mọi bảng tổng = 100; gen_1 `70/22/3`,
-  gen_2 `50/27/13/4/1`, gen_3 `42/26/14/8/4/1` + `rare_*_1` weight 5. Higher gen =
+  Convention: tier-1 weight luôn cao nhất, mọi bảng tổng = 100; gen_1 `73/22/3`,
+  gen_2 `53/27/13/4/1`, gen_3 `45/26/14/8/4/1` + `rare_*_1` weight 2. Higher gen =
   longer tail, không dịch band.
 - `generator()` sets `maxCharges = 6 * tier` — scarcity knob, cắt số lượt miễn phí
   trước cooldown.
