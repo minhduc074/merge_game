@@ -1271,18 +1271,17 @@ class GameEngineTest {
         // huge scores pay out fully and overflow ENERGY_CAP
         val (done2, events2) = GameEngine.finishMiniGame(s, 1000, 1000)
         val fin2 = events2.filterIsInstance<GameEvent.MiniGameFinished>().single()
-        assertEquals(200, fin2.energy)
-        assertEquals(290, done2.energy)
+        assertEquals(33, fin2.energy)
+        assertEquals(123, done2.energy)
     }
 
     @Test
-    fun `mini game energy rate improves at score milestones`() {
+    fun `mini game energy curve flattens at score milestones`() {
         assertEquals(9, GameEngine.miniEnergyFor(99))
-        assertEquals(12, GameEngine.miniEnergyFor(100))
-        assertEquals(37, GameEngine.miniEnergyFor(299))
-        assertEquals(50, GameEngine.miniEnergyFor(300))
-        assertEquals(99, GameEngine.miniEnergyFor(599))
-        assertEquals(120, GameEngine.miniEnergyFor(600))
+        assertEquals(10, GameEngine.miniEnergyFor(100))
+        assertEquals(18, GameEngine.miniEnergyFor(300))
+        assertEquals(28, GameEngine.miniEnergyFor(700))
+        assertEquals(49, GameEngine.miniEnergyFor(2000))
     }
 
     @Test

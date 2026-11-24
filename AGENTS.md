@@ -35,8 +35,9 @@ proguard rules giữ kotlinx.serialization serializers.
 - Cheat: bấm badge `Lv.xx` trên TopBar 10 lần → `GameEngine.debugMaxOut` (Lv30, mở hết ô, +99,999🪙,
   full energy/kho/onboarding). Đếm lặng, không hiện UI — đủ 10 tự kích hoạt.
   Chỉ hoạt động trong build DEBUG (`BuildConfig.DEBUG`).
-- Minigame thả trái: không giới hạn lượt; thưởng ⚡ lũy tiến theo mốc điểm, không trần
-  (`miniEnergyFor`: <100 → /10, ≥100 → /8, ≥300 → /6, ≥600 → /5; `finishMiniGame`).
+- Minigame thả trái: không giới hạn lượt; thưởng ⚡ lũy tiến GIẢM dần theo mốc điểm,
+  không trần (`miniEnergyFor` + `MINI_ENERGY_BRACKETS`: /10 tới 100đ, /25 tới 300đ,
+  /40 tới 700đ, /60 trên — 2000đ ≈ 50⚡, 5000đ ≈ 99⚡; `finishMiniGame`).
   Điểm = points của trái mới `(tier+1)²` (4/9/16/…/121), merge 2 dưa hấu +150; chỉ thả được 4 trái nhỏ nhất.
 
 ### Quy trình sau mỗi lần sửa (user yêu cầu)

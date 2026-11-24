@@ -413,7 +413,7 @@ fun FruitDropGame(
                 }
             }
             Text(
-                "Thả trái trùng nhau để merge. Tràn quá vạch là thua!\n⚡ theo bậc điểm: /10 · ≥100 /8 · ≥300 /6 · ≥600 /5",
+                "Thả trái trùng nhau để merge. Tràn quá vạch là thua!\n⚡ mốc điểm: 100→10 · 300→18 · 700→28 · 2000→~50",
                 fontSize = 11.sp,
                 color = Cocoa.copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 6.dp),

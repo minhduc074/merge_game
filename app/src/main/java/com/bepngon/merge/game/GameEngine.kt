@@ -1058,12 +1058,19 @@ object GameEngine {
         return state to emptyList()
     }
 
-    /** Minigame reward in tiers — conversion rate improves at score milestones. */
-    fun miniEnergyFor(score: Int): Int = score / when {
-        score >= 600 -> 5
-        score >= 300 -> 6
-        score >= 100 -> 8
-        else -> 10
+    /** Minigame energy — progressive brackets: points in each range convert at
+     *  a steeper rate, so ~2000 pts ≈ 50⚡ and the curve flattens hard. */
+    private val MINI_ENERGY_BRACKETS = listOf(0 to 10, 100 to 25, 300 to 40, 700 to 60)
+
+    fun miniEnergyFor(score: Int): Int {
+        var energy = 0
+        for (i in MINI_ENERGY_BRACKETS.indices) {
+            val (from, rate) = MINI_ENERGY_BRACKETS[i]
+            val to = MINI_ENERGY_BRACKETS.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
+            if (score <= from) break
+            energy += (minOf(score, to) - from) / rate
+        }
+        return energy
     }
 
     fun finishMiniGame(
