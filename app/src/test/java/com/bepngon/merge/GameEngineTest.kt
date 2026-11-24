@@ -806,6 +806,24 @@ class GameEngineTest {
     }
 
     @Test
+    fun `spawn reach stays within the lower 60 percent of each chain`() {
+        // chains differ in length (fruit 11, bakery 10, drink 8, viet 7) —
+        // gens only spawn the lower ~55% so top tiers are merge-only
+        listOf("gen_fruit", "gen_bakery", "gen_drink", "gen_viet").forEach { prefix ->
+            (1..3).forEach { tier ->
+                val gen = ItemCatalog["${prefix}_$tier"]
+                val normal = gen.spawnTable.filter { !ItemCatalog[it.itemId].isRare }
+                val maxTier = normal.maxOf { ItemCatalog[it.itemId].tier }
+                val chainLen = ItemCatalog.chainOf(normal.first().itemId).size
+                assertTrue(
+                    "${gen.id} reaches t$maxTier of $chainLen",
+                    maxTier * 10 <= chainLen * 6,
+                )
+            }
+        }
+    }
+
+    @Test
     fun `orders occasionally request rare items`() {
         val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = 10)
         var cur = s.copy(nextOrderId = 2)
