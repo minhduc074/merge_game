@@ -626,10 +626,10 @@ object GameEngine {
     )
 
     /** Orders for a freshly unlocked family only ask for low tiers, ramping
-     *  +1 tier every 2 levels toward the global cap. */
+     *  +1 tier every 3 levels toward the global cap. */
     private fun familyMaxTier(family: Family, level: Int, globalCap: Int): Int {
         val unlock = FAMILY_UNLOCK_LEVEL[family] ?: 1
-        return minOf(globalCap, 2 + (level - unlock).coerceAtLeast(0) / 2)
+        return minOf(globalCap, 2 + (level - unlock).coerceAtLeast(0) / 3)
     }
 
     /** Later families pay more per item — harder unlocks deserve better orders. */
@@ -649,9 +649,10 @@ object GameEngine {
 
     private fun generateOrder(state: GameState, random: Random): Order {
         val produceable = produceableFamilies(state)
-        // Higher player level unlocks higher-tier requests: Lv1-4 caps at
-        // tier 5, Lv5-9 at 6, Lv10-14 at 7, Lv15+ at 8.
-        val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 5)
+        // Higher player level unlocks higher-tier requests, paced to the
+        // slower level curve: Lv1-7 caps at tier 5, Lv8-15 at 6, Lv16-23 at
+        // 7, Lv24+ at 8 — top tier lands with the final board cell.
+        val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 8)
         val candidates = ItemCatalog.allInFamilies(produceable)
             .filter { it.tier <= familyMaxTier(it.family, state.level, maxTier) }
 
@@ -683,10 +684,10 @@ object GameEngine {
                 else -> 3
             }
             // Level bonus tilts the distribution upward: each tier above 1
-            // gains level/2 weight, so past ~Lv20 high tiers match the
-            // low-tier demand and at Lv30 they dominate it. Rare items stay
+            // gains level/3 weight, so past ~Lv24 high tiers match the
+            // low-tier demand and at Lv30+ they dominate it. Rare items stay
             // a flat tiny weight — a lucky premium ask, not a staple.
-            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 2)
+            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)
