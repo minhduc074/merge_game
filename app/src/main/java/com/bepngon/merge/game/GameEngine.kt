@@ -1058,12 +1058,20 @@ object GameEngine {
         return state to emptyList()
     }
 
+    /** Minigame reward in tiers — conversion rate improves at score milestones. */
+    fun miniEnergyFor(score: Int): Int = score / when {
+        score >= 600 -> 5
+        score >= 300 -> 6
+        score >= 100 -> 8
+        else -> 10
+    }
+
     fun finishMiniGame(
         state: GameState,
         score: Int,
         nowMs: Long,
     ): Pair<GameState, List<GameEvent>> {
-        val energy = score / 10
+        val energy = miniEnergyFor(score)
         val events = mutableListOf<GameEvent>(GameEvent.MiniGameFinished(score, energy))
         val next = state.copy(
             energy = state.energy + energy,

@@ -1260,7 +1260,7 @@ class GameEngineTest {
     // ---------- cafe room / mini game ----------
 
     @Test
-    fun `mini game pays 1 energy per 10 points uncapped`() {
+    fun `mini game pays tiered energy uncapped`() {
         var s = stateWith(energy = 90)
         val (done, events) = GameEngine.finishMiniGame(s, 50, 1000)
         assertEquals(95, done.energy)
@@ -1271,8 +1271,18 @@ class GameEngineTest {
         // huge scores pay out fully and overflow ENERGY_CAP
         val (done2, events2) = GameEngine.finishMiniGame(s, 1000, 1000)
         val fin2 = events2.filterIsInstance<GameEvent.MiniGameFinished>().single()
-        assertEquals(100, fin2.energy)
-        assertEquals(190, done2.energy)
+        assertEquals(200, fin2.energy)
+        assertEquals(290, done2.energy)
+    }
+
+    @Test
+    fun `mini game energy rate improves at score milestones`() {
+        assertEquals(9, GameEngine.miniEnergyFor(99))
+        assertEquals(12, GameEngine.miniEnergyFor(100))
+        assertEquals(37, GameEngine.miniEnergyFor(299))
+        assertEquals(50, GameEngine.miniEnergyFor(300))
+        assertEquals(99, GameEngine.miniEnergyFor(599))
+        assertEquals(120, GameEngine.miniEnergyFor(600))
     }
 
     @Test

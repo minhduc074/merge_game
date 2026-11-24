@@ -389,7 +389,7 @@ fun FruitDropGame(
                             Text("🍉 Tràn rồi!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Cocoa)
                             Text("Điểm: ${engine.score}", fontSize = 18.sp, color = Cocoa,
                                 modifier = Modifier.padding(top = 6.dp))
-                            val e = engine.score / 10
+                            val e = com.bepngon.merge.game.GameEngine.miniEnergyFor(engine.score)
                             Text("+$e ⚡", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                 color = MergeGreen, modifier = Modifier.padding(top = 4.dp))
                             if (engine.score >= game.miniBest && engine.score > 0) {
@@ -413,7 +413,7 @@ fun FruitDropGame(
                 }
             }
             Text(
-                "Thả trái trùng nhau để merge. Tràn quá vạch là thua!",
+                "Thả trái trùng nhau để merge. Tràn quá vạch là thua!\n⚡ theo bậc điểm: /10 · ≥100 /8 · ≥300 /6 · ≥600 /5",
                 fontSize = 11.sp,
                 color = Cocoa.copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 6.dp),
