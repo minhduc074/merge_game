@@ -31,6 +31,7 @@ data class GameUiState(
     val showDaily: Boolean = false,
     val showGuide: Boolean = false,
     val showMiniGame: Boolean = false,
+    val showBlockGame: Boolean = false,
     val showDecor: Boolean = false,
     val decorUndoDepth: Int = 0,
     val decorRedoDepth: Int = 0,
@@ -159,6 +160,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeMiniGame() {
         _ui.value = _ui.value.copy(showMiniGame = false)
+    }
+
+    fun openBlockGame() {
+        _ui.value = _ui.value.copy(showBlockGame = true)
+    }
+
+    fun finishBlockGame(score: Int) {
+        applyEngine { GameEngine.finishBlockGame(it, score, nowMs()) }
+        _ui.value = _ui.value.copy(showBlockGame = false)
+    }
+
+    fun closeBlockGame() {
+        _ui.value = _ui.value.copy(showBlockGame = false)
     }
 
     // ---------- decor editor ----------

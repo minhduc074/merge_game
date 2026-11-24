@@ -91,6 +91,7 @@ import com.bepngon.merge.game.QteReward
 import com.bepngon.merge.sound.SoundManager
 import com.bepngon.merge.ui.components.AchievementsScreen
 import com.bepngon.merge.ui.components.BagScreen
+import com.bepngon.merge.ui.components.BlockBlastGame
 import com.bepngon.merge.ui.components.DailyRewardDialog
 import com.bepngon.merge.ui.components.DecorScreen
 import com.bepngon.merge.ui.components.GameArt
@@ -187,6 +188,14 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 game = ui.game,
                 onFinish = vm::finishMiniGame,
                 onClose = vm::closeMiniGame,
+            )
+        }
+
+        if (ui.showBlockGame) {
+            BlockBlastGame(
+                game = ui.game,
+                onFinish = vm::finishBlockGame,
+                onClose = vm::closeBlockGame,
             )
         }
 
@@ -525,6 +534,15 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                         levelBanner = null
                     }
                 }
+                is GameEvent.BlockGameFinished -> {
+                    SoundManager.play(SoundManager.Sfx.Daily)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    levelBanner = "🧱 +${e.energy}⚡ từ mini game!"
+                    scope.launch {
+                        kotlinx.coroutines.delay(2000)
+                        levelBanner = null
+                    }
+                }
                 GameEvent.MiniGameNoPlays -> {
                     SoundManager.play(SoundManager.Sfx.Error)
                     haptics.performHapticFeedback(HapticFeedbackType.Reject)
@@ -762,6 +780,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                 kind = kind,
                 onDismiss = { statInfo = null },
                 onPlayMiniGame = { statInfo = null; vm.openMiniGame() },
+                onPlayBlockGame = { statInfo = null; vm.openBlockGame() },
             )
         }
     }
@@ -1699,6 +1718,7 @@ private fun StatInfoCard(
     kind: String,
     onDismiss: () -> Unit,
     onPlayMiniGame: () -> Unit = {},
+    onPlayBlockGame: () -> Unit = {},
 ) {
     LaunchedEffect(kind) {
         kotlinx.coroutines.delay(8_000)
@@ -1779,6 +1799,20 @@ private fun StatInfoCard(
                     .clip(RoundedCornerShape(10.dp))
                     .background(MergeGreen)
                     .clickable(onClick = onPlayMiniGame)
+                    .padding(vertical = 9.dp),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "🧱 Chơi Xếp khối kiếm ⚡",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF5C6BC0))
+                    .clickable(onClick = onPlayBlockGame)
                     .padding(vertical = 9.dp),
                 textAlign = TextAlign.Center,
             )

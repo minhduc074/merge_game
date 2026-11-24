@@ -49,14 +49,25 @@ object SoundManager {
     }
 
     fun play(sfx: Sfx) {
+        play(sfx, 1f)
+    }
+
+    /** [rate] = playback rate 0.5–2.0 (SoundPool pitch shift). */
+    fun play(sfx: Sfx, rate: Float) {
         if (!enabled) return
         val id = ids[sfx] ?: return
-        pool?.play(id, 0.7f, 0.7f, 1, 0, 1f)
+        pool?.play(id, 0.7f, 0.7f, 1, 0, rate.coerceIn(0.5f, 2f))
     }
 
     private val mergeVariants = listOf(Sfx.Merge1, Sfx.Merge2, Sfx.Merge3)
 
     fun playMerge() = play(mergeVariants.random())
+
+    /** Block-puzzle clear: pitch climbs with lines + combo (dopamine ramp). */
+    fun playMergePitch(lines: Int, combo: Int) {
+        val rate = 1f + (lines - 1) * 0.12f + combo * 0.05f
+        play(mergeVariants.random(), rate)
+    }
 
     fun release() {
         pool?.release()

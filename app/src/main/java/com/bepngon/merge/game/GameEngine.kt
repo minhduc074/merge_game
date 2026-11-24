@@ -1097,6 +1097,35 @@ object GameEngine {
         return checkAchievements(next, events) to events
     }
 
+    /** Block-puzzle scores run ~3x higher than fruit-drop, so the brackets
+     *  are steeper: ~800 pts ≈ 20⚡, 2500 ≈ 46⚡, 7000 ≈ 91⚡. */
+    private val BLOCK_ENERGY_BRACKETS = listOf(0 to 40, 800 to 65, 2500 to 100, 7000 to 160)
+
+    fun blockEnergyFor(score: Int): Int {
+        var energy = 0
+        for (i in BLOCK_ENERGY_BRACKETS.indices) {
+            val (from, rate) = BLOCK_ENERGY_BRACKETS[i]
+            val to = BLOCK_ENERGY_BRACKETS.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
+            if (score <= from) break
+            energy += (minOf(score, to) - from) / rate
+        }
+        return energy
+    }
+
+    fun finishBlockGame(
+        state: GameState,
+        score: Int,
+        nowMs: Long,
+    ): Pair<GameState, List<GameEvent>> {
+        val energy = blockEnergyFor(score)
+        val events = mutableListOf<GameEvent>(GameEvent.BlockGameFinished(score, energy))
+        val next = state.copy(
+            energy = state.energy + energy,
+            blockBest = maxOf(state.blockBest, score),
+        )
+        return checkAchievements(next, events) to events
+    }
+
     // ---------- debug ----------
 
     /** Debug cheat (tap coin chip 10×): jump to max level — every level reward

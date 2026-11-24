@@ -107,6 +107,7 @@ private data class SaveData(
     val miniPlaysLeft: Int = 3,
     val miniRefillInMs: Long = 0,
     val miniBest: Int = 0,
+    val blockBest: Int = 0,
     val orderPaceMs: Long = 0,
     val orderDoneAgoMs: Long = 0,
     val decor: DecorSaveData? = null,
@@ -219,6 +220,7 @@ class SaveManager(private val context: Context) {
             miniPlaysLeft = state.miniPlaysLeft,
             miniRefillInMs = (state.miniRefillAtMs - nowMs).coerceAtLeast(0),
             miniBest = state.miniBest,
+            blockBest = state.blockBest,
             orderPaceMs = state.orderPaceMs,
             orderDoneAgoMs = (nowMs - state.lastOrderDoneAtMs).coerceAtLeast(0),
             decor = DecorSaveData(
@@ -305,6 +307,7 @@ class SaveManager(private val context: Context) {
             miniPlaysLeft = data.miniPlaysLeft,
             miniRefillAtMs = if (data.miniRefillInMs > 0) nowMs + data.miniRefillInMs else 0,
             miniBest = data.miniBest,
+            blockBest = data.blockBest,
             orderPaceMs = data.orderPaceMs,
             lastOrderDoneAtMs = if (data.orderDoneAgoMs > 0) {
                 nowMs - data.orderDoneAgoMs

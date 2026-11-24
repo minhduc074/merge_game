@@ -1342,4 +1342,29 @@ class GameEngineTest {
         assertEquals(s, next)
         assertTrue(events.isEmpty())
     }
+
+    // ---------- block puzzle mini game ----------
+
+    @Test
+    fun `block game pays tiered energy and tracks its own best`() {
+        var s = stateWith(energy = 90)
+        val (done, events) = GameEngine.finishBlockGame(s, 800, 1000)
+        assertEquals(110, done.energy)
+        assertEquals(800, done.blockBest)
+        val fin = events.filterIsInstance<GameEvent.BlockGameFinished>().single()
+        assertEquals(20, fin.energy)
+
+        // best only grows, energy overflows the natural cap
+        val (done2, _) = GameEngine.finishBlockGame(done, 300, 1000)
+        assertEquals(800, done2.blockBest)
+        assertEquals(110 + 7, done2.energy)
+    }
+
+    @Test
+    fun `block game energy curve flattens at score milestones`() {
+        assertEquals(19, GameEngine.blockEnergyFor(799))
+        assertEquals(20, GameEngine.blockEnergyFor(800))
+        assertEquals(46, GameEngine.blockEnergyFor(2500))
+        assertEquals(91, GameEngine.blockEnergyFor(7000))
+    }
 }

@@ -64,6 +64,7 @@ enum class Metric {
     MAX_COMBO,
     STREAK,
     MINI_BEST,
+    BLOCK_BEST,
     SCORE,
     INVENTORY_CAP,
     DECOR_PLACED,
@@ -119,6 +120,9 @@ object Achievements {
         Achievement("mini50", "Tập thả trái", "Đạt 50 điểm minigame", "🍉", 50, Metric.MINI_BEST, rewardCoins = 40),
         Achievement("mini150", "Cao thủ thả trái", "Đạt 150 điểm minigame", "🥝", 150, Metric.MINI_BEST, rewardCoins = 100),
         Achievement("mini300", "Vua thả trái", "Đạt 300 điểm minigame", "👑", 300, Metric.MINI_BEST, rewardCoins = 250),
+        Achievement("block800", "Tập xếp khối", "Đạt 800 điểm Xếp khối", "🧱", 800, Metric.BLOCK_BEST, rewardCoins = 40),
+        Achievement("block2500", "Cao thủ xếp khối", "Đạt 2.500 điểm Xếp khối", "🟦", 2500, Metric.BLOCK_BEST, rewardCoins = 100),
+        Achievement("block7000", "Vua xếp khối", "Đạt 7.000 điểm Xếp khối", "👑", 7000, Metric.BLOCK_BEST, rewardCoins = 250),
         Achievement("bag6", "Kho rộng rãi", "Mở 6 ô kho", "🎒", 6, Metric.INVENTORY_CAP, rewardCoins = 60),
         Achievement("bag8", "Kho siêu cấp", "Mở hết 8 ô kho", "🧰", 8, Metric.INVENTORY_CAP, rewardCoins = 150),
         Achievement("decor5", "Tân trang nhà", "Đặt 5 món đồ trang trí", "🛋️", 5, Metric.DECOR_PLACED, rewardCoins = 50),
@@ -145,6 +149,7 @@ object Achievements {
         listOf(byId("streak3"), byId("streak7")),
         listOf(byId("score500"), byId("score2000"), byId("score8000")),
         listOf(byId("mini50"), byId("mini150"), byId("mini300")),
+        listOf(byId("block800"), byId("block2500"), byId("block7000")),
         listOf(byId("bag6"), byId("bag8")),
         listOf(byId("decor5"), byId("decor15")),
         listOf(byId("genup1"), byId("genup3")),
@@ -181,6 +186,7 @@ data class GameState(
     val miniPlaysLeft: Int = 3,
     val miniRefillAtMs: Long = 0,
     val miniBest: Int = 0,
+    val blockBest: Int = 0,
     /** EMA of ms between completed orders — drives adaptive spawn pacing. */
     val orderPaceMs: Long = 0,
     val lastOrderDoneAtMs: Long = 0,
@@ -198,6 +204,7 @@ data class GameState(
         Metric.MAX_COMBO -> stats.maxCombo
         Metric.STREAK -> dailyStreak
         Metric.MINI_BEST -> miniBest
+        Metric.BLOCK_BEST -> blockBest
         Metric.SCORE -> score
         Metric.INVENTORY_CAP -> inventoryCap
         Metric.DECOR_PLACED -> decor.rooms.values.sumOf { it.placed.size }
@@ -268,6 +275,7 @@ sealed interface GameEvent {
     data class ItemDuplicated(val index: Int) : GameEvent
     data class FrenzyStarted(val untilMs: Long) : GameEvent
     data class MiniGameFinished(val score: Int, val energy: Int) : GameEvent
+    data class BlockGameFinished(val score: Int, val energy: Int) : GameEvent
     data object MiniGameNoPlays : GameEvent
     data class VariantBought(val variantId: String, val cost: Int) : GameEvent
     data class DecorPlaced(val roomId: String, val uid: Long) : GameEvent

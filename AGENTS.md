@@ -39,6 +39,19 @@ proguard rules giữ kotlinx.serialization serializers.
   không trần (`miniEnergyFor` + `MINI_ENERGY_BRACKETS`: /10 tới 100đ, /25 tới 300đ,
   /40 tới 700đ, /60 trên — 2000đ ≈ 50⚡, 5000đ ≈ 99⚡; `finishMiniGame`).
   Điểm = points của trái mới `(tier+1)²` (4/9/16/…/121), merge 2 dưa hấu +150; chỉ thả được 4 trái nhỏ nhất.
+- Minigame xếp khối (Block Blast!): engine thuần `game/BlockBlastEngine.kt` (grid `IntArray(64)`,
+  ~30 shape trong `BlockBlast` lookup qua `byId`; tray 3 khối refill khi đặt hết; smart RNG đổi
+  weight theo fill% + đảm bảo ≥1 khối đặt được khi bàn chật; điểm +10/ô, line 100/300/600/1200/2500+,
+  combo ×(1+0.5·combo), all-clear +3000). `placePiece` trả `BlastPlacement` (đã rename khỏi `Placement`
+  vì trùng enum của DecorModels) kèm `clearedCells: Map<idx, delayMs>` cho wave nổ. UI
+  `ui/components/BlockBlastGame.kt` — mở từ nút thứ 2 "🧱 Chơi Xếp khối" trong energy StatInfoCard.
+  Thưởng `blockEnergyFor` + `BLOCK_ENERGY_BRACKETS` qua `finishBlockGame`; `GameState.blockBest`,
+  `Metric.BLOCK_BEST` + block achievements, event `BlockGameFinished`. Test `BlockBlastEngineTest.kt`.
+  - Drag coords: `dragPos`/`boardBounds`/`slotRects` đều theo `boundsInRoot()` (gốc window) nhưng
+    `.offset` của khối đang kéo là parent-local — phải trừ `rootBounds.topLeft` (GameScreen root có
+    `statusBarsPadding` nên Box game không ở (0,0) → sai ~statusBarHeight nếu quên). Lift đo từ
+    ĐÁY khối (`dragPos.y - lift - hPx`), không phải tâm — khối cao mới không đè ngón tay.
+  - `SoundManager.play(sfx, rate)` + `playMergePitch(combo)` = pitch theo combo.
 
 ### Quy trình sau mỗi lần sửa (user yêu cầu)
 
@@ -90,6 +103,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Decor editor: backdrop vườn của sky `"garden"` = `bg_garden.png` (cover-fit toàn canvas, phòng iso vẽ đè lên — giữ vùng giữa ảnh thoáng). Thiếu file thì fallback cảnh vẽ code `drawGarden`. Texture tường/sàn = `wtex_*`/`ftex_*`.
 - Source sheet gốc (AI gen, 1696×2528): `art_out/Gemini_Generated_Image_*.png`. Script cắt: `python tools/slice_sheet.py` → `art_out/slices/` (gitignored, đã copy vào drawable-nodpi). Prompt pack: `art-prompts.md`.
 - Minigame "Thả trái": physics = jbox2d (`game/SubakEngine.kt`, thuần JVM → unit test ở `SubakEngineTest.kt`), art = `subak_*.png` render từ SVG (resvg, convert hsl()→hex trước khi rasterize).
+- Minigame "Xếp khối": backdrop `bg_blockblast.png` (navy + jelly mờ, cover-fit dưới cùng, thiếu thì nền navy phẳng). Bản hiện tại gen procedural bằng PIL; regen qua Gemini web = `python -u tools/gen_blockblast_bg.py` (nhớ cập nhật `HWND` của cửa sổ Edge Gemini hiện tại — đổi mỗi lần mở lại Edge). Khối gạch vẽ procedural trong Canvas (jelly bevel + gloss), không cần sprite.
 - Slicer: band y-range hardcode theo layout sheet (divider line full-width làm row-projection merge), cột dùng gap detection hoặc even-split snap về cột ít pixel nhất, nền trắng xóa bằng flood-fill từ mép (giữ trắng nội bộ như chai sữa).
 - Decor sprites (`decor_*.png`): gen 1 item/prompt qua Gemini web trong Edge — `python -u tools/gen_decor_browser.py` (UI automation: paste prompt → chờ ảnh → click ảnh mở Edge image viewer → ⬇ full-size ≈ 50s → `~/Downloads`), rồi `python tools/process_decor.py` (nền trắng→alpha, trim, 512px). Raw gốc: `art_out/decor_raw/` (gitignored). Lưu ý: OpenRouter key trong `.env` hết hạn → gen_art.py (API) không chạy được; download lag 1 nhịp nếu detect trượt → luôn check contact sheet sau batch.
 - Bộ sprite furniture cung cấp sẵn (5 sheet JPG/PNG: `furniture_1`, `furniture_2_walls`, `things_1`, `things_2_people`, `people` — gốc ở `art_out/furniture_pack/`): `python tools/slice_furniture.py` → `art_out/furniture_pack/slices/` (366 sprite, flood-fill nền kem + connected components; gitignored). Map slice→catalog id trong `tools/import_furniture.py` (dict `MAP`) rồi chạy để copy vào drawable-nodpi. Thêm đồ mới = thêm `item()` trong DecorCatalog + 1 dòng MAP.
