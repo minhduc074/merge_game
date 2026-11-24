@@ -680,10 +680,10 @@ object GameEngine {
                 else -> 3
             }
             // Level bonus tilts the distribution upward: each tier above 1
-            // gains level/3 weight, so around Lv15+ high tiers match the
+            // gains level/2 weight, so past ~Lv20 high tiers match the
             // low-tier demand and at Lv30 they dominate it. Rare items stay
             // a flat tiny weight — a lucky premium ask, not a staple.
-            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 3)
+            if (def.isRare) RARE_ORDER_WEIGHT else base + (def.tier - 1) * (level / 2)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)
@@ -922,8 +922,10 @@ object GameEngine {
     fun finishOnboarding(state: GameState): Pair<GameState, List<GameEvent>> =
         state.copy(onboardingDone = true) to listOf(GameEvent.OnboardingFinished)
 
-    /** Quadratic curve: each level costs noticeably more than the last. */
-    fun xpNeededForLevel(level: Int): Int = 30 + level * 8 + level * level * 4
+    /** Quadratic curve: each level costs noticeably more than the last.
+     *  Front-loaded constants — early levels are ~25% pricier than they
+     *  used to be while the late game stays about the same. */
+    fun xpNeededForLevel(level: Int): Int = 40 + level * 10 + level * level * 4
 
     fun rewardForLevel(level: Int): LevelReward {
         val unlock = UNLOCK_SCHEDULE[level] ?: 0

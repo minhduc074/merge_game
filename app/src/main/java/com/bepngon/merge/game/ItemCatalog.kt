@@ -57,7 +57,7 @@ object ItemCatalog {
                 tier = tier, mergeResult = next, sellPrice = sellPrice, score = 0,
                 isGenerator = true,
                 spawnTable = table.map { SpawnEntry(it.first, it.second) },
-                maxCharges = 8 * tier,
+                maxCharges = 6 * tier,
             )
         )
     }
@@ -139,63 +139,65 @@ object ItemCatalog {
             Triple("🦞", "Tôm hùm bơ tỏi", 250 to 300),
         )
 
-        // Spawn tables: tier-1 always dominates; higher gen tiers stretch the
-        // tail upward (gen_3 reaches tier-6) instead of shifting the band.
+        // Spawn tables: tier-1 always dominates and each table sums to 100.
+        // Higher gen tiers stretch the tail upward (gen_3 reaches tier-6)
+        // instead of shifting the band — direct high-tier drops stay rare
+        // so orders are filled by merging, not lucky taps.
         generator(
             "gen_fruit_1", 1, "🧺", "Giỏ trái cây", "gen_fruit_2", 25,
-            "fruit_1" to 60, "fruit_2" to 30, "fruit_3" to 10, "rare_fruit_1" to 5,
+            "fruit_1" to 70, "fruit_2" to 22, "fruit_3" to 3, "rare_fruit_1" to 5,
         )
         generator(
             "gen_fruit_2", 2, "🛒", "Xe trái cây", "gen_fruit_3", 60,
-            "fruit_1" to 40, "fruit_2" to 30, "fruit_3" to 15, "fruit_4" to 5,
-            "fruit_5" to 5, "rare_fruit_1" to 5,
+            "fruit_1" to 50, "fruit_2" to 27, "fruit_3" to 13, "fruit_4" to 4,
+            "fruit_5" to 1, "rare_fruit_1" to 5,
         )
         generator(
             "gen_fruit_3", 3, "🚚", "Xe tải trái cây", null, 150,
-            "fruit_1" to 30, "fruit_2" to 25, "fruit_3" to 18, "fruit_4" to 12,
-            "fruit_5" to 8, "fruit_6" to 2, "rare_fruit_1" to 5,
+            "fruit_1" to 42, "fruit_2" to 26, "fruit_3" to 14, "fruit_4" to 8,
+            "fruit_5" to 4, "fruit_6" to 1, "rare_fruit_1" to 5,
         )
         generator(
             "gen_bakery_1", 1, "📦", "Hộp bánh", "gen_bakery_2", 25,
-            "bakery_1" to 60, "bakery_2" to 30, "bakery_3" to 10, "rare_bakery_1" to 5,
+            "bakery_1" to 70, "bakery_2" to 22, "bakery_3" to 3, "rare_bakery_1" to 5,
         )
         generator(
             "gen_bakery_2", 2, "🏪", "Tiệm bánh", "gen_bakery_3", 60,
-            "bakery_1" to 40, "bakery_2" to 30, "bakery_3" to 15, "bakery_4" to 5,
-            "bakery_5" to 5, "rare_bakery_1" to 5,
+            "bakery_1" to 50, "bakery_2" to 27, "bakery_3" to 13, "bakery_4" to 4,
+            "bakery_5" to 1, "rare_bakery_1" to 5,
         )
         generator(
             "gen_bakery_3", 3, "🏭", "Nhà máy bánh", null, 150,
-            "bakery_1" to 30, "bakery_2" to 25, "bakery_3" to 18, "bakery_4" to 12,
-            "bakery_5" to 8, "bakery_6" to 2, "rare_bakery_1" to 5,
+            "bakery_1" to 42, "bakery_2" to 26, "bakery_3" to 14, "bakery_4" to 8,
+            "bakery_5" to 4, "bakery_6" to 1, "rare_bakery_1" to 5,
         )
         generator(
             "gen_drink_1", 1, "🧃", "Máy pha chế", "gen_drink_2", 30,
-            "drink_1" to 60, "drink_2" to 30, "drink_3" to 10, "rare_drink_1" to 5,
+            "drink_1" to 70, "drink_2" to 22, "drink_3" to 3, "rare_drink_1" to 5,
         )
         generator(
             "gen_drink_2", 2, "🧊", "Tủ lạnh mini", "gen_drink_3", 70,
-            "drink_1" to 40, "drink_2" to 30, "drink_3" to 15, "drink_4" to 5,
-            "drink_5" to 5, "rare_drink_1" to 5,
+            "drink_1" to 50, "drink_2" to 27, "drink_3" to 13, "drink_4" to 4,
+            "drink_5" to 1, "rare_drink_1" to 5,
         )
         generator(
             "gen_drink_3", 3, "🍶", "Quầy bar", null, 160,
-            "drink_1" to 30, "drink_2" to 25, "drink_3" to 18, "drink_4" to 12,
-            "drink_5" to 8, "drink_6" to 2, "rare_drink_1" to 5,
+            "drink_1" to 42, "drink_2" to 26, "drink_3" to 14, "drink_4" to 8,
+            "drink_5" to 4, "drink_6" to 1, "rare_drink_1" to 5,
         )
         generator(
             "gen_viet_1", 1, "🍳", "Bếp nhỏ", "gen_viet_2", 40,
-            "viet_1" to 60, "viet_2" to 30, "viet_3" to 10, "rare_viet_1" to 5,
+            "viet_1" to 70, "viet_2" to 22, "viet_3" to 3, "rare_viet_1" to 5,
         )
         generator(
             "gen_viet_2", 2, "🔥", "Bếp lớn", "gen_viet_3", 90,
-            "viet_1" to 40, "viet_2" to 30, "viet_3" to 15, "viet_4" to 5,
-            "viet_5" to 5, "rare_viet_1" to 5,
+            "viet_1" to 50, "viet_2" to 27, "viet_3" to 13, "viet_4" to 4,
+            "viet_5" to 1, "rare_viet_1" to 5,
         )
         generator(
             "gen_viet_3", 3, "🏮", "Nhà hàng", null, 200,
-            "viet_1" to 30, "viet_2" to 25, "viet_3" to 18, "viet_4" to 12,
-            "viet_5" to 8, "viet_6" to 2, "rare_viet_1" to 5,
+            "viet_1" to 42, "viet_2" to 26, "viet_3" to 14, "viet_4" to 8,
+            "viet_5" to 4, "viet_6" to 1, "rare_viet_1" to 5,
         )
         put(
             "magic_wild",
