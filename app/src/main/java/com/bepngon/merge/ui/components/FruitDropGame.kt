@@ -389,10 +389,7 @@ fun FruitDropGame(
                             Text("🍉 Tràn rồi!", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Cocoa)
                             Text("Điểm: ${engine.score}", fontSize = 18.sp, color = Cocoa,
                                 modifier = Modifier.padding(top = 6.dp))
-                            val e = minOf(
-                                com.bepngon.merge.game.GameEngine.MINI_MAX_ENERGY,
-                                engine.score / 10,
-                            )
+                            val e = engine.score / 10
                             Text("+$e ⚡", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                 color = MergeGreen, modifier = Modifier.padding(top = 4.dp))
                             if (engine.score >= game.miniBest && engine.score > 0) {

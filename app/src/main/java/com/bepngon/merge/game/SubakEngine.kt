@@ -43,8 +43,8 @@ object Subak {
     const val DROP_COOLDOWN_MS = 500L
     const val OUT_OF_BOUNDS_MS = 1_000L  // fruit must sit above the line this long
     const val MERGE_EFFECT_MS = 1_000L
-    const val WATERMELON_MERGE_POINTS = 100
-    const val DROPPABLE_TIERS = 5        // next fruit = uniform random of first 5
+    const val WATERMELON_MERGE_POINTS = 50
+    const val DROPPABLE_TIERS = 4        // next fruit = uniform random of first 4
 
     val FRUIT_NAMES = listOf(
         "blueberry", "grape", "lemon", "orange", "apple", "dragonfruit",
@@ -61,7 +61,7 @@ object Subak {
 
     val FRUITS: List<FruitData> = FRUIT_NAMES.mapIndexed { i, name ->
         val size = FRUIT_SIZES[i] / 2f
-        FruitData(name, size, GAME_WIDTH * (size / 100f), (i + 1) * 2)
+        FruitData(name, size, GAME_WIDTH * (size / 100f), i + 1)
     }
 }
 

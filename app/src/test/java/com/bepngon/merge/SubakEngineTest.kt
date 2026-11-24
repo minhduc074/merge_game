@@ -34,7 +34,7 @@ class SubakEngineTest {
     }
 
     @Test
-    fun `drop indices stay within first five tiers`() {
+    fun `drop indices stay within the droppable tiers`() {
         val e = SubakEngine(Random(7))
         repeat(50) {
             e.dropFruit(0.3f)

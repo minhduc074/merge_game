@@ -55,7 +55,6 @@ object GameEngine {
     const val GEN_UPGRADE_PRICE_MULT = 10
     const val MINI_MAX_PLAYS = 3
     const val MINI_REFILL_MS = 4 * 3_600_000L
-    const val MINI_MAX_ENERGY = 20
 
     // Cells locked at game start, in unlock order (first entries unlock first).
     val INITIAL_LOCKED: List<Int> = listOf(
@@ -1064,7 +1063,7 @@ object GameEngine {
         score: Int,
         nowMs: Long,
     ): Pair<GameState, List<GameEvent>> {
-        val energy = minOf(MINI_MAX_ENERGY, score / 10)
+        val energy = score / 10
         val events = mutableListOf<GameEvent>(GameEvent.MiniGameFinished(score, energy))
         val next = state.copy(
             energy = state.energy + energy,
