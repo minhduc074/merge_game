@@ -682,6 +682,17 @@ class GameEngineTest {
     }
 
     @Test
+    fun `fresh board starts with one generator per starter family`() {
+        val s = GameEngine.initialState(Random(1))
+        val gens = s.cells.filterNotNull()
+            .filter { ItemCatalog[it.defId].isGenerator }
+        assertEquals(
+            setOf("gen_fruit_1", "gen_bakery_1"),
+            gens.map { it.defId }.toSet(),
+        )
+    }
+
+    @Test
     fun `fresh board scatters frozen items on random open cells`() {
         fun openFrozen(s: GameState) = s.cells.indices.filter {
             it !in GameEngine.INITIAL_LOCKED && s.cells[it]?.frozen == true

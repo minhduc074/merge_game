@@ -98,11 +98,13 @@ object GameEngine {
         fun place(defId: String, index: Int, frozen: Boolean = false) {
             cells[index] = newItem(uid++, defId).copy(frozen = frozen)
         }
+        // One generator per starter family — a second identical gen would
+        // merge into gen_2 on turn 1 and skip the early scarcity curve.
         place("gen_fruit_1", idx(2, 1))
-        place("gen_fruit_1", idx(2, 3))
         place("gen_bakery_1", idx(3, 2))
         place("fruit_1", idx(1, 1))
         place("fruit_1", idx(1, 3))
+        place("bakery_1", idx(2, 3))
         place("bakery_1", idx(3, 3))
         // 100% of level-locked cells hide a frozen item
         INITIAL_LOCKED.forEach { place(FROZEN_POOL.random(random), it, frozen = true) }
