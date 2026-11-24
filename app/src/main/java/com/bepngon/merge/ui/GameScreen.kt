@@ -1718,7 +1718,7 @@ private fun StatInfoCard(
         else -> StatInfo(
             "icon_energy", "⚡", "Năng lượng",
             "Mỗi lần bấm generator tốn 1⚡ để sinh item mới.",
-            "Tự hồi +1⚡ mỗi 60 giây (tối đa ${GameEngine.ENERGY_CAP}). Quà hằng ngày +10⚡.",
+            "Tự hồi +1⚡ mỗi 60 giây (tối đa ${GameEngine.ENERGY_CAP}). Thưởng & minigame vượt được giới hạn.",
         )
     }
 

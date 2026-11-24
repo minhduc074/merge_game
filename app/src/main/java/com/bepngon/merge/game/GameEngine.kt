@@ -7,6 +7,8 @@ object GameEngine {
     const val COLS = 5
     const val ROWS = 7
     const val CELLS = COLS * ROWS
+    /** Natural regen ceiling — rewards (daily/QTE/achievement/minigame)
+     *  may overflow past this and stay until spent. */
     const val ENERGY_CAP = 100
     const val ENERGY_PER_SPAWN = 1
     const val START_COINS = 50
@@ -522,7 +524,7 @@ object GameEngine {
                 events += GameEvent.FrenzyStarted(next.frenzyUntilMs)
             }
             QteReward.ENERGY ->
-                next = next.copy(energy = minOf(ENERGY_CAP, next.energy + QTE_ENERGY))
+                next = next.copy(energy = next.energy + QTE_ENERGY)
             QteReward.COINS -> next = next.copy(
                 coins = next.coins + QTE_COINS,
                 stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + QTE_COINS),
@@ -879,7 +881,7 @@ object GameEngine {
         }
         return state.copy(
             coins = state.coins + a.rewardCoins,
-            energy = minOf(ENERGY_CAP, state.energy + a.rewardEnergy),
+            energy = state.energy + a.rewardEnergy,
             claimedAchievements = state.claimedAchievements + id,
         ) to listOf(GameEvent.AchievementClaimed(a))
     }
@@ -905,7 +907,7 @@ object GameEngine {
         val (coins, energy) = DAILY_REWARDS[day]
         var next = state.copy(
             coins = state.coins + coins,
-            energy = minOf(ENERGY_CAP, state.energy + energy),
+            energy = state.energy + energy,
             lastDailyClaimEpochMs = epochMs,
             dailyStreak = day,
             stats = state.stats.copy(coinsEarned = state.stats.coinsEarned + coins),
@@ -1065,7 +1067,7 @@ object GameEngine {
         val energy = minOf(MINI_MAX_ENERGY, score / 10)
         val events = mutableListOf<GameEvent>(GameEvent.MiniGameFinished(score, energy))
         val next = state.copy(
-            energy = minOf(ENERGY_CAP, state.energy + energy),
+            energy = state.energy + energy,
             miniBest = maxOf(state.miniBest, score),
         )
         return checkAchievements(next, events) to events

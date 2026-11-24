@@ -591,10 +591,7 @@ class GameEngineTest {
         val s = stateWith()
         val (claimed, ev) = GameEngine.claimDaily(s, t0)
         assertEquals(s.coins + GameEngine.DAILY_COINS, claimed.coins)
-        assertEquals(
-            minOf(GameEngine.ENERGY_CAP, s.energy + GameEngine.DAILY_ENERGY),
-            claimed.energy,
-        )
+        assertEquals(s.energy + GameEngine.DAILY_ENERGY, claimed.energy)
         assertTrue(ev.any { it is GameEvent.DailyClaimed })
 
         val (again, ev2) = GameEngine.claimDaily(claimed, t0 + 60_000)
@@ -1271,11 +1268,12 @@ class GameEngineTest {
         val fin = events.filterIsInstance<GameEvent.MiniGameFinished>().single()
         assertEquals(5, fin.energy)
 
-        // reward still capped at MINI_MAX_ENERGY even for huge scores
+        // reward still capped at MINI_MAX_ENERGY even for huge scores,
+        // but the total may overflow ENERGY_CAP (rewards aren't clamped)
         val (done2, events2) = GameEngine.finishMiniGame(s, 1000, 1000)
         val fin2 = events2.filterIsInstance<GameEvent.MiniGameFinished>().single()
         assertEquals(20, fin2.energy)
-        assertEquals(100, done2.energy) // clamped at ENERGY_CAP
+        assertEquals(110, done2.energy)
     }
 
     @Test

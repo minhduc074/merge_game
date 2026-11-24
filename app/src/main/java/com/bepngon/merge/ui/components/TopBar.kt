@@ -91,7 +91,7 @@ fun TopBar(
                         fontWeight = FontWeight.Bold,
                     )
                     LinearProgressIndicator(
-                        progress = { energy / energyCap.toFloat() },
+                        progress = { (energy / energyCap.toFloat()).coerceAtMost(1f) },
                         modifier = Modifier.fillMaxWidth(),
                         color = Gold,
                         trackColor = Color(0xFFFFECB3),

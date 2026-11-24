@@ -21,7 +21,8 @@ tests that assert old numbers.
 ## `GameEngine.kt` constants
 - `GEN_COOLDOWN_MS` 45s — depleted gen reset-to-full time.
 - `GEN_REGEN_MS` 120s — partial gen +1 charge per interval (`BoardItem.rechargeAtMs`).
-- `ENERGY_REGEN_BASE_MS` 60s, `ENERGY_CAP` 100, `ENERGY_PER_SPAWN` 1.
+- `ENERGY_REGEN_BASE_MS` 60s, `ENERGY_CAP` 100 (regen ceiling only — daily/QTE/
+  achievement/minigame rewards overflow past it), `ENERGY_PER_SPAWN` 1.
 - `ORDER_INTERVAL_MIN/MAX_MS` 6s/28s — adaptive pacing = `orderPaceMs/4` ±40% jitter.
 - `RARE_ORDER_WEIGHT` 1 — flat weight per rare item in `pickOrderItem` (normal items:
   base by tier `40/30/18/9/3` + `(tier-1)*(level/2)`).
