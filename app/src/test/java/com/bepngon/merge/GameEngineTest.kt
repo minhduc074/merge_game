@@ -806,18 +806,23 @@ class GameEngineTest {
     }
 
     @Test
-    fun `spawn reach stays within the lower 60 percent of each chain`() {
-        // chains differ in length (fruit 11, bakery 10, drink 8, viet 7) —
-        // gens only spawn the lower ~55% so top tiers are merge-only
+    fun `gen tier N only spawns item tiers up to N+1`() {
+        // gen lv1 -> t1-2, lv2 -> t1-3, lv3 -> t1-4; higher is merge-only
         listOf("gen_fruit", "gen_bakery", "gen_drink", "gen_viet").forEach { prefix ->
             (1..3).forEach { tier ->
                 val gen = ItemCatalog["${prefix}_$tier"]
                 val normal = gen.spawnTable.filter { !ItemCatalog[it.itemId].isRare }
                 val maxTier = normal.maxOf { ItemCatalog[it.itemId].tier }
-                val chainLen = ItemCatalog.chainOf(normal.first().itemId).size
+                val minTier = normal.minOf { ItemCatalog[it.itemId].tier }
+                assertEquals(1, minTier)
                 assertTrue(
-                    "${gen.id} reaches t$maxTier of $chainLen",
-                    maxTier * 10 <= chainLen * 6,
+                    "${gen.id} reaches t$maxTier, cap is t${tier + 1}",
+                    maxTier <= tier + 1,
+                )
+                assertEquals("${gen.id} table must sum to 100", 100, gen.spawnTable.sumOf { it.weight })
+                assertTrue(
+                    "${gen.id} tier-1 must dominate",
+                    normal.all { it.itemId.endsWith("_1") || it.weight < normal.first().weight },
                 )
             }
         }

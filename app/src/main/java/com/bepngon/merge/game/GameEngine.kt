@@ -21,10 +21,10 @@ object GameEngine {
     const val BASE_ORDER_TIER = 5
     const val MAX_ORDER_TIER = 8
     const val RARE_ORDER_WEIGHT = 1
-    const val GEN_COOLDOWN_MS = 45_000L
+    const val GEN_COOLDOWN_MS = 30_000L
     /** Partially-used generators regain +1 charge per interval; draining to
      *  zero triggers the full [GEN_COOLDOWN_MS] reset instead. */
-    const val GEN_REGEN_MS = 120_000L
+    const val GEN_REGEN_MS = 60_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L

@@ -12,18 +12,16 @@ tests that assert old numbers.
 ## `ItemCatalog.kt`
 - Merge chains: `chain("fruit", Family.FRUIT, Triple(emoji, name, sellPrice to score), ...)`.
 - Spawn tables: `generator("gen_x_N", tier, emoji, name, next, sellPrice, "item" to weight, ...)`.
-  Convention: tier-1 weight luôn cao nhất, mọi bảng tổng = 100. Reach cân theo
-  **độ sâu chain** ~55% (chain khác dài: fruit 11 / bakery 10 / drink 8 / viet 7):
-  gen_3 fruit `45/26/14/8/4/1`→t6, bakery `46/27/14/8/3`→t5, drink `47/28/15/8`→t4,
-  viet `46/27/15/10`→t4; gen_1 `73/22/3` (drink/viet chỉ `75/23`, `76/22` → t2);
-  gen_2 `53/27/13/4/1` (drink `55/28/13/2`→t4, viet `56/29/13`→t3). + `rare_*_1`
-  weight 2 ở mọi gen. Higher gen = longer tail, không dịch band.
+  Convention: tier-1 weight luôn cao nhất, mọi bảng tổng = 100. **Gen tier N chỉ
+  spawn item tier 1..N+1** — cao hơn là merge-only. Bảng uniform mọi chain:
+  gen_1 `76/22`→t2, gen_2 `58/27/13`→t3, gen_3 `50/26/14/8`→t4. + `rare_*_1`
+  weight 2 ở mọi gen. Higher gen = longer tail.
 - `generator()` sets `maxCharges = 6 * tier` — scarcity knob, cắt số lượt miễn phí
   trước cooldown.
 
 ## `GameEngine.kt` constants
-- `GEN_COOLDOWN_MS` 45s — depleted gen reset-to-full time.
-- `GEN_REGEN_MS` 120s — partial gen +1 charge per interval (`BoardItem.rechargeAtMs`).
+- `GEN_COOLDOWN_MS` 30s — depleted gen reset-to-full time.
+- `GEN_REGEN_MS` 60s — partial gen +1 charge per interval (`BoardItem.rechargeAtMs`).
 - `ENERGY_REGEN_BASE_MS` 60s, `ENERGY_CAP` 100 (regen ceiling only — daily/QTE/
   achievement/minigame rewards overflow past it), `ENERGY_PER_SPAWN` 1.
 - `ORDER_INTERVAL_MIN/MAX_MS` 6s/28s — adaptive pacing = `orderPaceMs/4` ±40% jitter.
