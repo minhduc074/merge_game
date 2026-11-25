@@ -1,5 +1,18 @@
 # Bếp Ngon Merge — Release Notes
 
+## v1.1.1 — cân bằng máy sinh 🇻🇳
+
+### Cân bằng
+
+- **Máy sinh không còn ra item tier cao**: máy cấp N chỉ sinh item tier 1..N+1
+  (máy lv1 → tier 1-2, lv2 → 1-3, lv3 → 1-4). Tier cao hơn chỉ kiếm được bằng
+  merge — đơn hàng phải merge mới xong, không còn ăn may từ bấm máy.
+- **Chuỗi ngắn (đồ uống, đồ Việt) cap thấp hơn 1 tier**: máy lv2 chỉ ra tier
+  1-2 (bù bằng tỉ lệ tier 2 cao hơn hẳn), máy lv3 tối đa tier 3 — chuỗi ngắn
+  chạm sâu quá sẽ phá cân bằng.
+- **Hồi lượt nhanh gấp đôi**: +1 lượt mỗi 60s (trước 120s); máy cạn sạch thì
+  hồi full sau 30s (trước 45s).
+
 ## v1.1.0 — minigame Xếp khối + cân bằng kinh tế 🇻🇳
 
 ### Mới
@@ -74,6 +87,19 @@ kiếm vàng và kinh nghiệm.
 - Hiển thị version ở góc dưới-phải màn hình (`v1.0.0`).
 
 ---
+
+## v1.1.1 — generator rebalance 🇬🇧
+
+### Balance
+
+- **Generators no longer drop high-tier items**: a level-N generator only
+  spawns item tiers 1..N+1 (lv1 → t1-2, lv2 → t1-3, lv3 → t1-4). Higher tiers
+  are merge-only — orders are filled by merging, not lucky taps.
+- **Short chains (drinks, Vietnamese food) cap one tier lower**: lv2 gens
+  keep the t1-2 reach (but pay much more t2), lv3 gens max out at t3 —
+  short chains break if taps reach too deep.
+- **Twice-as-fast recharge**: +1 charge every 60s (was 120s); a fully
+  drained generator resets to full after 30s (was 45s).
 
 ## v1.1.0 — Block Puzzle minigame + economy rebalance 🇬🇧
 
