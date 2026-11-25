@@ -806,6 +806,21 @@ class GameEngineTest {
     }
 
     @Test
+    fun `short chains cap spawn reach one tier lower than long chains`() {
+        // drink/viet chains are short (7-8 tiers vs fruit/bakery 10-11) —
+        // their gens cap lower: lv1 -> t2, lv2 -> t2, lv3 -> t3
+        val expectedCap = mapOf(1 to 2, 2 to 2, 3 to 3)
+        listOf("gen_drink", "gen_viet").forEach { prefix ->
+            (1..3).forEach { tier ->
+                val gen = ItemCatalog["${prefix}_$tier"]
+                val maxTier = gen.spawnTable.filter { !ItemCatalog[it.itemId].isRare }
+                    .maxOf { ItemCatalog[it.itemId].tier }
+                assertEquals("${gen.id} spawn cap", expectedCap[tier], maxTier)
+            }
+        }
+    }
+
+    @Test
     fun `gen tier N only spawns item tiers up to N+1`() {
         // gen lv1 -> t1-2, lv2 -> t1-3, lv3 -> t1-4; higher is merge-only
         listOf("gen_fruit", "gen_bakery", "gen_drink", "gen_viet").forEach { prefix ->

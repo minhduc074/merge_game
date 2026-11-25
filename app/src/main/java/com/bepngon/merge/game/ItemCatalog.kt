@@ -142,8 +142,10 @@ object ItemCatalog {
         // Spawn tables: tier-1 always dominates and each table sums to 100.
         // Gen tier N only spawns item tiers 1..N+1 — anything higher is
         // merge-only, so orders are filled by merging, not lucky taps.
-        // Tables are uniform across chains (the hard cap is the equalizer);
-        // higher gen = longer tail. + rare weight 2 in every gen.
+        // Long chains (fruit 11t, bakery 10t) use the full cap; short chains
+        // (drink 8t, viet 7t) cap one tier lower so taps don't reach too deep
+        // — their gen_2 keeps the t1-2 reach of gen_1 but pays more t2,
+        // gen_3 maxes at t3. + rare weight 2 in every gen.
         generator(
             "gen_fruit_1", 1, "🧺", "Giỏ trái cây", "gen_fruit_2", 25,
             "fruit_1" to 76, "fruit_2" to 22, "rare_fruit_1" to 2,
@@ -176,12 +178,11 @@ object ItemCatalog {
         )
         generator(
             "gen_drink_2", 2, "🧊", "Tủ lạnh mini", "gen_drink_3", 70,
-            "drink_1" to 58, "drink_2" to 27, "drink_3" to 13, "rare_drink_1" to 2,
+            "drink_1" to 64, "drink_2" to 34, "rare_drink_1" to 2,
         )
         generator(
             "gen_drink_3", 3, "🍶", "Quầy bar", null, 160,
-            "drink_1" to 50, "drink_2" to 26, "drink_3" to 14, "drink_4" to 8,
-            "rare_drink_1" to 2,
+            "drink_1" to 52, "drink_2" to 30, "drink_3" to 16, "rare_drink_1" to 2,
         )
         generator(
             "gen_viet_1", 1, "🍳", "Bếp nhỏ", "gen_viet_2", 40,
@@ -189,12 +190,11 @@ object ItemCatalog {
         )
         generator(
             "gen_viet_2", 2, "🔥", "Bếp lớn", "gen_viet_3", 90,
-            "viet_1" to 58, "viet_2" to 27, "viet_3" to 13, "rare_viet_1" to 2,
+            "viet_1" to 64, "viet_2" to 34, "rare_viet_1" to 2,
         )
         generator(
             "gen_viet_3", 3, "🏮", "Nhà hàng", null, 200,
-            "viet_1" to 50, "viet_2" to 26, "viet_3" to 14, "viet_4" to 8,
-            "rare_viet_1" to 2,
+            "viet_1" to 52, "viet_2" to 30, "viet_3" to 16, "rare_viet_1" to 2,
         )
         put(
             "magic_wild",
