@@ -1,5 +1,34 @@
 # Bếp Ngon Merge — Release Notes
 
+## v1.1.0 — minigame Xếp khối + cân bằng kinh tế 🇻🇳
+
+### Mới
+
+- **Minigame "Xếp khối"** 🧱 (kiểu Block Blast!): đặt khối polyomino lên bàn
+  8×8, đầy hàng/cột là nổ. Khối vẽ kiểu jelly bóng bẩy trên nền đêm navy có
+  sao; kéo khối nảy lên khỏi ngón tay, hiện bóng mờ vị trí đáp + highlight
+  hàng sắp nổ, nổ lan theo gợn sóng kèm mảnh vỡ văng, rung màn hình và âm
+  thanh cao dần theo combo. Đặt hết 3 khối trong khay mới ra khay tiếp —
+  thuật toán sinh khối ưu tiên khối nhỏ khi bàn chật. Điểm càng cao thưởng ⚡
+  càng nhiều (800đ → 20⚡, 2500đ → 46⚡...), lưu kỷ lục riêng + 3 thành tựu
+  mới. Mở từ thẻ thông tin ⚡, nút cạnh "Chơi Thả trái".
+
+### Cân bằng
+
+- **Lên cấp chậm lại**, ô bàn cờ mở dàn đều mỗi 2 cấp thay vì dồn sớm.
+- **Đơn hàng theo trình độ**: món hiếm tier cao chỉ xuất hiện khi đủ level
+  (tier 2 từ Lv.8, tier 3 từ Lv.16), đơn món tier thấp giảm dần khi lên cấp.
+- **Bảng spawn cân theo độ dài chuỗi** merge — chuỗi ngắn (đồ uống, đồ Việt)
+  không còn lệch reach so với chuỗi dài (trái cây).
+- **Item hiếm** giảm weight spawn 5 → 2 (bù vào tier 1), hiếm hơn nhưng tier 1
+  dễ kiếm hơn đầu game.
+- **Mở đầu game**: mỗi dòng chỉ cho 1 máy sinh (thay vì 2 máy trái cây), máy
+  ít lượt hơn, item tier cao hiếm hơn — độ khó early-game cao hơn một chút.
+- **Thẻ thông tin máy sinh + hướng dẫn đầu game** hiện tỉ lệ spawn trực tiếp.
+- **Minigame Thả trái**: điểm merge theo tier², tổng điểm giảm nửa, chỉ thả 4
+  trái nhỏ; thưởng ⚡ không trần nhưng dốc giảm dần (2000đ ≈ 50⚡, 5000đ ≈ 99⚡).
+- ⚡ thưởng (minigame, quà) được phép **vượt trần 100**.
+
 ## v1.0.0 — bản release đầu tiên 🇻🇳
 
 Merge game kiểu Merge Mansion / Travel Town: bàn cờ 5×7, bấm máy sinh để tạo
@@ -45,6 +74,39 @@ kiếm vàng và kinh nghiệm.
 - Hiển thị version ở góc dưới-phải màn hình (`v1.0.0`).
 
 ---
+
+## v1.1.0 — Block Puzzle minigame + economy rebalance 🇬🇧
+
+### New
+
+- **"Block Puzzle" minigame** 🧱 (Block Blast!-style): drop polyomino pieces
+  onto an 8×8 board — full rows/columns pop. Glossy jelly blocks over a
+  starry navy night backdrop; dragged pieces lift above your finger with a
+  landing ghost + line-clear highlight, wave-style clears with shatter
+  particles, screen shake, and combo-pitched sound effects. Refills only
+  after all 3 tray pieces are placed, with smart piece generation favoring
+  small shapes when the board gets crowded. Higher scores pay more ⚡
+  (800 pts → 20⚡, 2500 pts → 46⚡...), with a separate best score + 3 new
+  achievements. Open it from the ⚡ info card, next to "Fruit Drop".
+
+### Balance
+
+- **Slower leveling**, board cells now spread across every 2 levels instead
+  of front-loading.
+- **Level-aware orders**: higher rare tiers only appear once you're leveled
+  enough (tier 2 from Lv.8, tier 3 from Lv.16), and low-tier order weight
+  decays as you level up.
+- **Spawn tables equalized by chain depth** — short chains (drinks,
+  Vietnamese food) no longer have skewed reach vs. long ones (fruit).
+- **Rare items**: spawn weight cut 5 → 2 (fed back into tier-1), so tier-1
+  is easier to come by early on.
+- **Early game**: one generator per family at start (instead of two fruit
+  gens), fewer charges, rarer high-tier spawns — slightly tougher opening.
+- **Generator info cards + the first-run guide** now show live spawn rates.
+- **Fruit Drop minigame**: merge points scale by tier², overall scores
+  halved, only the 4 smallest fruits drop; ⚡ payout is uncapped but flattens
+  out (~2000 pts ≈ 50⚡, ~5000 pts ≈ 99⚡).
+- Reward ⚡ (minigames, gifts) can now **overflow the 100 cap**.
 
 ## v1.0.0 — first release 🇬🇧
 
