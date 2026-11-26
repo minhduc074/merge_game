@@ -29,7 +29,14 @@ tests that assert old numbers.
 - `ORDER_INTERVAL_MIN/MAX_MS` 6s/28s — adaptive pacing = `orderPaceMs/4` ±40% jitter.
 - `RARE_ORDER_WEIGHT` 1 — flat weight per rare item in `pickOrderItem` (normal items:
   base by tier `40/30/18/9/3` (t1/t2 decay theo level: `40-3L` sàn 5, `30-L` sàn 8)
-  + `(tier-1)*(level/3)`; cap `5 + level/8` → t8 ở Lv24; rare gate `rareOrderTierCap`).
+  + `(tier-1)*(level/3)`).
+- Order tier window `orderTierWindow(chainLen, level)` — áp cho CẢ chuỗi thường lẫn
+  rare: min = `level * chainLen / ORDER_TIER_LEVEL_SPAN(30) + 1`, max = min +
+  `ORDER_TIER_WINDOW(3)`. Window trượt đến đỉnh chuỗi rồi ghim ở đó (fruit len 11:
+  Lv1 hỏi t1-4, Lv10 t4-7, Lv20+ t8-11 mãi). Chuỗi ngắn hơn window (rare len 3)
+  không trượt được → collapse về đỉnh: rare hỏi t1-3 đầu game, t2-3 từ ~Lv10,
+  chỉ t3 từ Lv20. Đã BỎ `BASE/MAX_ORDER_TIER`, `rareOrderTierCap` và family
+  unlock ramp (`familyMaxTier`) — không còn bảo hiểm family mới unlock.
 - `COMBO_WINDOW_MS` 30s, `COMBO_MIN` 3 — combo coins `10*combo`, xp `2*combo`.
 - `QTE_*`, `FRENZY_MS` 90s, `QTE_WILD_WHEN_COOLING` 0.5.
 - Order XP: `completeOrder` → `tier + 3` per item.

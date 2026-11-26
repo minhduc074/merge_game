@@ -18,8 +18,12 @@ object GameEngine {
     const val FIRST_ORDER_DELAY_MS = 8_000L
     const val ORDER_INTERVAL_MIN_MS = 6_000L
     const val ORDER_INTERVAL_MAX_MS = 28_000L
-    const val BASE_ORDER_TIER = 5
-    const val MAX_ORDER_TIER = 8
+    /** Order tier window: max = min + this, sliding up each merge chain as
+     *  the player levels (see orderTierWindow). */
+    const val ORDER_TIER_WINDOW = 3
+    /** Level span the tier ramp is paced against — Lv1 sits at the chain
+     *  bottom, ~Lv30 at the top. */
+    const val ORDER_TIER_LEVEL_SPAN = 30
     const val RARE_ORDER_WEIGHT = 1
     const val GEN_COOLDOWN_MS = 30_000L
     /** Partially-used generators regain +1 charge per interval; draining to
@@ -616,26 +620,26 @@ object GameEngine {
         return jittered.toLong().coerceIn(ORDER_INTERVAL_MIN_MS, ORDER_INTERVAL_MAX_MS)
     }
 
-    /** Player level at which each family's generator arrives:
-     *  fruit/bakery ship with the starter board, drink at Lv3, viet at Lv5. */
-    private val FAMILY_UNLOCK_LEVEL = mapOf(
-        Family.FRUIT to 1,
-        Family.BAKERY to 1,
-        Family.DRINK to 3,
-        Family.VIET to 5,
-    )
-
-    /** Orders for a freshly unlocked family only ask for low tiers, ramping
-     *  +1 tier every 3 levels toward the global cap. */
-    private fun familyMaxTier(family: Family, level: Int, globalCap: Int): Int {
-        val unlock = FAMILY_UNLOCK_LEVEL[family] ?: 1
-        return minOf(globalCap, 2 + (level - unlock).coerceAtLeast(0) / 3)
+    /** Tier window orders may ask from a chain of [chainLen] tiers at
+     *  [level]. Min tier scales with the level ratio over the chain length:
+     *  `level * chainLen / 30 + 1` — Lv1 always opens at tier 1, Lv6 hits
+     *  tier 3 on a 10-chain, and the window reaches the chain top ~Lv30.
+     *  Max trails +ORDER_TIER_WINDOW and the whole window pins at the top
+     *  once it arrives (long chains keep a 4-tier spread forever, e.g. fruit
+     *  asks t8-11 for the whole endgame). Chains shorter than the window
+     *  (rare 3-tiers) can't slide — they collapse toward their top tier
+     *  instead: rares ask t1-3 early, t2-3 from ~Lv10, only the t3 jackpot
+     *  past Lv20. Applies uniformly to normal and rare chains. */
+    private fun orderTierWindow(chainLen: Int, level: Int): IntRange {
+        if (chainLen < 1) return IntRange.EMPTY
+        val rawMin = level * chainLen / ORDER_TIER_LEVEL_SPAN + 1
+        return if (chainLen > ORDER_TIER_WINDOW) {
+            val min = rawMin.coerceIn(1, chainLen - ORDER_TIER_WINDOW)
+            min..(min + ORDER_TIER_WINDOW)
+        } else {
+            rawMin.coerceIn(1, chainLen)..chainLen
+        }
     }
-
-    /** Rare-side-chain asks are gated separately since each tier costs ~2x
-     *  the drops of the last at 2% spawn weight: Lv1-7 only rare_1, Lv8-15
-     *  adds rare_2 (~100 taps), Lv16+ the rare_3 jackpot (~200 taps). */
-    private fun rareOrderTierCap(level: Int): Int = 1 + (level / 8).coerceAtMost(2)
 
     /** Later families pay more per item — harder unlocks deserve better orders. */
     private val FAMILY_ORDER_BONUS_PCT = mapOf(
@@ -654,13 +658,9 @@ object GameEngine {
 
     private fun generateOrder(state: GameState, random: Random): Order {
         val produceable = produceableFamilies(state)
-        // Higher player level unlocks higher-tier requests, paced to the
-        // slower level curve: Lv1-7 caps at tier 5, Lv8-15 at 6, Lv16-23 at
-        // 7, Lv24+ at 8 — top tier lands with the final board cell.
-        val maxTier = minOf(MAX_ORDER_TIER, BASE_ORDER_TIER + state.level / 8)
+        // Asks scale per chain with player level — see orderTierWindow.
         val candidates = ItemCatalog.allInFamilies(produceable)
-            .filter { it.tier <= familyMaxTier(it.family, state.level, maxTier) }
-            .filter { !it.isRare || it.tier <= rareOrderTierCap(state.level) }
+            .filter { it.tier in orderTierWindow(it.chainLen, state.level) }
 
         val count = when (random.nextInt(100)) {
             in 0 until 50 -> 1
@@ -695,7 +695,7 @@ object GameEngine {
             // gains level/3 weight, so past ~Lv24 high tiers match the
             // low-tier demand and at Lv30+ they dominate it. Rare asks grow
             // slowly too — 1 + level/8 per rare item — as players build a
-            // real supply. Rare tiers are pre-filtered by rareOrderTierCap.
+            // real supply. Tiers are pre-filtered by orderTierWindow.
             if (def.isRare) RARE_ORDER_WEIGHT + level / 8 else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()

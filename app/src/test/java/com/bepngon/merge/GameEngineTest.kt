@@ -2,6 +2,7 @@ package com.bepngon.merge
 
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
+import com.bepngon.merge.game.Family
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
@@ -869,7 +870,7 @@ class GameEngineTest {
     }
 
     @Test
-    fun `rare order tiers are gated by player level`() {
+    fun `rare order tiers collapse toward the jackpot with player level`() {
         fun rareTiers(level: Int, seed0: Int): Set<Int> {
             val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = level)
             var cur = s.copy(nextOrderId = 2)
@@ -886,9 +887,79 @@ class GameEngineTest {
             }
             return tiers
         }
-        assertTrue(rareTiers(5, 0).all { it == 1 })
-        assertTrue(rareTiers(10, 0).all { it <= 2 })
-        assertTrue(rareTiers(24, 0).all { it <= 3 })
+        // rare chains len 3 → window [level*3/30+1, 3]: any tier early,
+        // t2-3 from ~Lv10, only the t3 jackpot past Lv20.
+        assertTrue(rareTiers(5, 0).all { it in 1..3 })
+        val mid = rareTiers(10, 0)
+        assertTrue("Lv10 rares t2-3, got $mid", mid.isNotEmpty() && mid.all { it in 2..3 })
+        val late = rareTiers(24, 0)
+        assertTrue("Lv24 rares t3 only, got $late", late.isNotEmpty() && late.all { it == 3 })
+    }
+
+    @Test
+    fun `normal order tiers follow the chain window`() {
+        fun normalTiers(level: Int, seed0: Int): Set<Int> {
+            val s = stateWith(0 to "gen_fruit_3", nextOrderAtMs = 10, level = level)
+            var cur = s.copy(nextOrderId = 2)
+            val tiers = mutableSetOf<Int>()
+            repeat(200) { i ->
+                val (next, events) = GameEngine.maybeSpawnOrder(
+                    cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                    100 + i * 1000L, Random(seed0 + i),
+                )
+                cur = next
+                (events.single() as GameEvent.OrderSpawned).order.required
+                    .filter { !ItemCatalog[it].isRare }
+                    .forEach { tiers += ItemCatalog[it].tier }
+            }
+            return tiers
+        }
+        // fruit chain len 11 → window [level*11/30+1, +3], pinned at t8-11 endgame
+        val t1 = normalTiers(1, 0)
+        assertTrue("Lv1 window t1-4, got $t1", t1.isNotEmpty() && t1.all { it in 1..4 })
+        assertEquals("Lv1 still asks tier 1", 1, t1.min())
+        val t12 = normalTiers(12, 0)
+        assertTrue("Lv12 window t5-8, got $t12", t12.isNotEmpty() && t12.all { it in 5..8 })
+        val t25 = normalTiers(25, 0)
+        assertTrue("Lv25 pinned to t8-11, got $t25", t25.isNotEmpty() && t25.all { it in 8..11 })
+        val t30 = normalTiers(30, 0)
+        assertTrue("Lv30 pinned to t8-11, got $t30", t30.isNotEmpty() && t30.all { it in 8..11 })
+    }
+
+    @Test
+    fun `order window scales with each chain length`() {
+        // drink len 8 vs fruit len 11 at Lv6: fruit min = 6*11/30+1 = 3,
+        // drink min = 6*8/30+1 = 2 — longer chains ramp faster.
+        fun tiersByFamily(level: Int, seed0: Int): Pair<Set<Int>, Set<Int>> {
+            val s = stateWith(
+                0 to "gen_fruit_3", 1 to "gen_drink_3",
+                nextOrderAtMs = 10, level = level,
+            )
+            var cur = s.copy(nextOrderId = 2)
+            val fruit = mutableSetOf<Int>()
+            val drink = mutableSetOf<Int>()
+            repeat(200) { i ->
+                val (next, events) = GameEngine.maybeSpawnOrder(
+                    cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                    100 + i * 1000L, Random(seed0 + i),
+                )
+                cur = next
+                (events.single() as GameEvent.OrderSpawned).order.required
+                    .map { ItemCatalog[it] }
+                    .filter { !it.isRare }
+                    .forEach {
+                        when (it.family) {
+                            Family.FRUIT -> fruit += it.tier
+                            Family.DRINK -> drink += it.tier
+                            else -> {}
+                        }
+                    }
+            }
+            return fruit to drink
+        }
+        val (fruit6, drink6) = tiersByFamily(6, 0)
+        assertTrue("fruit Lv6 t3-6, got $fruit6", fruit6.isNotEmpty() && fruit6.all { it in 3..6 })
+        assertTrue("drink Lv6 t2-5, got $drink6", drink6.isNotEmpty() && drink6.all { it in 2..5 })
     }
 
     @Test
@@ -1063,8 +1134,8 @@ class GameEngineTest {
     }
 
     @Test
-    fun `newly unlocked family orders stay low tier`() {
-        // viet gen arrives at Lv5: fresh gen -> only tier 1-2 asks
+    fun `viet order window scales by its own chain length`() {
+        // viet chain len 7 → window [level*7/30+1, +3]: Lv5 [2,5], Lv11 [3,6]
         fun vietTiers(level: Int, seed0: Int): Set<Int> {
             val s = stateWith(0 to "gen_viet_1", nextOrderAtMs = 10, level = level)
             var cur = s.copy(nextOrderId = 2)
@@ -1081,10 +1152,10 @@ class GameEngineTest {
             }
             return tiers
         }
-        assertTrue(vietTiers(5, 0).all { it <= 2 })
-        assertTrue(vietTiers(11, 0).all { it <= 5 })
-        // ramp actually climbs — by Lv11 tier 3+ appears
-        assertTrue(vietTiers(11, 0).any { it >= 3 })
+        val t5 = vietTiers(5, 0)
+        assertTrue("viet Lv5 window t2-5, got $t5", t5.isNotEmpty() && t5.all { it in 2..5 })
+        val t11 = vietTiers(11, 0)
+        assertTrue("viet Lv11 window t3-6, got $t11", t11.isNotEmpty() && t11.all { it in 3..6 })
     }
 
     @Test

@@ -24,6 +24,8 @@ data class ItemDef(
     val isRare: Boolean = false,
     val spawnTable: List<SpawnEntry> = emptyList(),
     val maxCharges: Int = 0,
+    /** Length of the merge chain this item belongs to (0 for generators). */
+    val chainLen: Int = 0,
 )
 
 object ItemCatalog {
@@ -42,6 +44,7 @@ object ItemCatalog {
                     tier = i + 1, mergeResult = next,
                     isRare = prefix.startsWith("rare_"),
                     sellPrice = nums.first, score = nums.second,
+                    chainLen = items.size,
                 )
             )
         }
