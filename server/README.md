@@ -97,6 +97,8 @@ Admin:
 
 ## Verification
 
+Prisma generated client trong `src/generated/` được commit intentionally để Vercel deployment deterministic và không phụ thuộc hoàn toàn vào `postinstall`. Sau khi đổi `prisma/schema.prisma`, chạy `npm run prisma:generate` rồi commit cả generated client mới.
+
 ```sh
 npm run typecheck
 npm test
