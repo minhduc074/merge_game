@@ -46,6 +46,7 @@ import com.bepngon.merge.ui.theme.Gold
 import com.bepngon.merge.ui.theme.MergeGreen
 import com.bepngon.merge.ui.theme.WarnRed
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val Boards = listOf(
@@ -92,6 +93,10 @@ fun LeaderboardScreen(
             me = null
         } finally {
             loading = false
+        }
+        if (error == null && me == null && refreshTick == 0) {
+            delay(1_500)
+            refreshTick++
         }
     }
 

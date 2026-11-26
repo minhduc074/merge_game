@@ -13,6 +13,8 @@ npm run prisma:deploy
 npm run dev
 ```
 
+`npm run dev` dùng `ts-node` qua `node --watch`, không dùng `tsx`, vì Nest dependency injection/validation cần TypeScript emit decorator metadata đúng chuẩn.
+
 - API root: `http://localhost:3000/`
 - Health: `http://localhost:3000/api/health`
 - Admin: `http://localhost:3000/admin`
