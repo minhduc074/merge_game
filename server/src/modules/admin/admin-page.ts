@@ -94,7 +94,7 @@ function editorPayload(){
 }
 function cfgMessage(html,isErr){document.getElementById('cfgMsg').innerHTML='<div class="'+(isErr?'error':'ok')+'" style="margin-top:10px">'+html+'</div>'}
 function validateEditor(){
- try{var payload=editorPayload();api('/api/admin/configs/validate',{method:'POST',body:{payload:payload}}).then(function(r){cfgMessage(r.valid?'✅ Config hợp lệ':esc(r.errors.join('\n')),!r.valid)}).catch(function(e){cfgMessage(esc(e.message),true)})}catch(e){cfgMessage(esc(e.message),true)}
+ try{var payload=editorPayload();api('/api/admin/configs/validate',{method:'POST',body:{payload:payload}}).then(function(r){cfgMessage(r.valid?'✅ Config hợp lệ':esc(r.errors.join('\\n')),!r.valid)}).catch(function(e){cfgMessage(esc(e.message),true)})}catch(e){cfgMessage(esc(e.message),true)}
 }
 function saveEditor(){
  try{var payload=editorPayload();api('/api/admin/configs/'+state.config.id,{method:'PUT',body:{payload:payload,note:state.config.note}}).then(function(){cfgMessage('✅ Đã lưu draft',false);renderConfig()}).catch(function(e){cfgMessage(esc(e.message),true)})}catch(e){cfgMessage(esc(e.message),true)}
