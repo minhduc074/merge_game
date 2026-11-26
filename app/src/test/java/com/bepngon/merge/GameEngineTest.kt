@@ -459,6 +459,52 @@ class GameEngineTest {
     }
 
     @Test
+    fun `orders never ask families without a generator on board`() {
+        // even at max level with full windows open: only fruit/bakery gens
+        // placed → no drink/viet item may ever be requested, rare included
+        val s = stateWith(
+            0 to "gen_fruit_3", 1 to "gen_bakery_3",
+            nextOrderAtMs = 10, level = 30,
+        )
+        var cur = s.copy(nextOrderId = 2)
+        var totalPicks = 0
+        repeat(200) { i ->
+            val (next, events) = GameEngine.maybeSpawnOrder(
+                cur.copy(orders = emptyList(), nextOrderAtMs = 10),
+                100 + i * 1000L, Random(900 + i),
+            )
+            cur = next
+            (events.single() as GameEvent.OrderSpawned).order.required.forEach { id ->
+                totalPicks++
+                val def = ItemCatalog[id]
+                assertTrue(
+                    "drink/viet asked without its machine: $id",
+                    def.family == Family.FRUIT || def.family == Family.BAKERY,
+                )
+            }
+        }
+        assertTrue("no picks collected", totalPicks > 100)
+        // positive control: placing the drink machine opens drink asks
+        val withDrink = stateWith(
+            0 to "gen_fruit_3", 1 to "gen_drink_3",
+            nextOrderAtMs = 10, level = 30,
+        )
+        var cur2 = withDrink.copy(nextOrderId = 2)
+        var sawDrink = false
+        repeat(200) { i ->
+            val (next, events) = GameEngine.maybeSpawnOrder(
+                cur2.copy(orders = emptyList(), nextOrderAtMs = 10),
+                100 + i * 1000L, Random(1900 + i),
+            )
+            cur2 = next
+            if ((events.single() as GameEvent.OrderSpawned).order.required
+                    .any { ItemCatalog[it].family == Family.DRINK }
+            ) sawDrink = true
+        }
+        assertTrue("drink never asked despite drink machine", sawDrink)
+    }
+
+    @Test
     fun `order spawns when due and only from produceable families`() {
         val s = stateWith(0 to "gen_fruit_1", nextOrderAtMs = 10)
         val (next, events) = GameEngine.maybeSpawnOrder(s, 100, Random(1))
