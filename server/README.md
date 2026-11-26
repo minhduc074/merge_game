@@ -42,7 +42,7 @@ PLAYER_TOKEN_PEPPER=<random 32+ chars>
 NODE_ENV=production
 ```
 
-`DATABASE_URL_POOLED` được runtime ưu tiên. `DATABASE_URL` direct dùng cho migration/CLI. Không set `ALLOW_DEBUG_SCORES` trên production.
+`DATABASE_URL_POOLED` được runtime ưu tiên. `DATABASE_URL` direct dùng cho migration/CLI. Runtime cũng nhận các biến tương thích `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, `PRISMA_DATABASE_URL` nếu Vercel integration tạo tên đó thay vì `DATABASE_URL_POOLED`. Khi paste env vào Vercel UI, chỉ paste giá trị `postgres://...`, không kèm dấu ngoặc kép hoặc prefix `DATABASE_URL=`. Sau khi sửa env phải redeploy. Không set `ALLOW_DEBUG_SCORES` trên production.
 
 ## Apply database migration
 

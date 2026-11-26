@@ -9,10 +9,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor() {
     const connectionString =
       process.env.DATABASE_URL_POOLED ??
+      process.env.POSTGRES_PRISMA_URL ??
+      process.env.POSTGRES_URL ??
       process.env.DATABASE_URL ??
-      process.env.PRISMA_DATABASE_URL;
+      process.env.PRISMA_DATABASE_URL ??
+      process.env.POSTGRES_URL_NON_POOLING;
     if (!connectionString) {
-      throw new Error("DATABASE_URL_POOLED (or DATABASE_URL / PRISMA_DATABASE_URL) is required");
+      throw new Error(
+        "DATABASE_URL_POOLED (or POSTGRES_PRISMA_URL / POSTGRES_URL / DATABASE_URL / PRISMA_DATABASE_URL) is required",
+      );
     }
     const pool = new Pool({
       connectionString,
