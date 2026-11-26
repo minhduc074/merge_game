@@ -10,11 +10,10 @@ export type GameConfigPayload = {
     intervalMinMs: number;
     intervalMaxMs: number;
     maxActive: number;
-    baseOrderTier: number;
-    maxOrderTier: number;
+    tierWindow: number;
+    tierLevelSpan: number;
     rareWeight: number;
     countWeights: { one: number; two: number; three: number };
-    familyUnlockLevel: Record<string, number>;
   };
   xp: { base: number; linear: number; quadratic: number };
   rewards: {
@@ -55,7 +54,7 @@ const gen = (maxCharges: number, table: Array<[string, number]>): GeneratorConfi
 });
 
 export const DEFAULT_GAME_CONFIG: GameConfigPayload = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   minAppVersionCode: 5,
   generators: {
     gen_fruit_1: gen(6, [["fruit_1", 76], ["fruit_2", 22], ["rare_fruit_1", 2]]),
@@ -77,11 +76,10 @@ export const DEFAULT_GAME_CONFIG: GameConfigPayload = {
     intervalMinMs: 6_000,
     intervalMaxMs: 28_000,
     maxActive: 5,
-    baseOrderTier: 5,
-    maxOrderTier: 8,
+    tierWindow: 3,
+    tierLevelSpan: 30,
     rareWeight: 1,
     countWeights: { one: 50, two: 35, three: 15 },
-    familyUnlockLevel: { FRUIT: 1, BAKERY: 1, DRINK: 3, VIET: 5 },
   },
   xp: { base: 60, linear: 15, quadratic: 5 },
   rewards: {
@@ -195,8 +193,8 @@ export function validateGameConfigPayload(payload: unknown): string[] {
       errors.push("orders.intervalMinMs must be <= intervalMaxMs");
     }
     if (!intIn(orders.maxActive, 1, 10)) errors.push("orders.maxActive must be 1..10");
-    if (!intIn(orders.baseOrderTier, 1, 11)) errors.push("orders.baseOrderTier must be 1..11");
-    if (!intIn(orders.maxOrderTier, 1, 11)) errors.push("orders.maxOrderTier must be 1..11");
+    if (!intIn(orders.tierWindow, 1, 10)) errors.push("orders.tierWindow must be 1..10");
+    if (!intIn(orders.tierLevelSpan, 5, 100)) errors.push("orders.tierLevelSpan must be 5..100");
     if (!intIn(orders.rareWeight, 0, 100)) errors.push("orders.rareWeight must be 0..100");
     if (!isRecord(orders.countWeights)) {
       errors.push("orders.countWeights must be an object");
@@ -206,15 +204,6 @@ export function validateGameConfigPayload(payload: unknown): string[] {
       if (!allValid) errors.push("orders.countWeights.one/two/three must be 0..100");
       if (allValid && (cw.one as number) + (cw.two as number) + (cw.three as number) !== 100) {
         errors.push("orders.countWeights must sum to 100");
-      }
-    }
-    if (!isRecord(orders.familyUnlockLevel)) {
-      errors.push("orders.familyUnlockLevel must be an object");
-    } else {
-      for (const family of ["FRUIT", "BAKERY", "DRINK", "VIET"]) {
-        if (!intIn(orders.familyUnlockLevel[family], 1, 30)) {
-          errors.push(`orders.familyUnlockLevel.${family} must be 1..30`);
-        }
       }
     }
   }

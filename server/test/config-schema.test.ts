@@ -26,6 +26,15 @@ describe("validateGameConfigPayload", () => {
     expect(validateGameConfigPayload(badItem).join("\n")).toContain("itemId is unknown");
   });
 
+  it("rejects invalid order tier window settings", () => {
+    const payload = structuredClone(DEFAULT_GAME_CONFIG);
+    payload.orders.tierWindow = 0;
+    payload.orders.tierLevelSpan = 4;
+    const errors = validateGameConfigPayload(payload);
+    expect(errors).toContain("orders.tierWindow must be 1..10");
+    expect(errors).toContain("orders.tierLevelSpan must be 5..100");
+  });
+
   it("rejects invalid order count weights and brackets", () => {
     const payload = structuredClone(DEFAULT_GAME_CONFIG);
     payload.orders.countWeights.one = 40;
