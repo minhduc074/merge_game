@@ -4,21 +4,28 @@ import { attachDatabasePool } from "@vercel/functions";
 import { Pool } from "pg";
 import { PrismaClient } from "../generated/prisma/client";
 
+function normalizeConnectionString(raw: string): string {
+  let value = raw.trim();
+  if (/^[A-Z][A-Z0-9_]*=/.test(value)) value = value.slice(value.indexOf("=") + 1).trim();
+  return value.replace(/^["']|["']$/g, "");
+}
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    const connectionString =
+    const configured =
       process.env.DATABASE_URL_POOLED ??
       process.env.POSTGRES_PRISMA_URL ??
       process.env.POSTGRES_URL ??
       process.env.DATABASE_URL ??
       process.env.PRISMA_DATABASE_URL ??
       process.env.POSTGRES_URL_NON_POOLING;
-    if (!connectionString) {
+    if (!configured) {
       throw new Error(
         "DATABASE_URL_POOLED (or POSTGRES_PRISMA_URL / POSTGRES_URL / DATABASE_URL / PRISMA_DATABASE_URL) is required",
       );
     }
+    const connectionString = normalizeConnectionString(configured);
     const pool = new Pool({
       connectionString,
       max: 5,
