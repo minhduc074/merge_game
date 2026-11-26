@@ -13,6 +13,9 @@ val localProps = Properties().apply {
 }
 val releaseStoreFile = localProps.getProperty("RELEASE_STORE_FILE")
 val releaseSigning = releaseStoreFile != null
+val apiBaseUrl = System.getenv("API_BASE_URL")
+    ?: localProps.getProperty("API_BASE_URL")
+    ?: "http://10.0.2.2:3000/"
 
 android {
     namespace = "com.bepngon.merge"
@@ -25,6 +28,7 @@ android {
         versionCode = 4
         versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     signingConfigs {
@@ -77,6 +81,9 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx)
+    implementation(libs.okhttp)
     implementation(libs.jbox2d)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)

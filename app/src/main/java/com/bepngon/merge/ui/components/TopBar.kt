@@ -47,6 +47,7 @@ fun TopBar(
     dailyReady: Boolean,
     onRestart: () -> Unit,
     onAchievements: () -> Unit,
+    onLeaderboard: () -> Unit,
     onDaily: () -> Unit,
     onGuide: () -> Unit,
     onRoom: () -> Unit,
@@ -146,6 +147,13 @@ fun TopBar(
                 28.dp,
                 emojiSize = 20.sp,
                 modifier = Modifier.clickable(onClick = onAchievements).padding(horizontal = 4.dp),
+            )
+            GameArt(
+                "icon_medal",
+                "🏅",
+                26.dp,
+                emojiSize = 19.sp,
+                modifier = Modifier.clickable(onClick = onLeaderboard).padding(horizontal = 4.dp),
             )
             GameArt(
                 "icon_question",

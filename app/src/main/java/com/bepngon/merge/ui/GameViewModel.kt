@@ -5,6 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.data.SaveManager
+import com.bepngon.merge.data.remote.BackendRepository
+import com.bepngon.merge.data.remote.LeaderboardResponse
+import com.bepngon.merge.data.remote.PlayerDto
 import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
@@ -33,6 +36,7 @@ data class GameUiState(
     val showMiniGame: Boolean = false,
     val showBlockGame: Boolean = false,
     val showDecor: Boolean = false,
+    val showLeaderboard: Boolean = false,
     val decorUndoDepth: Int = 0,
     val decorRedoDepth: Int = 0,
     val nowMs: Long = 0,
@@ -43,6 +47,12 @@ data class GameUiState(
 class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private val saveManager = SaveManager(app)
+    private val backend = BackendRepository(app)
+    private val lastSubmittedScores = mutableMapOf<String, Int>()
+    private val lastScoreSubmitAtMs = mutableMapOf<String, Long>()
+    private val pendingScoreSubmissions = mutableMapOf<String, Int>()
+    private var scoreFlushRunning = false
+    private var scoreFlushQueued = false
     private var startedAtMs = 0L
 
     private val _ui = MutableStateFlow(GameUiState(game = GameEngine.initialState()))
@@ -54,8 +64,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     init {
         startedAtMs = System.currentTimeMillis()
         viewModelScope.launch {
+            runCatching { backend.ensurePlayer() }
+                .onSuccess { submitCurrentScores() }
+        }
+        viewModelScope.launch {
             saveManager.load(nowMs())?.let { restored ->
                 _ui.value = _ui.value.copy(game = restored)
+                submitCurrentScores()
             }
             _ui.value = _ui.value.copy(loading = false)
         }
@@ -109,6 +124,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(showAchievements = false)
     }
 
+    fun openLeaderboard() {
+        _ui.value = _ui.value.copy(showLeaderboard = true)
+        submitCurrentScores(force = true)
+    }
+
+    fun closeLeaderboard() {
+        _ui.value = _ui.value.copy(showLeaderboard = false)
+    }
+
+    suspend fun loadLeaderboard(board: String): LeaderboardResponse = backend.leaderboard(board)
+
+    suspend fun loadLeaderboardAroundMe(board: String): LeaderboardResponse = backend.aroundMe(board)
+
+    suspend fun updateNickname(nickname: String): PlayerDto = backend.updateNickname(nickname)
+
+    suspend fun playerIdentity() = backend.ensurePlayer()
+
     fun openDaily() {
         _ui.value = _ui.value.copy(showDaily = true)
     }
@@ -155,6 +187,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun finishMiniGame(score: Int) {
         applyEngine { GameEngine.finishMiniGame(it, score, nowMs()) }
+        submitScoreAsync("mini", score, force = true)
         _ui.value = _ui.value.copy(showMiniGame = false)
     }
 
@@ -168,6 +201,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun finishBlockGame(score: Int) {
         applyEngine { GameEngine.finishBlockGame(it, score, nowMs()) }
+        submitScoreAsync("block", score, force = true)
         _ui.value = _ui.value.copy(showBlockGame = false)
     }
 
@@ -296,7 +330,51 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(game = next)
         events.forEach { _events.tryEmit(it) }
         if (next !== current) {
+            if (next.score != current.score) submitScoreAsync("main", next.score)
             viewModelScope.launch { saveManager.save(next, nowMs()) }
+        }
+    }
+
+    private fun submitCurrentScores(force: Boolean = false) {
+        val game = _ui.value.game
+        submitScoreAsync("main", game.score, force)
+        if (game.miniBest > 0) submitScoreAsync("mini", game.miniBest, force)
+        if (game.blockBest > 0) submitScoreAsync("block", game.blockBest, force)
+    }
+
+    private fun submitScoreAsync(board: String, score: Int, force: Boolean = false) {
+        if (score <= 0) return
+        val now = System.currentTimeMillis()
+        val lastScore = lastSubmittedScores[board] ?: -1
+        val lastAt = lastScoreSubmitAtMs[board] ?: 0L
+        if (!force && (score <= lastScore || now - lastAt < 30_000L)) return
+        pendingScoreSubmissions[board] = maxOf(pendingScoreSubmissions[board] ?: 0, score)
+        flushPendingScores()
+    }
+
+    private fun flushPendingScores() {
+        if (scoreFlushRunning) {
+            scoreFlushQueued = true
+            return
+        }
+        scoreFlushRunning = true
+        viewModelScope.launch {
+            try {
+                while (pendingScoreSubmissions.isNotEmpty()) {
+                    val (board, score) = pendingScoreSubmissions.entries.first()
+                    val submitted = runCatching { backend.submitScore(board, score) }.isSuccess
+                    if (!submitted) break
+                    pendingScoreSubmissions.remove(board)
+                    lastSubmittedScores[board] = maxOf(lastSubmittedScores[board] ?: -1, score)
+                    lastScoreSubmitAtMs[board] = System.currentTimeMillis()
+                }
+            } finally {
+                scoreFlushRunning = false
+                if (scoreFlushQueued) {
+                    scoreFlushQueued = false
+                    if (pendingScoreSubmissions.isNotEmpty()) flushPendingScores()
+                }
+            }
         }
     }
 

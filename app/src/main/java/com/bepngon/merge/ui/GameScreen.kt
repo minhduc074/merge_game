@@ -96,6 +96,7 @@ import com.bepngon.merge.ui.components.DailyRewardDialog
 import com.bepngon.merge.ui.components.DecorScreen
 import com.bepngon.merge.ui.components.GameArt
 import com.bepngon.merge.ui.components.FruitDropGame
+import com.bepngon.merge.ui.components.LeaderboardScreen
 import com.bepngon.merge.ui.components.OnboardingScreen
 import com.bepngon.merge.ui.components.OrderBar
 import com.bepngon.merge.ui.components.TopBar
@@ -142,6 +143,16 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 game = ui.game,
                 onClaim = vm::claimAchievement,
                 onClose = vm::closeAchievements,
+            )
+        }
+
+        if (ui.showLeaderboard) {
+            LeaderboardScreen(
+                loadTop = { board -> vm.loadLeaderboard(board) },
+                loadAroundMe = { board -> vm.loadLeaderboardAroundMe(board) },
+                loadIdentity = { vm.playerIdentity() },
+                onUpdateNickname = { nickname -> vm.updateNickname(nickname) },
+                onClose = vm::closeLeaderboard,
             )
         }
 
@@ -624,6 +635,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             dailyReady = vm.dailyReady(),
             onRestart = vm::askRestart,
             onAchievements = vm::openAchievements,
+            onLeaderboard = vm::openLeaderboard,
             onDaily = vm::openDaily,
             onGuide = vm::openGuide,
             onRoom = vm::openDecor,

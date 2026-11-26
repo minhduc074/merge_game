@@ -15,6 +15,11 @@ Merge game (kiểu Merge Mansion / Travel Town) cho Android: board 5x7, tap gene
 ./gradlew.bat assembleDebug          # build APK -> app/build/outputs/apk/debug/app-debug.apk
 ./gradlew.bat assembleRelease        # release signed APK -> app/build/outputs/apk/release/app-release.apk
 ./gradlew.bat testDebugUnitTest      # chạy unit test engine
+
+cd server && npm run typecheck       # typecheck backend NestJS
+cd server && npm test                # backend unit tests
+cd server && npm run build           # backend production build
+cd server && npm run dev             # chạy API local :3000 (cần server/.env)
 ```
 
 Release: ký bằng `keystore/bepngon.jks` (gitignored), credentials đọc từ `local.properties`

@@ -1,0 +1,143 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  generatedFileExtension = "ts"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LeaderboardBoard {
+  MAIN
+  MINI
+  BLOCK
+}
+
+enum ConfigStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Player {
+  id          String    @id @default(uuid())
+  installId   String    @unique
+  nickname    String
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  bannedAt    DateTime?
+
+  tokens      PlayerToken[]
+  bestScores  BestScore[]
+  scoreHistory ScoreHistory[]
+  cloudSave   CloudSave?
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([createdAt])
+}
+
+model PlayerToken {
+  id          String    @id @default(uuid())
+  playerId    String
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, revokedAt])
+}
+
+model BestScore {
+  id             String   @id @default(uuid())
+  playerId       String
+  board          LeaderboardBoard
+  bestScore      Int
+  lastScore      Int
+  configVersion  Int?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, board])
+  @@index([board, bestScore])
+  @@index([board, updatedAt])
+}
+
+model ScoreHistory {
+  id             String   @id @default(uuid())
+  playerId       String
+  board          LeaderboardBoard
+  score          Int
+  configVersion  Int?
+  appVersion     String?
+  debug          Boolean  @default(false)
+  clientMeta     Json?
+  createdAt      DateTime @default(now())
+
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, board, createdAt])
+  @@index([board, createdAt])
+}
+
+model GameConfig {
+  id             String       @id @default(uuid())
+  version        Int          @unique
+  status         ConfigStatus @default(DRAFT)
+  payload        Json
+  note           String?
+  createdBy      String?
+  createdAt      DateTime     @default(now())
+  publishedAt    DateTime?
+
+  @@index([status, publishedAt])
+}
+
+model CloudSave {
+  id               String   @id @default(uuid())
+  playerId         String   @unique
+  revision         Int      @default(1)
+  saveJson         Json
+  checksum         String
+  clientUpdatedAt  BigInt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model AnalyticsEvent {
+  id             String   @id @default(uuid())
+  playerId       String?
+  sessionId      String?
+  eventName      String
+  payload        Json?
+  appVersion     String?
+  configVersion  Int?
+  clientAt       BigInt?
+  receivedAt     DateTime @default(now())
+
+  player         Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@index([eventName, receivedAt])
+  @@index([playerId, receivedAt])
+  @@index([receivedAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  actor       String
+  action      String
+  targetType  String?
+  targetId    String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
