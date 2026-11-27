@@ -9,6 +9,9 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface BepNgonApi {
+    @GET("api/v1/config/current")
+    suspend fun currentConfig(@Query("sinceVersion") sinceVersion: Int? = null): GameConfigResponse
+
     @POST("api/v1/players/bootstrap")
     suspend fun bootstrap(@Body body: BootstrapRequest): BootstrapResponse
 

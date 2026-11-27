@@ -11,6 +11,11 @@ enum class Family(val tint: Long) {
 
 data class SpawnEntry(val itemId: String, val weight: Int)
 
+data class GeneratorTuning(
+    val maxCharges: Int,
+    val spawnTable: List<SpawnEntry>,
+)
+
 data class ItemDef(
     val id: String,
     val name: String,
@@ -209,21 +214,40 @@ object ItemCatalog {
         )
     }
 
+    @Volatile
+    private var generatorTunings: Map<String, GeneratorTuning> = emptyMap()
+
+    /** Apply published server-side generator balance. Unknown/non-generator ids are ignored. */
+    fun applyGeneratorTunings(tunings: Map<String, GeneratorTuning>) {
+        generatorTunings = tunings.filterKeys { defs[it]?.isGenerator == true }
+    }
+
+    fun clearGeneratorTunings() {
+        generatorTunings = emptyMap()
+    }
+
+    private fun tuned(def: ItemDef): ItemDef {
+        val tuning = generatorTunings[def.id] ?: return def
+        return def.copy(maxCharges = tuning.maxCharges, spawnTable = tuning.spawnTable)
+    }
+
+    private fun allDefs(): List<ItemDef> = defs.values.map(::tuned)
+
     operator fun get(id: String): ItemDef =
-        defs[id] ?: error("Unknown item id: $id")
+        defs[id]?.let(::tuned) ?: error("Unknown item id: $id")
 
     fun mergeResultOf(item: BoardItem): ItemDef? =
         get(item.defId).mergeResult?.let { get(it) }
 
     fun allInFamilies(families: Set<Family>): List<ItemDef> =
-        defs.values.filter { it.family in families && !it.isGenerator }
+        allDefs().filter { it.family in families && !it.isGenerator }
 
     fun generatorsFor(itemDefId: String): List<ItemDef> =
-        defs.values.filter { it.isGenerator && it.spawnTable.any { s -> s.itemId == itemDefId } }
+        allDefs().filter { it.isGenerator && it.spawnTable.any { s -> s.itemId == itemDefId } }
 
     /** The lower-tier def that merges into [defId], null for tier-1 items. */
     fun previousOf(defId: String): ItemDef? =
-        defs.values.firstOrNull { it.mergeResult == defId }
+        allDefs().firstOrNull { it.mergeResult == defId }
 
     /** Full merge chain containing [defId], ordered tier-1 -> max. */
     fun chainOf(defId: String): List<ItemDef> {

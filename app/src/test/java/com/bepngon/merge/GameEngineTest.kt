@@ -6,12 +6,14 @@ import com.bepngon.merge.game.Family
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
+import com.bepngon.merge.game.GeneratorTuning
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.Metric
 import com.bepngon.merge.game.Order
 import com.bepngon.merge.game.QteOffer
 import com.bepngon.merge.game.QteReward
+import com.bepngon.merge.game.SpawnEntry
 import com.bepngon.merge.game.Stats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -66,6 +68,28 @@ private fun orderOf(vararg defIds: String): Order =
     Order(id = 1, customer = Customers.ALL.first(), required = defIds.toList())
 
 class GameEngineTest {
+
+    @Test
+    fun `server generator tuning overrides max charges and spawn table`() {
+        try {
+            ItemCatalog.applyGeneratorTunings(
+                mapOf(
+                    "gen_fruit_1" to GeneratorTuning(
+                        maxCharges = 8,
+                        spawnTable = listOf(SpawnEntry("fruit_1", 90), SpawnEntry("rare_fruit_1", 10)),
+                    ),
+                ),
+            )
+            val gen = ItemCatalog["gen_fruit_1"]
+            assertEquals(8, gen.maxCharges)
+            assertEquals(2, gen.spawnTable.size)
+            assertEquals(10, gen.spawnTable[1].weight)
+            assertEquals(8, ItemCatalog.generatorsFor("fruit_1").first { it.id == "gen_fruit_1" }.maxCharges)
+        } finally {
+            ItemCatalog.clearGeneratorTunings()
+        }
+        assertEquals(6, ItemCatalog["gen_fruit_1"].maxCharges)
+    }
 
     @Test
     fun `energy regen catches up multiple intervals and caps at the natural cap`() {

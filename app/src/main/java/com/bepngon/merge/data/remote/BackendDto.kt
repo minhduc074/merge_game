@@ -61,3 +61,30 @@ data class SubmitScoreResponse(
     val bestScore: Int? = null,
     val rank: Int? = null,
 )
+
+@Serializable
+data class SpawnEntryConfigDto(
+    val itemId: String,
+    val weight: Int,
+)
+
+@Serializable
+data class GeneratorConfigDto(
+    val maxCharges: Int,
+    val spawnTable: List<SpawnEntryConfigDto>,
+)
+
+@Serializable
+data class GameConfigPayloadDto(
+    val schemaVersion: Int,
+    val minAppVersionCode: Int = 1,
+    val generators: Map<String, GeneratorConfigDto> = emptyMap(),
+)
+
+@Serializable
+data class GameConfigResponse(
+    val notModified: Boolean = false,
+    val version: Int,
+    val status: String? = null,
+    val payload: GameConfigPayloadDto? = null,
+)

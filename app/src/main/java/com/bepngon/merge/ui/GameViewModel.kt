@@ -6,12 +6,17 @@ import androidx.lifecycle.viewModelScope
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.data.SaveManager
 import com.bepngon.merge.data.remote.BackendRepository
+import com.bepngon.merge.data.remote.GameConfigPayloadDto
 import com.bepngon.merge.data.remote.LeaderboardResponse
 import com.bepngon.merge.data.remote.PlayerDto
 import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
+import com.bepngon.merge.game.BoardItem
+import com.bepngon.merge.game.GeneratorTuning
+import com.bepngon.merge.game.ItemCatalog
+import com.bepngon.merge.game.SpawnEntry
 import com.bepngon.merge.game.ItemSource
 import com.bepngon.merge.game.RoomSave
 import kotlinx.coroutines.delay
@@ -73,6 +78,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 submitCurrentScores()
             }
             _ui.value = _ui.value.copy(loading = false)
+            backend.cachedGameConfig()?.let { applyGameConfig(it.second) }
+            runCatching { backend.fetchGameConfig() }.getOrNull()?.let { applyGameConfig(it.second) }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(60_000L)
+                runCatching { backend.fetchGameConfig() }.getOrNull()?.let { applyGameConfig(it.second) }
+            }
         }
         viewModelScope.launch {
             while (true) {
@@ -81,6 +94,43 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 _ui.value = _ui.value.copy(nowMs = nowMs())
             }
         }
+    }
+
+
+    /** Apply server-published generator tuning. Full generators are topped up when
+     *  maxCharges increases; over-cap charges are clamped when it decreases. */
+    private fun applyGameConfig(payload: GameConfigPayloadDto) {
+        val tunings = payload.generators.mapValues { (_, gen) ->
+            GeneratorTuning(
+                maxCharges = gen.maxCharges,
+                spawnTable = gen.spawnTable.map { SpawnEntry(it.itemId, it.weight) },
+            )
+        }
+        if (tunings.isEmpty()) return
+        val oldMaxes = tunings.keys.associateWith { ItemCatalog[it].maxCharges }
+        ItemCatalog.applyGeneratorTunings(tunings)
+        val newMaxes = tunings.keys.associateWith { ItemCatalog[it].maxCharges }
+        applyEngine { state ->
+            var changed = false
+            fun retune(item: BoardItem?): BoardItem? {
+                if (item == null || item.charges < 0) return item
+                val newMax = newMaxes[item.defId] ?: return item
+                val oldMax = oldMaxes[item.defId] ?: newMax
+                val charges = when {
+                    item.charges > newMax -> newMax
+                    item.charges >= oldMax && newMax > oldMax -> newMax
+                    else -> item.charges
+                }
+                if (charges == item.charges) return item
+                changed = true
+                return item.copy(charges = charges)
+            }
+            val cells = state.cells.map(::retune)
+            val inventory = state.inventory.map(::retune)
+            if (!changed) return@applyEngine state to emptyList()
+            state.copy(cells = cells, inventory = inventory) to emptyList()
+        }
+        _ui.value = _ui.value.copy(nowMs = nowMs())
     }
 
     fun moveOrMerge(from: Int, to: Int) = applyEngine { GameEngine.moveOrMerge(it, from, to) }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.HttpException
@@ -32,6 +33,8 @@ class BackendRepository(private val context: Context) {
     private val tokenKey = stringPreferencesKey("player_token")
     private val playerIdKey = stringPreferencesKey("player_id")
     private val nicknameKey = stringPreferencesKey("nickname")
+    private val configVersionKey = stringPreferencesKey("game_config_version")
+    private val configJsonKey = stringPreferencesKey("game_config_json")
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -84,6 +87,28 @@ class BackendRepository(private val context: Context) {
                 throw error
             }
         }
+    }
+
+    suspend fun cachedGameConfig(): Pair<Int, GameConfigPayloadDto>? {
+        val prefs = context.identityStore.data.first()
+        val version = prefs[configVersionKey]?.toIntOrNull() ?: return null
+        val raw = prefs[configJsonKey] ?: return null
+        val payload = runCatching { json.decodeFromString<GameConfigPayloadDto>(raw) }.getOrNull() ?: return null
+        return version to payload
+    }
+
+    /** Returns null when the server config is unchanged, invalid for this app, or unavailable. */
+    suspend fun fetchGameConfig(): Pair<Int, GameConfigPayloadDto>? {
+        val cachedVersion = context.identityStore.data.first()[configVersionKey]?.toIntOrNull()
+        val response = api.currentConfig(cachedVersion)
+        if (response.notModified) return null
+        val payload = response.payload ?: return null
+        if (payload.schemaVersion !in 1..2 || payload.minAppVersionCode > BuildConfig.VERSION_CODE) return null
+        context.identityStore.edit {
+            it[configVersionKey] = response.version.toString()
+            it[configJsonKey] = json.encodeToString(payload)
+        }
+        return response.version to payload
     }
 
     suspend fun leaderboard(board: String, limit: Int = 100): LeaderboardResponse =
