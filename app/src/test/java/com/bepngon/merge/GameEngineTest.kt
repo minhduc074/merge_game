@@ -3,6 +3,7 @@ package com.bepngon.merge
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
 import com.bepngon.merge.game.Family
+import com.bepngon.merge.game.GameBalance
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
@@ -68,6 +69,20 @@ private fun orderOf(vararg defIds: String): Order =
     Order(id = 1, customer = Customers.ALL.first(), required = defIds.toList())
 
 class GameEngineTest {
+
+    @Test
+    fun `remote balance overrides xp curve and minigame brackets`() {
+        try {
+            GameBalance.xpBase = 100
+            GameBalance.xpLinear = 20
+            GameBalance.xpQuadratic = 6
+            assertEquals(126, GameEngine.xpNeededForLevel(1))
+            GameBalance.blockEnergyBrackets = listOf(0 to 50, 1000 to 100)
+            assertEquals(20, GameEngine.blockEnergyFor(1000))
+        } finally {
+            GameBalance.reset()
+        }
+    }
 
     @Test
     fun `server generator tuning overrides max charges and spawn table`() {

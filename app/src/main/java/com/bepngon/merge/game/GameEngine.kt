@@ -127,8 +127,8 @@ object GameEngine {
             orders = emptyList(),
             nextOrderId = 1,
             nextOrderAtMs = FIRST_ORDER_DELAY_MS,
-            energy = ENERGY_CAP,
-            nextEnergyAtMs = ENERGY_REGEN_BASE_MS,
+            energy = GameBalance.energyCap,
+            nextEnergyAtMs = GameBalance.energyRegenMs,
             coins = START_COINS,
             score = 0,
             xp = 0,
@@ -371,7 +371,7 @@ object GameEngine {
         val frenzy = nowMs < state.frenzyUntilMs
         val cooling = item.cooldownUntilMs > nowMs
         if (cooling || item.charges == 0) return state to listOf(GameEvent.GeneratorEmpty)
-        if (!frenzy && state.energy < ENERGY_PER_SPAWN) {
+        if (!frenzy && state.energy < GameBalance.energyPerSpawn) {
             return state to listOf(GameEvent.NoEnergy)
         }
 
@@ -393,10 +393,10 @@ object GameEngine {
         genItem = genItem.copy(
             charges = charges,
             cooldownUntilMs =
-                if (!frenzy && charges == 0) nowMs + GEN_COOLDOWN_MS else 0,
+                if (!frenzy && charges == 0) nowMs + GameBalance.genCooldownMs else 0,
             rechargeAtMs = when {
                 frenzy -> genItem.rechargeAtMs
-                charges in 1 until def.maxCharges -> nowMs + GEN_REGEN_MS
+                charges in 1 until def.maxCharges -> nowMs + GameBalance.genRegenMs
                 else -> 0
             },
         )
@@ -407,7 +407,7 @@ object GameEngine {
         val events = mutableListOf<GameEvent>(GameEvent.Spawned(target, spawned))
         val next = state.copy(
             cells = cells,
-            energy = if (frenzy) state.energy else state.energy - ENERGY_PER_SPAWN,
+            energy = if (frenzy) state.energy else state.energy - GameBalance.energyPerSpawn,
             nextUid = state.nextUid + 1,
             stats = state.stats.copy(
                 spawns = state.stats.spawns + 1,
@@ -423,16 +423,16 @@ object GameEngine {
     fun applyEnergyRegen(state: GameState, nowMs: Long): GameState {
         var at = state.nextEnergyAtMs
         if (at == 0L) {
-            at = nowMs + ENERGY_REGEN_BASE_MS
+            at = nowMs + GameBalance.energyRegenMs
             return state.copy(nextEnergyAtMs = at)
         }
         if (at > nowMs) return state
-        val intervals = (nowMs - at) / ENERGY_REGEN_BASE_MS + 1
-        val needed = (ENERGY_CAP - state.energy).coerceAtLeast(0).toLong()
+        val intervals = (nowMs - at) / GameBalance.energyRegenMs + 1
+        val needed = (GameBalance.energyCap - state.energy).coerceAtLeast(0).toLong()
         val energy = state.energy + minOf(intervals, needed).toInt()
         return state.copy(
             energy = energy,
-            nextEnergyAtMs = at + intervals * ENERGY_REGEN_BASE_MS,
+            nextEnergyAtMs = at + intervals * GameBalance.energyRegenMs,
         )
     }
 
@@ -455,14 +455,14 @@ object GameEngine {
                     it.copy(charges = max, cooldownUntilMs = 0, rechargeAtMs = 0)
                 // Partially used, timer disarmed (old save) -> start regen.
                 it.charges in 1 until max && it.rechargeAtMs <= 0 ->
-                    it.copy(rechargeAtMs = nowMs + GEN_REGEN_MS)
+                    it.copy(rechargeAtMs = nowMs + GameBalance.genRegenMs)
                 // Partially used -> +1 per interval, catching up if behind.
                 it.charges in 1 until max && it.rechargeAtMs <= nowMs -> {
                     var ch = it.charges
                     var at = it.rechargeAtMs
                     while (at <= nowMs && ch < max) {
                         ch += 1
-                        at += GEN_REGEN_MS
+                        at += GameBalance.genRegenMs
                     }
                     it.copy(charges = ch, rechargeAtMs = if (ch < max) at else 0)
                 }
@@ -544,10 +544,10 @@ object GameEngine {
                 events += GameEvent.FrenzyStarted(next.frenzyUntilMs)
             }
             QteReward.ENERGY ->
-                next = next.copy(energy = next.energy + QTE_ENERGY)
+                next = next.copy(energy = next.energy + GameBalance.qteEnergy)
             QteReward.COINS -> next = next.copy(
-                coins = next.coins + QTE_COINS,
-                stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + QTE_COINS),
+                coins = next.coins + GameBalance.qteCoins,
+                stats = next.stats.copy(coinsEarned = next.stats.coinsEarned + GameBalance.qteCoins),
             )
             QteReward.RECHARGE -> {
                 val cells = next.cells.toMutableList()
@@ -593,8 +593,8 @@ object GameEngine {
             return state.copy(inventory = inventory, nextUid = state.nextUid + 1) to (-1 - slot)
         }
         return state.copy(
-            coins = state.coins + QTE_COINS,
-            stats = state.stats.copy(coinsEarned = state.stats.coinsEarned + QTE_COINS),
+            coins = state.coins + GameBalance.qteCoins,
+            stats = state.stats.copy(coinsEarned = state.stats.coinsEarned + GameBalance.qteCoins),
         ) to null
     }
 
@@ -610,7 +610,7 @@ object GameEngine {
         // bypass the timer so the next tick refills it immediately.
         val emptyAfterStart = state.orders.isEmpty() && state.nextOrderId > 1
         if (nowMs < state.nextOrderAtMs && !emptyAfterStart) return state to emptyList()
-        if (state.orders.size >= MAX_ACTIVE_ORDERS) {
+        if (state.orders.size >= GameBalance.maxActiveOrders) {
             return state.copy(nextOrderAtMs = nowMs + 10_000L) to emptyList()
         }
         val order = generateOrder(state, random)
@@ -631,17 +631,17 @@ object GameEngine {
         val base = if (state.orderPaceMs > 0) {
             state.orderPaceMs / 4
         } else {
-            (ORDER_INTERVAL_MIN_MS + ORDER_INTERVAL_MAX_MS) / 2
+            (GameBalance.orderIntervalMinMs + GameBalance.orderIntervalMaxMs) / 2
         }
         val jittered = base * (0.6f + random.nextFloat() * 0.8f)
-        return jittered.toLong().coerceIn(ORDER_INTERVAL_MIN_MS, ORDER_INTERVAL_MAX_MS)
+        return jittered.toLong().coerceIn(GameBalance.orderIntervalMinMs, GameBalance.orderIntervalMaxMs)
     }
 
     /** Tier window orders may ask from a chain of [chainLen] tiers at
      *  [level]. Min tier scales with the level ratio over the chain length:
      *  `level * chainLen / 30 + 1` — Lv1 always opens at tier 1, Lv6 hits
      *  tier 3 on a 10-chain, and the window reaches the chain top ~Lv30.
-     *  Max trails +ORDER_TIER_WINDOW and the whole window pins at the top
+     *  Max trails +GameBalance.orderTierWindow and the whole window pins at the top
      *  once it arrives (long chains keep a 4-tier spread forever, e.g. fruit
      *  asks t8-11 for the whole endgame). Chains shorter than the window
      *  (rare 3-tiers) can't slide — they collapse toward their top tier
@@ -649,10 +649,10 @@ object GameEngine {
      *  past Lv20. Applies uniformly to normal and rare chains. */
     private fun orderTierWindow(chainLen: Int, level: Int): IntRange {
         if (chainLen < 1) return IntRange.EMPTY
-        val rawMin = level * chainLen / ORDER_TIER_LEVEL_SPAN + 1
-        return if (chainLen > ORDER_TIER_WINDOW) {
-            val min = rawMin.coerceIn(1, chainLen - ORDER_TIER_WINDOW)
-            min..(min + ORDER_TIER_WINDOW)
+        val rawMin = level * chainLen / GameBalance.orderTierLevelSpan + 1
+        return if (chainLen > GameBalance.orderTierWindow) {
+            val min = rawMin.coerceIn(1, chainLen - GameBalance.orderTierWindow)
+            min..(min + GameBalance.orderTierWindow)
         } else {
             rawMin.coerceIn(1, chainLen)..chainLen
         }
@@ -679,9 +679,11 @@ object GameEngine {
         val candidates = ItemCatalog.allInFamilies(produceable)
             .filter { it.tier in orderTierWindow(it.chainLen, state.level) }
 
-        val count = when (random.nextInt(100)) {
-            in 0 until 50 -> 1
-            in 50 until 85 -> 2
+        val one = GameBalance.orderCountWeightOne
+        val two = GameBalance.orderCountWeightTwo
+        val count = when (random.nextInt(one + two + GameBalance.orderCountWeightThree)) {
+            in 0 until one -> 1
+            in one until (one + two) -> 2
             else -> 3
         }
         val picked = mutableListOf<String>()
@@ -713,7 +715,7 @@ object GameEngine {
             // low-tier demand and at Lv30+ they dominate it. Rare asks grow
             // slowly too — 1 + level/8 per rare item — as players build a
             // real supply. Tiers are pre-filtered by orderTierWindow.
-            if (def.isRare) RARE_ORDER_WEIGHT + level / 8 else base + (def.tier - 1) * (level / 3)
+            if (def.isRare) GameBalance.rareOrderWeight + level / 8 else base + (def.tier - 1) * (level / 3)
         }
         val total = weights.sum()
         var roll = random.nextInt(total)
@@ -831,12 +833,12 @@ object GameEngine {
         // Combo: consecutive completed orders inside the window build a chain;
         // from the 3rd onward each pays a growing bonus.
         val combo = if (nowMs < state.comboUntilMs) state.comboCount + 1 else 1
-        val comboCoins = if (combo >= COMBO_MIN) 10 * combo else 0
-        val comboXp = if (combo >= COMBO_MIN) 2 * combo else 0
+        val comboCoins = if (combo >= GameBalance.comboMin) 10 * combo else 0
+        val comboXp = if (combo >= GameBalance.comboMin) 2 * combo else 0
         val events = mutableListOf<GameEvent>(
             GameEvent.OrderCompleted(order, coinsGained, xpGained)
         )
-        if (combo >= COMBO_MIN) {
+        if (combo >= GameBalance.comboMin) {
             events += GameEvent.ComboBonus(combo, comboCoins, comboXp)
         }
 
@@ -857,7 +859,7 @@ object GameEngine {
             coins = state.coins + coinsGained + comboCoins,
             xp = state.xp + xpGained + comboXp,
             comboCount = combo,
-            comboUntilMs = nowMs + COMBO_WINDOW_MS,
+            comboUntilMs = nowMs + GameBalance.comboWindowMs,
             orderPaceMs = pace,
             lastOrderDoneAtMs = nowMs,
             stats = state.stats.copy(
@@ -955,7 +957,7 @@ object GameEngine {
     /** Quadratic curve: each level costs noticeably more than the last.
      *  ~40% pricier than the previous tune so leveling slows across the board —
      *  pairs with cells unlocking every 2 levels. */
-    fun xpNeededForLevel(level: Int): Int = 60 + level * 15 + level * level * 5
+    fun xpNeededForLevel(level: Int): Int = GameBalance.xpBase + level * GameBalance.xpLinear + level * level * GameBalance.xpQuadratic
 
     fun rewardForLevel(level: Int): LevelReward {
         val unlock = UNLOCK_SCHEDULE[level] ?: 0
@@ -1087,13 +1089,11 @@ object GameEngine {
 
     /** Minigame energy — progressive brackets: points in each range convert at
      *  a steeper rate, so ~2000 pts ≈ 50⚡ and the curve flattens hard. */
-    private val MINI_ENERGY_BRACKETS = listOf(0 to 10, 100 to 25, 300 to 40, 700 to 60)
-
     fun miniEnergyFor(score: Int): Int {
         var energy = 0
-        for (i in MINI_ENERGY_BRACKETS.indices) {
-            val (from, rate) = MINI_ENERGY_BRACKETS[i]
-            val to = MINI_ENERGY_BRACKETS.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
+        for (i in GameBalance.miniEnergyBrackets.indices) {
+            val (from, rate) = GameBalance.miniEnergyBrackets[i]
+            val to = GameBalance.miniEnergyBrackets.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
             if (score <= from) break
             energy += (minOf(score, to) - from) / rate
         }
@@ -1116,13 +1116,11 @@ object GameEngine {
 
     /** Block-puzzle scores run ~3x higher than fruit-drop, so the brackets
      *  are steeper: ~800 pts ≈ 20⚡, 2500 ≈ 46⚡, 7000 ≈ 91⚡. */
-    private val BLOCK_ENERGY_BRACKETS = listOf(0 to 40, 800 to 65, 2500 to 100, 7000 to 160)
-
     fun blockEnergyFor(score: Int): Int {
         var energy = 0
-        for (i in BLOCK_ENERGY_BRACKETS.indices) {
-            val (from, rate) = BLOCK_ENERGY_BRACKETS[i]
-            val to = BLOCK_ENERGY_BRACKETS.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
+        for (i in GameBalance.blockEnergyBrackets.indices) {
+            val (from, rate) = GameBalance.blockEnergyBrackets[i]
+            val to = GameBalance.blockEnergyBrackets.getOrNull(i + 1)?.first ?: Int.MAX_VALUE
             if (score <= from) break
             energy += (minOf(score, to) - from) / rate
         }
@@ -1163,7 +1161,7 @@ object GameEngine {
         next = next.copy(
             xp = 0,
             coins = next.coins + DEBUG_COINS,
-            energy = ENERGY_CAP,
+            energy = GameBalance.energyCap,
             inventoryCap = MAX_INVENTORY,
             onboardingDone = true,
             miniPlaysLeft = MINI_MAX_PLAYS,

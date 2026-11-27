@@ -617,7 +617,11 @@ function renderAnalytics(){
   var rows=d.events||[];
   var host=document.getElementById('an');
   if(!host)return;
-  host.innerHTML=rows.length?'<table><thead><tr><th>Event</th><th>Count</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td class="mono">'+esc(r.eventName)+'</td><td>'+r.count+'</td></tr>'}).join('')+'</tbody></table>':'<div class="muted">Chưa có event nào.</div>';
+  var cards=[['DAU',d.dau||0],['WAU',d.wau||0],['Onboarded',((d.funnel||[]).find(function(r){return r.eventName==='onboarding_finished'})||{}).players||0],['Level up',((d.funnel||[]).find(function(r){return r.eventName==='level_up'})||{}).players||0]];
+  var funnel=(d.funnel||[]).map(function(r){return '<tr><td class="mono">'+esc(r.eventName)+'</td><td>'+r.players+'</td></tr>'}).join('');
+  var levels=Object.keys(d.levelBuckets||{}).map(function(k){return '<tr><td>Lv '+k+'</td><td>'+d.levelBuckets[k]+'</td></tr>'}).join('');
+  var eventTable=rows.length?'<table><thead><tr><th>Event</th><th>Count</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td class="mono">'+esc(r.eventName)+'</td><td>'+r.count+'</td></tr>'}).join('')+'</tbody></table>':'<div class="muted">Chưa có event nào.</div>';
+  host.innerHTML='<div class="grid cards">'+cards.map(function(c){return '<div class="card"><div class="muted">'+c[0]+'</div><div class="num">'+esc(c[1])+'</div></div>'}).join('')+'</div><div class="summary-grid" style="margin-top:12px"><div class="summary-card"><b>Funnel 7 ngày</b><table><thead><tr><th>Event</th><th>Players</th></tr></thead><tbody>'+funnel+'</tbody></table></div><div class="summary-card"><b>Level distribution</b><table><tbody>'+levels+'</tbody></table></div></div><h3 style="margin-top:14px">Raw events</h3>'+eventTable;
  }).catch(function(e){showErrorIf('analytics',e)});
 }
 function showErrorIf(tab,e){if(state.tab===tab)showError(e)}

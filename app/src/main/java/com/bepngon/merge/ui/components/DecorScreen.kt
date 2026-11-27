@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import com.bepngon.merge.game.DecorCatalog
 import com.bepngon.merge.game.DecorEngine
+import com.bepngon.merge.game.GameBalance
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.DecorItem
 import com.bepngon.merge.game.DecorLayer
@@ -492,7 +493,7 @@ fun DecorScreen(
                     }
                 }
                 HudPill("🪙", "${game.coins}")
-                HudPill("⚡", "${game.energy}/${GameEngine.ENERGY_CAP}")
+                HudPill("⚡", "${game.energy}/${GameBalance.energyCap}")
                 Text(
                     "✕",
                     fontSize = 19.sp,

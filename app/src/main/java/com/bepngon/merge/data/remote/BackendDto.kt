@@ -76,10 +76,48 @@ data class GeneratorConfigDto(
 )
 
 @Serializable
+data class EnergyConfigDto(val cap: Int, val perSpawn: Int, val regenMs: Long)
+
+@Serializable
+data class GeneratorTimingConfigDto(val cooldownMs: Long, val regenMs: Long)
+
+@Serializable
+data class OrderCountWeightsDto(val one: Int, val two: Int, val three: Int)
+
+@Serializable
+data class OrdersConfigDto(
+    val intervalMinMs: Long,
+    val intervalMaxMs: Long,
+    val maxActive: Int,
+    val tierWindow: Int,
+    val tierLevelSpan: Int,
+    val rareWeight: Int,
+    val countWeights: OrderCountWeightsDto,
+)
+
+@Serializable
+data class XpConfigDto(val base: Int, val linear: Int, val quadratic: Int)
+
+@Serializable
+data class RewardsConfigDto(
+    val comboWindowMs: Long,
+    val comboMin: Int,
+    val qteEnergy: Int,
+    val qteCoins: Int,
+    val miniEnergyBrackets: List<List<Int>>,
+    val blockEnergyBrackets: List<List<Int>>,
+)
+
+@Serializable
 data class GameConfigPayloadDto(
     val schemaVersion: Int,
     val minAppVersionCode: Int = 1,
     val generators: Map<String, GeneratorConfigDto> = emptyMap(),
+    val energy: EnergyConfigDto? = null,
+    val generatorTiming: GeneratorTimingConfigDto? = null,
+    val orders: OrdersConfigDto? = null,
+    val xp: XpConfigDto? = null,
+    val rewards: RewardsConfigDto? = null,
 )
 
 @Serializable

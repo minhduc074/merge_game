@@ -11,7 +11,7 @@
 | Deploy Vercel | ✅ Ổn định |
 | Admin page | ✅ Hoạt động |
 | Remote config — server | ✅ Xong |
-| Remote config — Android apply | 🚧 Generators đã apply; economy/orders/rewards chưa |
+| Remote config — Android apply | ✅ Xong (core balance) |
 | Cloud save — server | ✅ Xong |
 | Cloud save — Android | ❌ Chưa làm |
 | Analytics — server | ✅ Xong |
@@ -69,7 +69,7 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
 
 ### Android — chưa làm (phần cốt lõi)
 
-- [ ] Tạo `game/GameBalance.kt` chứa data class config, default = đúng hardcode hiện tại:
+- [x] Tạo `game/GameBalance.kt` chứa data class config, default = đúng hardcode hiện tại:
   - `MAX_ACTIVE_ORDERS`, `ORDER_INTERVAL_MIN/MAX_MS`, `BASE_ORDER_TIER`, `MAX_ORDER_TIER`, `RARE_ORDER_WEIGHT`
   - `ENERGY_CAP`, energy per spawn, regen ms
   - `GEN_COOLDOWN_MS`, `GEN_REGEN_MS`, `maxCharges` per gen
@@ -77,12 +77,12 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
   - XP curve, combo/QTE rewards, minigame energy brackets
   - order count weights (1/2/3 items) — lưu ý engine hiện dùng weight **động theo level** (xem `pickOrderItem`), config cần thiết kế cho khớp hoặc chấp nhận đơn giản hoá
   - family unlock levels
-- [ ] Refactor `GameEngine` nhận balance thay vì đọc const (engine vẫn pure)
-- [ ] UI đang đọc trực tiếp constants (`ENERGY_CAP`, `GEN_REGEN_MS`...) → chuyển sang active config
+- [x] Refactor `GameEngine` đọc active balance thay vì const hardcode (runtime balance object; engine API vẫn pure theo state)
+- [x] UI đang đọc trực tiếp constants (`ENERGY_CAP`, `GEN_REGEN_MS`...) → chuyển sang active config
 - [x] `ConfigRepository`: fetch không blocking, cache DataStore, fallback bundled default khi offline/invalid — hiện mới apply generator section
 - [ ] Validate phía client trước khi apply (cùng rules server)
 - [x] Gửi `configVersion` kèm score submit + analytics
-- [ ] Unit test: default balance ≡ behavior hiện tại; override spawn table deterministic bằng seed
+- [x] Unit test: default balance ≡ behavior hiện tại; override brackets/XP + generator tuning
 - [x] Verify trên emulator: publish config thử → app nhận config mới (generator maxCharges)
 
 ### Admin UI nâng cao (làm sau phần cốt lõi)
@@ -120,7 +120,7 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
 - [x] Client queue offline + batch (tối đa ~50 events/request) + retry background, không block gameplay
 - [x] Events tối thiểu: `app_open`, `onboarding_finished`, `config_loaded`/`config_fallback`, `generator_tapped`, `order_spawned`/`order_completed`, `level_up`, `mini_finished`, `block_finished`, `leaderboard_viewed` — `save_synced` chờ Cloud save
 - [x] Kèm `configVersion` + `appVersion` trong mọi event
-- [ ] Admin dashboard v2: DAU/WAU, level distribution, funnel cơ bản (server-side aggregation)
+- [x] Admin dashboard v2: DAU/WAU, level distribution, funnel cơ bản (server-side aggregation)
 
 ---
 

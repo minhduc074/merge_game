@@ -121,16 +121,55 @@ export class AdminService {
   }
 
   async analyticsSummary() {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 3_600_000);
-    const grouped = await this.prisma.analyticsEvent.groupBy({
-      by: ["eventName"],
-      where: { receivedAt: { gte: weekAgo } },
-      _count: { eventName: true },
-      orderBy: { _count: { eventName: "desc" } },
-      take: 30,
-    });
+    const now = Date.now();
+    const dayAgo = new Date(now - 24 * 3_600_000);
+    const weekAgo = new Date(now - 7 * 24 * 3_600_000);
+    const funnelNames = ["app_open", "onboarding_finished", "generator_tapped", "order_completed", "level_up", "mini_finished", "block_finished"];
+    const [grouped, dauRows, wauRows, funnelRows, levelEvents] = await Promise.all([
+      this.prisma.analyticsEvent.groupBy({
+        by: ["eventName"],
+        where: { receivedAt: { gte: weekAgo } },
+        _count: { eventName: true },
+        orderBy: { _count: { eventName: "desc" } },
+        take: 30,
+      }),
+      this.prisma.analyticsEvent.groupBy({
+        by: ["playerId"],
+        where: { receivedAt: { gte: dayAgo }, playerId: { not: null } },
+      }),
+      this.prisma.analyticsEvent.groupBy({
+        by: ["playerId"],
+        where: { receivedAt: { gte: weekAgo }, playerId: { not: null } },
+      }),
+      Promise.all(funnelNames.map(async (eventName) => ({
+        eventName,
+        players: (await this.prisma.analyticsEvent.groupBy({
+          by: ["playerId"],
+          where: { eventName, receivedAt: { gte: weekAgo }, playerId: { not: null } },
+        })).length,
+      }))),
+      this.prisma.analyticsEvent.findMany({
+        where: { eventName: "level_up", receivedAt: { gte: weekAgo } },
+        select: { payload: true },
+        take: 5000,
+      }),
+    ]);
+    const levelBuckets: Record<string, number> = { "1-4": 0, "5-9": 0, "10-19": 0, "20+": 0 };
+    for (const row of levelEvents) {
+      const level = typeof row.payload === "object" && row.payload != null && !Array.isArray(row.payload)
+        ? Number((row.payload as Record<string, unknown>).level)
+        : 0;
+      if (level >= 20) levelBuckets["20+"]++;
+      else if (level >= 10) levelBuckets["10-19"]++;
+      else if (level >= 5) levelBuckets["5-9"]++;
+      else if (level >= 1) levelBuckets["1-4"]++;
+    }
     return {
       since: weekAgo,
+      dau: dauRows.length,
+      wau: wauRows.length,
+      funnel: funnelRows,
+      levelBuckets,
       events: grouped.map((row) => ({ eventName: row.eventName, count: row._count.eventName })),
     };
   }

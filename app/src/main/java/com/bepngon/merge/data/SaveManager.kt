@@ -8,6 +8,7 @@ import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.Customers
 import com.bepngon.merge.game.DecorEngine
 import com.bepngon.merge.game.DecorState
+import com.bepngon.merge.game.GameBalance
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.ItemCatalog
@@ -267,7 +268,7 @@ class SaveManager(private val context: Context) {
         } else if (data.savedAtEpochMs > 0) {
             0L
         } else {
-            GameEngine.ENERGY_REGEN_BASE_MS
+            GameBalance.energyRegenMs
         }
         GameState(
             cells = cells.mapIndexed { i, c ->

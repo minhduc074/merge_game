@@ -81,6 +81,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bepngon.merge.BuildConfig
 import com.bepngon.merge.game.BoardItem
 import com.bepngon.merge.game.DecorEngine
+import com.bepngon.merge.game.GameBalance
 import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.ItemCatalog
@@ -492,8 +493,8 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
                     levelBanner = when (e.reward) {
                         QteReward.WILDCARD -> "🪄 Đũa phép! Kéo lên item để nhân bản"
                         QteReward.FRENZY -> "🔥 Điên cuồng! Gen miễn phí 90 giây!"
-                        QteReward.ENERGY -> "⚡ +${GameEngine.QTE_ENERGY} năng lượng!"
-                        QteReward.COINS -> "🪙 +${GameEngine.QTE_COINS} vàng!"
+                        QteReward.ENERGY -> "⚡ +${GameBalance.qteEnergy} năng lượng!"
+                        QteReward.COINS -> "🪙 +${GameBalance.qteCoins} vàng!"
                         QteReward.RECHARGE -> "🔋 Mọi generator đã sạc đầy!"
                     }
                     scope.launch {
@@ -628,7 +629,7 @@ private fun GameContent(vm: GameViewModel, ui: GameUiState) {
             score = ui.game.score,
             coins = ui.game.coins,
             energy = ui.game.energy,
-            energyCap = GameEngine.ENERGY_CAP,
+            energyCap = GameBalance.energyCap,
             level = ui.game.level,
             xp = ui.game.xp,
             xpNeeded = GameEngine.xpNeededForLevel(ui.game.level),
@@ -1750,7 +1751,7 @@ private fun StatInfoCard(
         else -> StatInfo(
             "icon_energy", "⚡", "Năng lượng",
             "Mỗi lần bấm generator tốn 1⚡ để sinh item mới.",
-            "Tự hồi +1⚡ mỗi 60 giây (tối đa ${GameEngine.ENERGY_CAP}). Thưởng & minigame vượt được giới hạn.",
+            "Tự hồi +${GameBalance.energyPerSpawn}⚡ mỗi ${GameBalance.energyRegenMs / 1000} giây (tối đa ${GameBalance.energyCap}). Thưởng & minigame vượt được giới hạn.",
         )
     }
 
@@ -1835,8 +1836,8 @@ private fun StatInfoCard(
 private fun qteLabel(r: QteReward): Pair<String, String> = when (r) {
     QteReward.WILDCARD -> "🪄" to "Đũa phép nhân bản"
     QteReward.FRENZY -> "🔥" to "Gen miễn phí 90s"
-    QteReward.ENERGY -> "⚡" to "+${GameEngine.QTE_ENERGY} năng lượng"
-    QteReward.COINS -> "🪙" to "+${GameEngine.QTE_COINS} vàng"
+    QteReward.ENERGY -> "⚡" to "+${GameBalance.qteEnergy} năng lượng"
+    QteReward.COINS -> "🪙" to "+${GameBalance.qteCoins} vàng"
     QteReward.RECHARGE -> "🔋" to "Sạc đầy mọi gen"
 }
 

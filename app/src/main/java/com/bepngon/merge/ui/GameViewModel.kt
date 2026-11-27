@@ -14,6 +14,7 @@ import com.bepngon.merge.game.GameEngine
 import com.bepngon.merge.game.GameEvent
 import com.bepngon.merge.game.GameState
 import com.bepngon.merge.game.BoardItem
+import com.bepngon.merge.game.GameBalance
 import com.bepngon.merge.game.GeneratorTuning
 import com.bepngon.merge.game.ItemCatalog
 import com.bepngon.merge.game.SpawnEntry
@@ -171,6 +172,39 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val oldMaxes = tunings.keys.associateWith { ItemCatalog[it].maxCharges }
         ItemCatalog.applyGeneratorTunings(tunings)
         val newMaxes = tunings.keys.associateWith { ItemCatalog[it].maxCharges }
+        payload.energy?.let {
+            GameBalance.energyCap = it.cap
+            GameBalance.energyPerSpawn = it.perSpawn
+            GameBalance.energyRegenMs = it.regenMs
+        }
+        payload.generatorTiming?.let {
+            GameBalance.genCooldownMs = it.cooldownMs
+            GameBalance.genRegenMs = it.regenMs
+        }
+        payload.orders?.let {
+            GameBalance.orderIntervalMinMs = it.intervalMinMs
+            GameBalance.orderIntervalMaxMs = it.intervalMaxMs
+            GameBalance.maxActiveOrders = it.maxActive
+            GameBalance.orderTierWindow = it.tierWindow
+            GameBalance.orderTierLevelSpan = it.tierLevelSpan
+            GameBalance.rareOrderWeight = it.rareWeight
+            GameBalance.orderCountWeightOne = it.countWeights.one
+            GameBalance.orderCountWeightTwo = it.countWeights.two
+            GameBalance.orderCountWeightThree = it.countWeights.three
+        }
+        payload.xp?.let {
+            GameBalance.xpBase = it.base
+            GameBalance.xpLinear = it.linear
+            GameBalance.xpQuadratic = it.quadratic
+        }
+        payload.rewards?.let {
+            GameBalance.comboWindowMs = it.comboWindowMs
+            GameBalance.comboMin = it.comboMin
+            GameBalance.qteEnergy = it.qteEnergy
+            GameBalance.qteCoins = it.qteCoins
+            GameBalance.miniEnergyBrackets = it.miniEnergyBrackets.mapNotNull { row -> row.getOrNull(0)?.let { a -> row.getOrNull(1)?.let { b -> a to b } } }
+            GameBalance.blockEnergyBrackets = it.blockEnergyBrackets.mapNotNull { row -> row.getOrNull(0)?.let { a -> row.getOrNull(1)?.let { b -> a to b } } }
+        }
         applyEngine { state ->
             var changed = false
             fun retune(item: BoardItem?): BoardItem? {
