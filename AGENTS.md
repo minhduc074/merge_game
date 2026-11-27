@@ -46,7 +46,8 @@ proguard rules giữ kotlinx.serialization serializers.
   Điểm = points của trái mới `(tier+1)²` (4/9/16/…/121), merge 2 dưa hấu +150; chỉ thả được 4 trái nhỏ nhất.
 - Minigame xếp khối (Block Blast!): engine thuần `game/BlockBlastEngine.kt` (grid `IntArray(64)`,
   ~30 shape trong `BlockBlast` lookup qua `byId`; tray 3 khối refill khi đặt hết; smart RNG đổi
-  weight theo fill% + đảm bảo ≥1 khối đặt được khi bàn chật; điểm +10/ô, line 100/300/600/1200/2500+,
+  weight theo fill% + phân tích placement (fit/setup/line-finisher), pity tăng theo `clearlessMoves`,
+  đảm bảo ≥1 khối đặt được khi bàn nửa chật và ≥2 khối khi quá chật; điểm +10/ô, line 100/300/600/1200/2500+,
   combo ×(1+0.5·combo), all-clear +3000). `placePiece` trả `BlastPlacement` (đã rename khỏi `Placement`
   vì trùng enum của DecorModels) kèm `clearedCells: Map<idx, delayMs>` cho wave nổ. UI
   `ui/components/BlockBlastGame.kt` — mở từ nút thứ 2 "🧱 Chơi Xếp khối" trong energy StatInfoCard.

@@ -25,6 +25,12 @@ object BlockBlast {
     const val CRAMPED_FILL = 0.65f
     /** Below this fill the RNG favors big pieces to ramp the board quickly. */
     const val EARLY_FILL = 0.35f
+    const val CLEAR_HELPER_BASE_CHANCE = 0.05f
+    const val CLEAR_HELPER_PITY_STEP = 0.09f
+    const val CLEAR_HELPER_MAX_CHANCE = 0.78f
+    const val SETUP_HELPER_BASE_CHANCE = 0.10f
+    const val SETUP_HELPER_PITY_STEP = 0.06f
+    const val SETUP_HELPER_MAX_CHANCE = 0.72f
     const val COLORS = 8
 
     fun lineScore(lines: Int): Int = when {
@@ -46,6 +52,7 @@ object BlockBlast {
         val weird: Boolean,
     ) {
         val size: Int get() = cells.size
+        val solid: Boolean get() = cells.size == w * h
         fun cellRow(c: Int): Int = cells[c] / w
         fun cellCol(c: Int): Int = cells[c] % w
     }
@@ -152,6 +159,16 @@ class BlockBlastEngine(private val random: Random = Random) {
 
     /** Placements since the last clear; combo dies at COMBO_WINDOW. */
     private var dry = 0
+    private var clearlessMoves = 0
+
+    private data class PieceOption(
+        val piece: BlockBlast.Piece,
+        val fits: Int,
+        val clearSpots: Int,
+        val bestLines: Int,
+        val clearQuality: Float,
+        val setupQuality: Float,
+    )
 
     val filled: Int get() = grid.count { it != 0 }
     private val fillFraction: Float get() = filled.toFloat() / BlockBlast.CELLS
@@ -231,6 +248,7 @@ class BlockBlastEngine(private val random: Random = Random) {
             combo += 1
             bestCombo = maxOf(bestCombo, combo)
             dry = 0
+            clearlessMoves = 0
             for (i in cleared) grid[i] = 0
             if (grid.all { it == 0 }) {
                 gained += BlockBlast.ALL_CLEAR_BONUS
@@ -238,6 +256,7 @@ class BlockBlastEngine(private val random: Random = Random) {
             }
         } else {
             dry += 1
+            clearlessMoves += 1
             if (dry >= BlockBlast.COMBO_WINDOW) {
                 combo = 0
                 dry = 0
@@ -258,28 +277,176 @@ class BlockBlastEngine(private val random: Random = Random) {
     /** Draw a fresh 3-piece tray. Public so tests can exercise the pity RNG. */
     fun refillTray() {
         val fill = fillFraction
-        for (i in 0 until BlockBlast.TRAY_SIZE) tray[i] = drawPiece(fill)
-        // pity: on a cramped board at least one piece must fit somewhere
-        if (fill > BlockBlast.CRAMPED_FILL && tray.none { it != null && anyPlacement(it.piece) }) {
-            val fitting = BlockBlast.PIECES.filter { anyPlacement(it) }
-            if (fitting.isNotEmpty()) {
-                tray[random.nextInt(BlockBlast.TRAY_SIZE)] =
-                    TrayPiece(fitting[random.nextInt(fitting.size)], random.nextInt(BlockBlast.COLORS))
+        val options = analyzePieces()
+        val byPiece = options.associateBy { it.piece }
+        val fitting = options.filter { it.fits > 0 }
+        val clearing = fitting.filter { it.bestLines > 0 }
+        val smart = when {
+            fitting.isEmpty() -> null
+            clearing.isNotEmpty() && random.nextFloat() < clearOfferChance(fill) -> pickClearPiece(clearing)
+            random.nextFloat() < setupOfferChance() -> pickSetupPiece(fitting, fill)
+            else -> null
+        }
+        for (i in 0 until BlockBlast.TRAY_SIZE) {
+            tray[i] = if (i == 0 && smart != null) {
+                TrayPiece(smart, random.nextInt(BlockBlast.COLORS))
+            } else {
+                drawPiece(fill, byPiece)
             }
+        }
+        ensureFittingPieces(fitting, fill)
+        val shuffled = tray.map { it!! }.shuffled(random)
+        for (i in shuffled.indices) tray[i] = shuffled[i]
+    }
+
+    private fun setupOfferChance(): Float =
+        (BlockBlast.SETUP_HELPER_BASE_CHANCE + clearlessMoves * BlockBlast.SETUP_HELPER_PITY_STEP)
+            .coerceAtMost(BlockBlast.SETUP_HELPER_MAX_CHANCE)
+
+    private fun clearOfferChance(fill: Float): Float {
+        var chance = BlockBlast.CLEAR_HELPER_BASE_CHANCE +
+            clearlessMoves * BlockBlast.CLEAR_HELPER_PITY_STEP
+        if (fill > 0.50f) chance += 0.06f
+        if (fill > BlockBlast.CRAMPED_FILL) chance += 0.06f
+        return chance.coerceAtMost(BlockBlast.CLEAR_HELPER_MAX_CHANCE)
+    }
+
+    private fun analyzePieces(): List<PieceOption> {
+        val rows = IntArray(BlockBlast.SIZE)
+        val cols = IntArray(BlockBlast.SIZE)
+        for (i in 0 until BlockBlast.CELLS) {
+            if (grid[i] != 0) {
+                rows[i / BlockBlast.SIZE]++
+                cols[i % BlockBlast.SIZE]++
+            }
+        }
+        return BlockBlast.PIECES.map { analyzePiece(it, rows, cols) }
+    }
+
+    private fun analyzePiece(piece: BlockBlast.Piece, baseRows: IntArray, baseCols: IntArray): PieceOption {
+        var fits = 0
+        var clearSpots = 0
+        var bestLines = 0
+        var clearQuality = 0f
+        var setupQuality = 0f
+        for (row in 0..BlockBlast.SIZE - piece.h) {
+            for (col in 0..BlockBlast.SIZE - piece.w) {
+                if (!canPlace(piece, row, col)) continue
+                fits++
+                val rows = baseRows.clone()
+                val cols = baseCols.clone()
+                for (rel in piece.cells) {
+                    rows[row + rel / piece.w]++
+                    cols[col + rel % piece.w]++
+                }
+                var lines = 0
+                var bestLine = 0
+                var total = 0f
+                for (n in rows) {
+                    if (n == BlockBlast.SIZE) lines++ else {
+                        bestLine = maxOf(bestLine, n)
+                        total += n * n * n / 5f
+                    }
+                }
+                for (n in cols) {
+                    if (n == BlockBlast.SIZE) lines++ else {
+                        bestLine = maxOf(bestLine, n)
+                        total += n * n * n / 5f
+                    }
+                }
+                val progress = bestLine * bestLine * bestLine / 2f + total / 4f
+                if (lines > 0) {
+                    clearSpots++
+                    bestLines = maxOf(bestLines, lines)
+                    clearQuality = maxOf(clearQuality, lines * 1000f + progress)
+                } else {
+                    setupQuality = maxOf(setupQuality, progress)
+                }
+            }
+        }
+        return PieceOption(piece, fits, clearSpots, bestLines, clearQuality, setupQuality)
+    }
+
+    private fun pickWeighted(candidates: List<PieceOption>, weightOf: (PieceOption) -> Float): BlockBlast.Piece {
+        var total = 0f
+        for (op in candidates) total += weightOf(op).coerceAtLeast(0.01f)
+        var r = random.nextFloat() * total
+        var pick = candidates.last().piece
+        for (op in candidates) {
+            r -= weightOf(op).coerceAtLeast(0.01f)
+            if (r <= 0f) {
+                pick = op.piece
+                break
+            }
+        }
+        return pick
+    }
+
+    private fun pickClearPiece(candidates: List<PieceOption>): BlockBlast.Piece =
+        pickWeighted(candidates) { op ->
+            var w = 12f + op.bestLines * 32f + op.clearSpots * 10f + op.clearQuality / 250f
+            if (op.piece.size <= 3) w *= 1.15f
+            if (op.piece.weird) w *= 0.75f
+            w
+        }
+
+    private fun pickSetupPiece(candidates: List<PieceOption>, fill: Float): BlockBlast.Piece =
+        pickWeighted(candidates) { op ->
+            var w = 6f + op.setupQuality + op.fits * 0.55f
+            if (op.piece.solid) w *= if (fill < 0.50f) 1.18f else 1.05f
+            if (op.piece.weird) w *= if (fill > BlockBlast.CRAMPED_FILL) 0.35f else 0.70f
+            if (fill < BlockBlast.EARLY_FILL) {
+                if (op.piece.size >= 4) w *= 1.35f
+                if (op.piece.size == 1) w *= 0.55f
+            } else if (fill > BlockBlast.CRAMPED_FILL) {
+                if (op.piece.size <= 3) w *= 2.2f
+                if (op.piece.size >= 5) w *= 0.45f
+            }
+            w
+        }
+
+    private fun ensureFittingPieces(fitting: List<PieceOption>, fill: Float) {
+        if (fitting.isEmpty()) return
+        val target = when {
+            fill > BlockBlast.CRAMPED_FILL -> 2
+            fill > 0.45f || clearlessMoves >= 3 -> 1
+            else -> 0
+        }
+        var guard = 0
+        while (tray.count { it != null && anyPlacement(it.piece) } < target && guard++ < 8) {
+            val replaceable = (0 until BlockBlast.TRAY_SIZE).filter {
+                tray[it]?.piece?.let { p -> !anyPlacement(p) } ?: true
+            }
+            if (replaceable.isEmpty()) break
+            val slot = replaceable[random.nextInt(replaceable.size)]
+            tray[slot] = TrayPiece(pickSetupPiece(fitting, fill), random.nextInt(BlockBlast.COLORS))
         }
     }
 
-    private fun drawPiece(fill: Float): TrayPiece {
-        val weirdBoost = (0.5f + score / 5000f).coerceAtMost(1.8f)
+    private fun drawPiece(fill: Float, options: Map<BlockBlast.Piece, PieceOption>): TrayPiece {
+        val weirdBoost = (0.65f + score / 7000f).coerceAtMost(1.80f)
         val ws = FloatArray(BlockBlast.PIECES.size)
         var total = 0f
         for (i in BlockBlast.PIECES.indices) {
             val p = BlockBlast.PIECES[i]
             var w = p.weight
             if (fill < BlockBlast.EARLY_FILL) {
-                if (p.size >= 4) w *= 1.5f else if (p.size == 1) w *= 0.5f
+                if (p.size >= 4) w *= 1.45f else if (p.size == 1) w *= 0.55f
+                if (p.solid) w *= 1.12f
             } else if (fill > BlockBlast.CRAMPED_FILL) {
-                if (p.size <= 3) w *= 3f else if (p.size >= 5) w *= 0.3f
+                if (p.size <= 3) w *= 2.8f else if (p.size >= 5) w *= 0.35f
+                if (p.weird) w *= 0.60f
+            }
+            val op = options[p]
+            if (op != null) {
+                if (op.fits == 0) {
+                    w *= if (fill > 0.45f) 0.04f else 0.15f
+                } else {
+                    w *= 0.80f + (op.fits.coerceAtMost(20) / 20f) * 0.40f
+                    if (op.bestLines > 0) {
+                        w *= (1.00f + clearlessMoves * 0.08f).coerceAtMost(1.45f)
+                    }
+                }
             }
             if (p.weird) w *= weirdBoost
             ws[i] = w

@@ -31,6 +31,17 @@ private fun setTray(e: BlockBlastEngine, vararg ids: String?) {
     }
 }
 
+private fun trayCanClear(e: BlockBlastEngine): Boolean {
+    for (tp in e.tray.filterNotNull()) {
+        for (r in 0..BlockBlast.SIZE - tp.piece.h) {
+            for (c in 0..BlockBlast.SIZE - tp.piece.w) {
+                if (e.previewClear(tp.piece, r, c).isNotEmpty()) return true
+            }
+        }
+    }
+    return false
+}
+
 class BlockBlastEngineTest {
 
     @Test
@@ -202,7 +213,7 @@ class BlockBlastEngineTest {
     }
 
     @Test
-    fun `cramped refills guarantee at least one fitting piece`() {
+    fun `cramped refills guarantee at least two fitting pieces`() {
         for (seed in 0 until 40) {
             val e = engine(seed)
             // ~72% filled, scattered holes
@@ -212,12 +223,45 @@ class BlockBlastEngineTest {
             var guard = 0
             while (guard++ < 6) {
                 e.refillTray()
-                assertTrue(
-                    "seed=$seed tray had no fitting piece",
-                    e.tray.any { it != null && e.anyPlacement(it.piece) },
-                )
+                val fitting = e.tray.count { it != null && e.anyPlacement(it.piece) }
+                assertTrue("seed=$seed tray had only $fitting fitting pieces", fitting >= 2)
             }
         }
+    }
+
+    @Test
+    fun `mid-filled fragmented refills guarantee a playable piece`() {
+        for (seed in 0 until 40) {
+            val e = engine(seed)
+            for (i in 0 until BlockBlast.CELLS) {
+                if ((i / BlockBlast.SIZE + i % BlockBlast.SIZE) % 2 == 0) e.grid[i] = 1
+            }
+            e.refillTray()
+            assertTrue(
+                "seed=$seed tray had no fitting piece",
+                e.tray.any { it != null && e.anyPlacement(it.piece) },
+            )
+        }
+    }
+
+    @Test
+    fun `pity refills often offer a piece that can finish a nearly full line`() {
+        var offered = 0
+        val games = 60
+        for (seed in 0 until games) {
+            val e = engine(seed + 1000)
+            fillRow(e, 7, exceptCol = 3)
+            for (r in 5..6) {
+                for (c in 2..4) e.grid[r * BlockBlast.SIZE + c] = 1
+            }
+            for (cell in listOf(0, 1, 8)) {
+                setTray(e, "dot", null, null)
+                e.placePiece(0, cell / BlockBlast.SIZE, cell % BlockBlast.SIZE)
+            }
+            e.refillTray()
+            if (trayCanClear(e)) offered++
+        }
+        assertTrue("only $offered/$games trays offered a line finisher", offered >= 14)
     }
 
     @Test
