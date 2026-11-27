@@ -34,6 +34,12 @@ interface BepNgonApi {
         @Query("range") range: Int = 10,
     ): LeaderboardResponse
 
+    @POST("api/v1/analytics/events")
+    suspend fun postAnalytics(
+        @Header("Authorization") authorization: String,
+        @Body body: AnalyticsBatchRequest,
+    ): AnalyticsBatchResponse
+
     @POST("api/v1/leaderboards/{board}/submit")
     suspend fun submitScore(
         @Path("board") board: String,

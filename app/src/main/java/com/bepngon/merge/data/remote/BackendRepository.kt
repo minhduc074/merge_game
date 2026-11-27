@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -35,6 +36,7 @@ class BackendRepository(private val context: Context) {
     private val nicknameKey = stringPreferencesKey("nickname")
     private val configVersionKey = stringPreferencesKey("game_config_version")
     private val configJsonKey = stringPreferencesKey("game_config_json")
+    private val analyticsQueueKey = stringPreferencesKey("analytics_queue")
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -56,6 +58,8 @@ class BackendRepository(private val context: Context) {
         .create(BepNgonApi::class.java)
 
     private val bootstrapMutex = Mutex()
+    private val analyticsMutex = Mutex()
+    private val analyticsSessionId = UUID.randomUUID().toString()
     private var bootstrapFailedAtMs = 0L
 
     suspend fun ensurePlayer(): PlayerIdentity {
@@ -86,6 +90,51 @@ class BackendRepository(private val context: Context) {
                 bootstrapFailedAtMs = System.currentTimeMillis()
                 throw error
             }
+        }
+    }
+
+
+    /** Queue one analytics event locally. The queue survives process death and is
+     *  flushed in batches of 50 by [flushAnalytics]. */
+    suspend fun trackAnalytics(
+        eventName: String,
+        payload: JsonObject? = null,
+        configVersion: Int? = null,
+    ) {
+        val event = AnalyticsEventDto(
+            eventName = eventName,
+            payload = payload,
+            sessionId = analyticsSessionId,
+            appVersion = BuildConfig.VERSION_NAME,
+            configVersion = configVersion,
+            clientAt = System.currentTimeMillis(),
+        )
+        analyticsMutex.withLock {
+            val queue = loadAnalyticsQueue()
+            val next = (queue + event).takeLast(MAX_ANALYTICS_QUEUE)
+            persistAnalyticsQueue(next)
+        }
+    }
+
+    /** Flush up to one batch. Events stay queued when the network/backend fails. */
+    suspend fun flushAnalytics(): Int = analyticsMutex.withLock {
+        val queue = loadAnalyticsQueue()
+        if (queue.isEmpty()) return@withLock 0
+        val batch = queue.take(ANALYTICS_BATCH_SIZE)
+        withAuthRetry { auth -> api.postAnalytics(auth, AnalyticsBatchRequest(batch)) }
+        persistAnalyticsQueue(queue.drop(batch.size))
+        batch.size
+    }
+
+    private suspend fun loadAnalyticsQueue(): List<AnalyticsEventDto> {
+        val raw = context.identityStore.data.first()[analyticsQueueKey] ?: return emptyList()
+        return runCatching { json.decodeFromString<List<AnalyticsEventDto>>(raw) }.getOrDefault(emptyList())
+    }
+
+    private suspend fun persistAnalyticsQueue(queue: List<AnalyticsEventDto>) {
+        context.identityStore.edit {
+            if (queue.isEmpty()) it.remove(analyticsQueueKey)
+            else it[analyticsQueueKey] = json.encodeToString(queue)
         }
     }
 
@@ -175,5 +224,7 @@ class BackendRepository(private val context: Context) {
 
     private companion object {
         const val BOOTSTRAP_RETRY_BACKOFF_MS = 15_000L
+        const val ANALYTICS_BATCH_SIZE = 50
+        const val MAX_ANALYTICS_QUEUE = 500
     }
 }

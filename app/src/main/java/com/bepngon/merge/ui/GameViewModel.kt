@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val ORDER_TICK_MS = 1_000L
 
@@ -59,6 +62,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var scoreFlushRunning = false
     private var scoreFlushQueued = false
     private var startedAtMs = 0L
+    private var activeConfigVersion = 0
 
     private val _ui = MutableStateFlow(GameUiState(game = GameEngine.initialState()))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -68,6 +72,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         startedAtMs = System.currentTimeMillis()
+        track("app_open")
         viewModelScope.launch {
             runCatching { backend.ensurePlayer() }
                 .onSuccess { submitCurrentScores() }
@@ -78,13 +83,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 submitCurrentScores()
             }
             _ui.value = _ui.value.copy(loading = false)
-            backend.cachedGameConfig()?.let { applyGameConfig(it.second) }
-            runCatching { backend.fetchGameConfig() }.getOrNull()?.let { applyGameConfig(it.second) }
+            backend.cachedGameConfig()?.let { (version, payload) -> applyRemoteConfig(version, payload, cached = true) }
+            val fetched = runCatching { backend.fetchGameConfig() }.getOrNull()
+            if (fetched != null) {
+                applyRemoteConfig(fetched.first, fetched.second, cached = false)
+            } else if (activeConfigVersion == 0) {
+                track("config_fallback")
+            }
         }
         viewModelScope.launch {
             while (true) {
                 delay(60_000L)
-                runCatching { backend.fetchGameConfig() }.getOrNull()?.let { applyGameConfig(it.second) }
+                runCatching { backend.fetchGameConfig() }.getOrNull()?.let { (version, payload) -> applyRemoteConfig(version, payload, cached = false) }
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(20_000L)
+                runCatching { backend.flushAnalytics() }
             }
         }
         viewModelScope.launch {
@@ -96,6 +112,51 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    private fun applyRemoteConfig(version: Int, payload: GameConfigPayloadDto, cached: Boolean) {
+        activeConfigVersion = version
+        applyGameConfig(payload)
+        track("config_loaded", buildJsonObject {
+            put("version", version)
+            put("cached", cached)
+        })
+    }
+
+    private fun track(eventName: String, payload: JsonObject? = null) {
+        viewModelScope.launch {
+            runCatching { backend.trackAnalytics(eventName, payload, activeConfigVersion) }
+        }
+    }
+
+    private fun trackGameEvent(event: GameEvent) {
+        when (event) {
+            is GameEvent.Spawned -> track("generator_tapped", buildJsonObject {
+                put("cellIndex", event.cellIndex)
+                put("defId", event.item.defId)
+            })
+            is GameEvent.OrderSpawned -> track("order_spawned", buildJsonObject {
+                put("orderId", event.order.id)
+                put("customer", event.order.customer.name)
+                put("items", event.order.required.size)
+            })
+            is GameEvent.OrderCompleted -> track("order_completed", buildJsonObject {
+                put("orderId", event.order.id)
+                put("coins", event.coinsGained)
+                put("xp", event.xpGained)
+            })
+            is GameEvent.LevelUp -> track("level_up", buildJsonObject { put("level", event.level) })
+            is GameEvent.OnboardingFinished -> track("onboarding_finished")
+            is GameEvent.MiniGameFinished -> track("mini_finished", buildJsonObject {
+                put("score", event.score)
+                put("energy", event.energy)
+            })
+            is GameEvent.BlockGameFinished -> track("block_finished", buildJsonObject {
+                put("score", event.score)
+                put("energy", event.energy)
+            })
+            else -> Unit
+        }
+    }
 
     /** Apply server-published generator tuning. Full generators are topped up when
      *  maxCharges increases; over-cap charges are clamped when it decreases. */
@@ -168,6 +229,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openLeaderboard() {
         _ui.value = _ui.value.copy(showLeaderboard = true)
+        track("leaderboard_viewed")
         submitCurrentScores(force = true)
     }
 
@@ -370,7 +432,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val (next, events) = op(current)
         if (next === current && events.isEmpty()) return
         _ui.value = _ui.value.copy(game = next)
-        events.forEach { _events.tryEmit(it) }
+        events.forEach {
+            _events.tryEmit(it)
+            trackGameEvent(it)
+        }
         if (next !== current) {
             if (next.score != current.score) submitScoreAsync("main", next.score)
             viewModelScope.launch { saveManager.save(next, nowMs()) }

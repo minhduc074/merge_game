@@ -1,6 +1,7 @@
 package com.bepngon.merge.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class PlayerDto(
@@ -87,4 +88,24 @@ data class GameConfigResponse(
     val version: Int,
     val status: String? = null,
     val payload: GameConfigPayloadDto? = null,
+)
+
+@Serializable
+data class AnalyticsEventDto(
+    val eventName: String,
+    val payload: JsonObject? = null,
+    val sessionId: String? = null,
+    val appVersion: String? = null,
+    val configVersion: Int? = null,
+    val clientAt: Long? = null,
+)
+
+@Serializable
+data class AnalyticsBatchRequest(
+    val events: List<AnalyticsEventDto>,
+)
+
+@Serializable
+data class AnalyticsBatchResponse(
+    val accepted: Int,
 )

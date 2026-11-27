@@ -11,11 +11,11 @@
 | Deploy Vercel | ✅ Ổn định |
 | Admin page | ✅ Hoạt động |
 | Remote config — server | ✅ Xong |
-| Remote config — Android apply | ❌ **Chưa làm** |
+| Remote config — Android apply | 🚧 Generators đã apply; economy/orders/rewards chưa |
 | Cloud save — server | ✅ Xong |
 | Cloud save — Android | ❌ Chưa làm |
 | Analytics — server | ✅ Xong |
-| Analytics — Android gửi events | ❌ Chưa làm |
+| Analytics — Android gửi events | ✅ Xong |
 | Hardening | ❌ Chưa làm |
 
 **Production URL**: <https://server-olive-five-65.vercel.app>
@@ -65,7 +65,7 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
 - [x] Schema + validation (spawn weights tổng 100, item id hợp lệ, timer ranges)
 - [x] Draft/publish/rollback + audit log
 - [x] `GET /api/v1/config/current?sinceVersion=`
-- [ ] Publish config v1 làm mốc (hiện `activeConfigVersion = 0`, chưa có bản nào)
+- [x] Publish config v1 làm mốc (production hiện có config v2)
 
 ### Android — chưa làm (phần cốt lõi)
 
@@ -79,11 +79,11 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
   - family unlock levels
 - [ ] Refactor `GameEngine` nhận balance thay vì đọc const (engine vẫn pure)
 - [ ] UI đang đọc trực tiếp constants (`ENERGY_CAP`, `GEN_REGEN_MS`...) → chuyển sang active config
-- [ ] `ConfigRepository`: fetch không blocking, cache DataStore, fallback bundled default khi offline/invalid
+- [x] `ConfigRepository`: fetch không blocking, cache DataStore, fallback bundled default khi offline/invalid — hiện mới apply generator section
 - [ ] Validate phía client trước khi apply (cùng rules server)
 - [ ] Gửi `configVersion` kèm score submit + analytics
 - [ ] Unit test: default balance ≡ behavior hiện tại; override spawn table deterministic bằng seed
-- [ ] Verify trên emulator: publish config thử → app nhận config mới
+- [x] Verify trên emulator: publish config thử → app nhận config mới (generator maxCharges)
 
 ### Admin UI nâng cao (làm sau phần cốt lõi)
 
@@ -117,9 +117,9 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
 
 ### Android — chưa làm
 
-- [ ] Client queue offline + batch (tối đa ~50 events/request) + retry background, không block gameplay
-- [ ] Events tối thiểu: `app_open`, `onboarding_finished`, `config_loaded`/`config_fallback`, `generator_tapped`, `order_spawned`/`order_completed`, `level_up`, `mini_finished`, `block_finished`, `save_synced`, `leaderboard_viewed`
-- [ ] Kèm `configVersion` + `appVersion` trong mọi event
+- [x] Client queue offline + batch (tối đa ~50 events/request) + retry background, không block gameplay
+- [x] Events tối thiểu: `app_open`, `onboarding_finished`, `config_loaded`/`config_fallback`, `generator_tapped`, `order_spawned`/`order_completed`, `level_up`, `mini_finished`, `block_finished`, `leaderboard_viewed` — `save_synced` chờ Cloud save
+- [x] Kèm `configVersion` + `appVersion` trong mọi event
 - [ ] Admin dashboard v2: DAU/WAU, level distribution, funnel cơ bản (server-side aggregation)
 
 ---
