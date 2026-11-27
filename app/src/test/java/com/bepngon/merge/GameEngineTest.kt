@@ -68,6 +68,28 @@ private fun orderOf(vararg defIds: String): Order =
 class GameEngineTest {
 
     @Test
+    fun `energy regen catches up multiple intervals and caps at the natural cap`() {
+        val s = stateWith(energy = 8).copy(nextEnergyAtMs = 1_000)
+        val next = GameEngine.applyEnergyRegen(s, 121_000)
+        assertEquals(11, next.energy)
+        assertEquals(181_000, next.nextEnergyAtMs)
+
+        val capped = GameEngine.applyEnergyRegen(
+            stateWith(energy = 99).copy(nextEnergyAtMs = 1_000),
+            121_000,
+        )
+        assertEquals(GameEngine.ENERGY_CAP, capped.energy)
+    }
+
+    @Test
+    fun `energy regen accepts overdue offline timestamps`() {
+        val s = stateWith(energy = 10).copy(nextEnergyAtMs = -119_000)
+        val next = GameEngine.applyEnergyRegen(s, 0)
+        assertEquals(12, next.energy)
+        assertEquals(1_000, next.nextEnergyAtMs)
+    }
+
+    @Test
     fun `merge two identical items creates next tier and scores`() {
         val s = stateWith(0 to "fruit_1", 1 to "fruit_1")
         val (next, events) = GameEngine.moveOrMerge(s, 0, 1)

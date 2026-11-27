@@ -45,15 +45,15 @@ private fun trayCanClear(e: BlockBlastEngine): Boolean {
 class BlockBlastEngineTest {
 
     @Test
-    fun `placing a piece scores 10 per cell and occupies the grid`() {
+    fun `placing a piece without clearing scores zero and occupies the grid`() {
         val e = engine()
         setTray(e, "sq2", null, null)
         val res = e.placePiece(0, 3, 4)
         assertNotNull(res)
-        assertEquals(40, res!!.gained)
-        assertEquals(40, e.score)
-        assertEquals(1, e.grid[3 * 8 + 4])
-        assertEquals(1, e.grid[4 * 8 + 5])
+        assertEquals(0, res!!.gained)
+        assertEquals(0, e.score)
+        assertEquals(1, e.grid[3 * BlockBlast.SIZE + 4])
+        assertEquals(1, e.grid[4 * BlockBlast.SIZE + 5])
         // tray emptied -> auto-refilled
         assertTrue(e.tray.all { it != null })
         assertEquals(1, e.moves)
@@ -73,16 +73,16 @@ class BlockBlastEngineTest {
     }
 
     @Test
-    fun `full row clears and pays 100 plus placement`() {
+    fun `full row clears and pays 100`() {
         val e = engine()
         e.grid[0] = 1                                // stray cell so it's not all-clear
-        fillRow(e, 7, exceptCol = 3)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 3)
         setTray(e, "dot", null, null)
-        val res = e.placePiece(0, 7, 3)!!
+        val res = e.placePiece(0, BlockBlast.SIZE - 1, 3)!!
         assertEquals(1, res.lines)
-        assertEquals(8, res.clearedCells.size)
-        assertEquals(110, res.gained)               // 10 + 100, combo was 0
-        assertTrue((0 until 8).all { c -> e.grid[7 * 8 + c] == 0 })
+        assertEquals(BlockBlast.SIZE, res.clearedCells.size)
+        assertEquals(100, res.gained)               // combo was 0
+        assertTrue((0 until BlockBlast.SIZE).all { c -> e.grid[(BlockBlast.SIZE - 1) * BlockBlast.SIZE + c] == 0 })
         assertEquals(1, e.combo)
     }
 
@@ -95,9 +95,9 @@ class BlockBlastEngineTest {
         setTray(e, "dot", null, null)
         val res = e.placePiece(0, 3, 3)!!
         assertEquals(2, res.lines)
-        // deduped: 8 + 8 - 1 shared cell
-        assertEquals(15, res.clearedCells.size)
-        assertEquals(310, res.gained)               // 10 + 300
+        // deduped: 6 + 6 - 1 shared cell
+        assertEquals(11, res.clearedCells.size)
+        assertEquals(300, res.gained)
     }
 
     @Test
@@ -105,15 +105,15 @@ class BlockBlastEngineTest {
         val e = engine()
         e.grid[4] = 1                                // stray cell survives both clears
         // first clear -> combo becomes 1, multiplier was x1
-        fillRow(e, 7, exceptCol = 0)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 0)
         setTray(e, "dot", null, null)
-        e.placePiece(0, 7, 0)
+        e.placePiece(0, BlockBlast.SIZE - 1, 0)
         assertEquals(1, e.combo)
-        // second clear -> multiplier x1.5 on base 100 -> 150 + 10
-        fillRow(e, 6, exceptCol = 0)
+        // second clear -> multiplier x1.5 on base 100
+        fillRow(e, BlockBlast.SIZE - 2, exceptCol = 0)
         setTray(e, "dot", null, null)
-        val res = e.placePiece(0, 6, 0)!!
-        assertEquals(160, res.gained)
+        val res = e.placePiece(0, BlockBlast.SIZE - 2, 0)!!
+        assertEquals(150, res.gained)
         assertEquals(2, e.combo)
     }
 
@@ -121,8 +121,8 @@ class BlockBlastEngineTest {
     fun `combo survives sparse windows and dies after 3 dry placements`() {
         val e = engine()
         setTray(e, "dot", null, null)
-        fillRow(e, 7, exceptCol = 0)
-        e.placePiece(0, 7, 0)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 0)
+        e.placePiece(0, BlockBlast.SIZE - 1, 0)
         assertEquals(1, e.combo)
         // two non-clearing placements keep the streak alive
         setTray(e, "dot", null, null)
@@ -140,27 +140,27 @@ class BlockBlastEngineTest {
     fun `clearing within the 3-placement window still grows the combo`() {
         val e = engine()
         setTray(e, "dot", null, null)
-        fillRow(e, 7, exceptCol = 0)
-        e.placePiece(0, 7, 0)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 0)
+        e.placePiece(0, BlockBlast.SIZE - 1, 0)
         // 2 dry + 1 clear inside the window -> combo grows instead of resetting
         setTray(e, "dot", null, null)
         e.placePiece(0, 0, 0)
         setTray(e, "dot", null, null)
         e.placePiece(0, 0, 1)
-        fillRow(e, 6, exceptCol = 0)
+        fillRow(e, BlockBlast.SIZE - 2, exceptCol = 0)
         setTray(e, "dot", null, null)
-        e.placePiece(0, 6, 0)
+        e.placePiece(0, BlockBlast.SIZE - 2, 0)
         assertEquals(2, e.combo)
     }
 
     @Test
     fun `emptying the whole board pays the all-clear bonus`() {
         val e = engine()
-        fillRow(e, 7, exceptCol = 0)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 0)
         setTray(e, "dot", null, null)
-        val res = e.placePiece(0, 7, 0)!!
+        val res = e.placePiece(0, BlockBlast.SIZE - 1, 0)!!
         assertTrue(res.allClear)
-        assertEquals(10 + 100 + BlockBlast.ALL_CLEAR_BONUS, res.gained)
+        assertEquals(100 + BlockBlast.ALL_CLEAR_BONUS, res.gained)
     }
 
     @Test
@@ -176,13 +176,13 @@ class BlockBlastEngineTest {
     @Test
     fun `previewClear reports pop cells without touching the board`() {
         val e = engine()
-        fillRow(e, 7, exceptCol = 3)
+        fillRow(e, BlockBlast.SIZE - 1, exceptCol = 3)
         val piece = BlockBlast.byId("dot")
-        val preview = e.previewClear(piece, 7, 3)
-        assertEquals(8, preview.size)
+        val preview = e.previewClear(piece, BlockBlast.SIZE - 1, 3)
+        assertEquals(BlockBlast.SIZE, preview.size)
         // board unchanged, and the last hole is still empty
-        assertEquals(7, e.grid.count { it != 0 })
-        assertEquals(0, e.grid[7 * 8 + 3])
+        assertEquals(BlockBlast.SIZE - 1, e.grid.count { it != 0 })
+        assertEquals(0, e.grid[(BlockBlast.SIZE - 1) * BlockBlast.SIZE + 3])
         // invalid placement previews nothing
         assertTrue(e.previewClear(BlockBlast.byId("sq2"), 7, 7).isEmpty())
     }
@@ -194,7 +194,7 @@ class BlockBlastEngineTest {
         // dot at (0,0) pops nothing and the leftovers are all non-adjacent —
         // bar2h/sq2 can never fit -> game over
         for (i in 0 until BlockBlast.CELLS) e.grid[i] = 1
-        listOf(0, 1, 8, 18, 27, 36, 45, 54, 63).forEach { e.grid[it] = 0 }
+        listOf(0, 1, 6, 14, 21, 28, 35).forEach { e.grid[it] = 0 }
         setTray(e, "dot", "bar2h", "sq2")
         e.placePiece(0, 0, 0)
         assertTrue(e.gameOver)
@@ -205,26 +205,26 @@ class BlockBlastEngineTest {
     @Test
     fun `game continues while at least one piece fits`() {
         val e = engine()
-        // only (7,6)-(7,7) open; placing bar2h there clears row 7 and saves us
+        // only the last two bottom-right cells are open; placing bar2h there clears the row and saves us
         for (i in 0 until BlockBlast.CELLS - 2) e.grid[i] = 1
-        setTray(e, "bar2h", "sq3", "bar3v")
-        e.placePiece(0, 7, 6)
+        setTray(e, "bar2h", "rect23", "bar3v")
+        e.placePiece(0, BlockBlast.SIZE - 1, BlockBlast.SIZE - 2)
         assertFalse(e.gameOver)
     }
 
     @Test
-    fun `cramped refills guarantee at least two fitting pieces`() {
+    fun `cramped refills guarantee at least one fitting piece`() {
         for (seed in 0 until 40) {
             val e = engine(seed)
             // ~72% filled, scattered holes
             for (i in 0 until BlockBlast.CELLS) {
-                if (i % 7 != 3 || i / 7 == 0) e.grid[i] = 1
+                if (i % 5 != 1) e.grid[i] = 1
             }
             var guard = 0
             while (guard++ < 6) {
                 e.refillTray()
                 val fitting = e.tray.count { it != null && e.anyPlacement(it.piece) }
-                assertTrue("seed=$seed tray had only $fitting fitting pieces", fitting >= 2)
+                assertTrue("seed=$seed tray had no fitting pieces", fitting >= 1)
             }
         }
     }
@@ -250,8 +250,8 @@ class BlockBlastEngineTest {
         val games = 60
         for (seed in 0 until games) {
             val e = engine(seed + 1000)
-            fillRow(e, 7, exceptCol = 3)
-            for (r in 5..6) {
+            fillRow(e, BlockBlast.SIZE - 1, exceptCol = 3)
+            for (r in 3..4) {
                 for (c in 2..4) e.grid[r * BlockBlast.SIZE + c] = 1
             }
             for (cell in listOf(0, 1, 8)) {
@@ -262,6 +262,34 @@ class BlockBlastEngineTest {
             if (trayCanClear(e)) offered++
         }
         assertTrue("only $offered/$games trays offered a line finisher", offered >= 14)
+    }
+
+    @Test
+    fun `combo multiplier is capped`() {
+        val e = engine()
+        var gained = 0
+        for (row in (BlockBlast.SIZE - 1) downTo 1) {
+            fillRow(e, row, exceptCol = 0)
+            setTray(e, "dot", null, null)
+            gained = e.placePiece(0, row, 0)!!.gained
+            if (row == BlockBlast.SIZE - 1) e.grid[row * BlockBlast.SIZE + 1] = 1
+        }
+        assertEquals(250, gained)
+        assertEquals(5, e.combo)
+    }
+
+    @Test
+    fun `board is 6x6 and complex pieces are removed`() {
+        assertEquals(6, BlockBlast.SIZE)
+        assertEquals(36, BlockBlast.CELLS)
+        val complex = setOf(
+            "sq3", "l4a", "l4b", "l4c", "l4d",
+            "v5a", "v5b", "v5c", "v5d",
+            "t4a", "t4b", "t4c", "t4d",
+            "s4a", "s4b", "s4c", "s4d",
+            "plus", "u5h", "u5v", "w5a", "w5b",
+        )
+        assertTrue(BlockBlast.PIECES.none { it.id in complex })
     }
 
     @Test

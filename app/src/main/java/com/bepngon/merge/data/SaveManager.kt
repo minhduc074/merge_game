@@ -90,6 +90,8 @@ private data class SaveData(
     val nextOrderId: Long,
     val nextOrderInMs: Long,
     val energy: Int,
+    val energyRegenInMs: Long = 0,
+    val savedAtEpochMs: Long = 0,
     val coins: Int,
     val score: Int,
     val xp: Int,
@@ -198,6 +200,8 @@ class SaveManager(private val context: Context) {
             nextOrderId = state.nextOrderId,
             nextOrderInMs = (state.nextOrderAtMs - nowMs).coerceAtLeast(0),
             energy = state.energy,
+            energyRegenInMs = (state.nextEnergyAtMs - nowMs).coerceAtLeast(0),
+            savedAtEpochMs = System.currentTimeMillis(),
             coins = state.coins,
             score = state.score,
             xp = state.xp,
@@ -253,6 +257,18 @@ class SaveManager(private val context: Context) {
         val data = json.decodeFromString<SaveData>(raw)
         if (data.inventory.size != GameEngine.MAX_INVENTORY) return null
         val cells = remapCells(data.cells)
+        val savedAgoMs = if (data.savedAtEpochMs > 0) {
+            (System.currentTimeMillis() - data.savedAtEpochMs).coerceAtLeast(0)
+        } else {
+            0L
+        }
+        val regenInMs = if (data.energyRegenInMs > 0) {
+            data.energyRegenInMs
+        } else if (data.savedAtEpochMs > 0) {
+            0L
+        } else {
+            GameEngine.ENERGY_REGEN_BASE_MS
+        }
         GameState(
             cells = cells.mapIndexed { i, c ->
                 c?.let {
@@ -276,6 +292,7 @@ class SaveManager(private val context: Context) {
             nextOrderId = data.nextOrderId,
             nextOrderAtMs = nowMs + data.nextOrderInMs,
             energy = data.energy,
+            nextEnergyAtMs = nowMs + regenInMs - savedAgoMs,
             coins = data.coins,
             score = data.score,
             xp = data.xp,
@@ -315,7 +332,7 @@ class SaveManager(private val context: Context) {
                 0
             },
             decor = data.decor?.toState() ?: DecorState(),
-        )
+        ).let { GameEngine.applyEnergyRegen(it, nowMs) }
     }.getOrNull()
 
     private suspend fun loadV2(nowMs: Long): GameState? = runCatching {

@@ -44,11 +44,12 @@ proguard rules giữ kotlinx.serialization serializers.
   không trần (`miniEnergyFor` + `MINI_ENERGY_BRACKETS`: /10 tới 100đ, /25 tới 300đ,
   /40 tới 700đ, /60 trên — 2000đ ≈ 50⚡, 5000đ ≈ 99⚡; `finishMiniGame`).
   Điểm = points của trái mới `(tier+1)²` (4/9/16/…/121), merge 2 dưa hấu +150; chỉ thả được 4 trái nhỏ nhất.
-- Minigame xếp khối (Block Blast!): engine thuần `game/BlockBlastEngine.kt` (grid `IntArray(64)`,
-  ~30 shape trong `BlockBlast` lookup qua `byId`; tray 3 khối refill khi đặt hết; smart RNG đổi
-  weight theo fill% + phân tích placement (fit/setup/line-finisher), pity tăng theo `clearlessMoves`,
-  đảm bảo ≥1 khối đặt được khi bàn nửa chật và ≥2 khối khi quá chật; điểm +10/ô, line 100/300/600/1200/2500+,
-  combo ×(1+0.5·combo), all-clear +3000). `placePiece` trả `BlastPlacement` (đã rename khỏi `Placement`
+- Minigame xếp khối (Block Blast!): engine thuần `game/BlockBlastEngine.kt` (grid 6×6 `IntArray(36)`,
+  16 shape đơn giản trong `BlockBlast` lookup qua `byId` — bar/dot/vuông/chữ nhật/L-tromino, không T/S/Z/V/U/W/plus/sq3;
+  tray 3 khối refill khi đặt hết; smart RNG đổi weight theo fill% + phân tích placement
+  (fit/setup/line-finisher), pity tăng theo `clearlessMoves`, đảm bảo ≥1 khối đặt được khi bàn nửa chật;
+  chỉ clear mới có điểm: line 100/300/600/1200/2500+, combo ×(1+0.5·combo) cap ×2.5, all-clear +3000).
+  `placePiece` trả `BlastPlacement` (đã rename khỏi `Placement`
   vì trùng enum của DecorModels) kèm `clearedCells: Map<idx, delayMs>` cho wave nổ. UI
   `ui/components/BlockBlastGame.kt` — mở từ nút thứ 2 "🧱 Chơi Xếp khối" trong energy StatInfoCard.
   Thưởng `blockEnergyFor` + `BLOCK_ENERGY_BRACKETS` qua `finishBlockGame`; `GameState.blockBest`,
@@ -94,6 +95,7 @@ adb exec-out screencap -p > shot.png     # chụp màn hình
 - Merge chains định nghĩa trong `game/ItemCatalog.kt` (`chain()` + `generator()` helpers) — thêm family mới = thêm 1 chain + 1 generator chain, không sửa engine. Chuỗi `rare_*` (3 tiers) tự động gắn `isRare` — gen spawn với weight 2, orders hỏi với `RARE_ORDER_WEIGHT + level/8` (1→4) + gate tier theo level (`rareOrderTierCap`: chỉ rare_1 tới Lv8, rare_2 tới Lv16, rare_3 từ Lv16+).
 - **Spawn table convention**: tier 1 luôn weight cao nhất ở mọi gen tier; mọi bảng tổng = 100. **Gen tier N chỉ spawn item tier 1..N+1** — tier cao hơn merge-only. Chain dài (fruit 11t, bakery 10t) dùng full cap: gen_1 `76/22`, gen_2 `58/27/13`, gen_3 `50/26/14/8`. Chain ngắn (drink 8t, viet 7t) cap thấp hơn 1 tier: gen_1 `76/22`, gen_2 `64/34` (vẫn t1-2 nhưng nhiều t2 hơn), gen_3 `52/30/16` (max t3). + rare 2 ở mọi gen.
 - **Generator hồi lượt** (`GameEngine.tapGenerator`/`tick`): `maxCharges = 6 * tier` trong `generator()`; hết sạch (0 lượt) → `cooldownUntilMs` = `GEN_COOLDOWN_MS` (30s) → về full như cũ; còn dư → `rechargeAtMs` hồi +1 lượt mỗi `GEN_REGEN_MS` (1 phút, catch-up nhiều interval trong `tick`, gen save cũ tự arm timer). `rechargeAtMs` persist qua `rechargeInMs` trong `CellData`. Info card hiện "+1 sau Xs".
+- **Energy hồi offline**: `GameState.nextEnergyAtMs` chạy trong `GameEngine.tick` (`applyEnergyRegen`, cap tự nhiên `ENERGY_CAP`, reward vẫn overflow). `SaveManager` persist `energyRegenInMs` + `savedAtEpochMs`; lúc load trừ thời gian app đóng rồi catch-up nhiều interval. Không hồi offline cho các timer khác — chúng vẫn freeze qua `*InMs`.
 - `GameEngine` là pure functions: `(GameState, args) -> Pair<GameState, List<GameEvent>>`; UI animate dựa trên `GameEvent` qua SharedFlow.
 - **Achievements**: `GameModels.Achievements` — 46 cái, 15 `CHAINS` (claim bậc N → lộ bậc N+1). Metric = state-derived (score/inventoryCap/dailyStreak/miniBest/decor placed/gen tier≥2) + counters `Stats` (merges/ordersDone/coinsEarned/maxTier + spawns/raresFound/qteClaimed/maxCombo — thêm counter = thêm field `Stats` + `StatsData` + chỗ increment). `checkAchievements` là PUBLIC — phải gọi ở MỌI path đổi metric (tap gen, claim QTE/daily, minigame, mua ô kho, nâng gen, wand-dup, decorOp trong VM) để unlock pop ngay.
 - Order XP = `tier*1 + 3` mỗi đơn, combo bonus `2*combo` (đã giảm ~1/2 từ `tier*2 + 5` / `4*combo`).

@@ -128,6 +128,7 @@ object GameEngine {
             nextOrderId = 1,
             nextOrderAtMs = FIRST_ORDER_DELAY_MS,
             energy = ENERGY_CAP,
+            nextEnergyAtMs = ENERGY_REGEN_BASE_MS,
             coins = START_COINS,
             score = 0,
             xp = 0,
@@ -417,7 +418,23 @@ object GameEngine {
         return checkAchievements(next, events) to events
     }
 
-    // ---------- periodic tick: recharge gens + spawn orders ----------
+    // ---------- periodic tick: energy + recharge gens + spawn orders ----------
+
+    fun applyEnergyRegen(state: GameState, nowMs: Long): GameState {
+        var at = state.nextEnergyAtMs
+        if (at == 0L) {
+            at = nowMs + ENERGY_REGEN_BASE_MS
+            return state.copy(nextEnergyAtMs = at)
+        }
+        if (at > nowMs) return state
+        val intervals = (nowMs - at) / ENERGY_REGEN_BASE_MS + 1
+        val needed = (ENERGY_CAP - state.energy).coerceAtLeast(0).toLong()
+        val energy = state.energy + minOf(intervals, needed).toInt()
+        return state.copy(
+            energy = energy,
+            nextEnergyAtMs = at + intervals * ENERGY_REGEN_BASE_MS,
+        )
+    }
 
     fun tick(
         state: GameState,
@@ -425,7 +442,7 @@ object GameEngine {
         random: Random = Random,
     ): Pair<GameState, List<GameEvent>> {
         val events = mutableListOf<GameEvent>()
-        var next = state
+        var next = applyEnergyRegen(state, nowMs)
 
         val cells = next.cells.toMutableList()
         var cellsChanged = false

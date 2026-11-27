@@ -76,14 +76,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             while (true) {
-                delay(GameEngine.ENERGY_REGEN_BASE_MS)
-                update { s ->
-                    if (s.energy < GameEngine.ENERGY_CAP) s.copy(energy = s.energy + 1) else s
-                }
-            }
-        }
-        viewModelScope.launch {
-            while (true) {
                 delay(ORDER_TICK_MS)
                 applyEngine { GameEngine.tick(it, nowMs()) }
                 _ui.value = _ui.value.copy(nowMs = nowMs())
@@ -378,7 +370,4 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun update(transform: (GameState) -> GameState) {
-        _ui.value = _ui.value.copy(game = transform(_ui.value.game))
-    }
 }

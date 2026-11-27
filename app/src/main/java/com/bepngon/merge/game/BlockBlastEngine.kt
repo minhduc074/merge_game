@@ -5,21 +5,21 @@ import kotlin.random.Random
 
 /**
  * Block Blast!-style block puzzle: drag pieces from a 3-piece tray onto an
- * 8x8 grid, full rows/columns pop for points. Pure JVM — unit-testable.
+ * 6x6 grid, full rows/columns pop for points. Pure JVM — unit-testable.
  *
  * Scoring (per GDD):
- *   +10 per placed cell · line clear 100/300/600/1200/2500(+500/line past 5)
+ *   line clear 100/300/600/1200/2500(+500/line past 5) — placements alone score 0
  *   clear multiplier x(1 + 0.5*combo) · combo survives while at least one of
  *   the last COMBO_WINDOW placements cleared · all-clear board +3000.
  */
 object BlockBlast {
-    const val SIZE = 8
+    const val SIZE = 6
     const val CELLS = SIZE * SIZE
     const val TRAY_SIZE = 3
-    const val PLACE_POINTS = 10
     const val ALL_CLEAR_BONUS = 3000
     /** Consecutive clearless placements before the combo streak dies. */
     const val COMBO_WINDOW = 3
+    const val COMBO_MULT_CAP = 2.5f
     /** Board fill fraction above which the RNG favors small pieces and the
      *  tray guarantees at least one fitting piece (when one exists). */
     const val CRAMPED_FILL = 0.65f
@@ -49,7 +49,6 @@ object BlockBlast {
         val w: Int,
         val h: Int,
         val weight: Float,
-        val weird: Boolean,
     ) {
         val size: Int get() = cells.size
         val solid: Boolean get() = cells.size == w * h
@@ -61,60 +60,31 @@ object BlockBlast {
         id: String,
         vararg rows: String,
         weight: Float,
-        weird: Boolean = false,
     ): Piece {
         val w = rows[0].length
         val cells = rows.flatMapIndexed { r, row ->
             row.mapIndexedNotNull { c, ch -> if (ch == '#') r * w + c else null }
         }.toIntArray()
-        return Piece(id, cells, w, rows.size, weight, weird)
+        return Piece(id, cells, w, rows.size, weight)
     }
 
     val PIECES: List<Piece> = listOf(
-        shape("dot", "#", weight = 9f),
-        shape("bar2h", "##", weight = 8f),
-        shape("bar2v", "#", "#", weight = 8f),
+        shape("dot", "#", weight = 7f),
+        shape("bar2h", "##", weight = 9f),
+        shape("bar2v", "#", "#", weight = 9f),
         shape("bar3h", "###", weight = 8f),
         shape("bar3v", "#", "#", "#", weight = 8f),
-        shape("bar4h", "####", weight = 6f),
-        shape("bar4v", "#", "#", "#", "#", weight = 6f),
-        shape("bar5h", "#####", weight = 4f),
-        shape("bar5v", "#", "#", "#", "#", "#", weight = 4f),
-        shape("sq2", "##", "##", weight = 8f),
-        shape("rect23", "###", "###", weight = 5f),
-        shape("rect32", "##", "##", "##", weight = 5f),
-        shape("sq3", "###", "###", "###", weight = 2f, weird = true),
-        // L-trominoes
-        shape("c3a", "##", "#.", weight = 7f),
-        shape("c3b", "##", ".#", weight = 7f),
-        shape("c3c", "#.", "##", weight = 7f),
-        shape("c3d", ".#", "##", weight = 7f),
-        // L-tetrominoes (3+2 legs)
-        shape("l4a", "#.", "#.", "##", weight = 6f),
-        shape("l4b", ".#", ".#", "##", weight = 6f),
-        shape("l4c", "##", "#.", "#.", weight = 6f),
-        shape("l4d", "##", ".#", ".#", weight = 6f),
-        // V-pentominoes (3+3 legs)
-        shape("v5a", "#..", "#..", "###", weight = 4f),
-        shape("v5b", "..#", "..#", "###", weight = 4f),
-        shape("v5c", "###", "#..", "#..", weight = 4f),
-        shape("v5d", "###", "..#", "..#", weight = 4f),
-        // T-tetrominoes
-        shape("t4a", "###", ".#.", weight = 5f),
-        shape("t4b", ".#.", "###", weight = 5f),
-        shape("t4c", "#.", "##", "#.", weight = 5f),
-        shape("t4d", ".#", "##", ".#", weight = 5f),
-        // S/Z-tetrominoes
-        shape("s4a", ".##", "##.", weight = 5f),
-        shape("s4b", "##.", ".##", weight = 5f),
-        shape("s4c", "#.", "##", ".#", weight = 5f),
-        shape("s4d", ".#", "##", "#.", weight = 5f),
-        // the "weird" set the GDD wants more of at high scores
-        shape("plus", ".#.", "###", ".#.", weight = 2.5f, weird = true),
-        shape("u5h", "#.#", "###", weight = 3.5f, weird = true),
-        shape("u5v", "##", ".#", "##", weight = 3.5f, weird = true),
-        shape("w5a", "#..", "##.", ".##", weight = 3f, weird = true),
-        shape("w5b", "..#", ".##", "##.", weight = 3f, weird = true),
+        shape("bar4h", "####", weight = 5f),
+        shape("bar4v", "#", "#", "#", "#", weight = 5f),
+        shape("bar5h", "#####", weight = 3f),
+        shape("bar5v", "#", "#", "#", "#", "#", weight = 3f),
+        shape("sq2", "##", "##", weight = 9f),
+        shape("rect23", "###", "###", weight = 4.5f),
+        shape("rect32", "##", "##", "##", weight = 4.5f),
+        shape("c3a", "##", "#.", weight = 6f),
+        shape("c3b", "##", ".#", weight = 6f),
+        shape("c3c", "#.", "##", weight = 6f),
+        shape("c3d", ".#", "##", weight = 6f),
     )
 
     fun byId(id: String): Piece = PIECES.first { it.id == id }
@@ -231,7 +201,7 @@ class BlockBlastEngine(private val random: Random = Random) {
         val piece = tp.piece
         val placed = piece.cells.map { (row + it / piece.w) * s + col + it % piece.w }
         for (i in placed) grid[i] = tp.color + 1
-        var gained = piece.size * BlockBlast.PLACE_POINTS
+        var gained = 0
 
         val fullRows = (0 until s).filter { r -> (0 until s).all { c -> grid[r * s + c] != 0 } }
         val fullCols = (0 until s).filter { c -> (0 until s).all { r -> grid[r * s + c] != 0 } }
@@ -244,7 +214,7 @@ class BlockBlastEngine(private val random: Random = Random) {
 
         if (lines > 0) {
             // multiplier uses the streak BEFORE this clear: 1st = x1, then grows
-            gained += (BlockBlast.lineScore(lines) * (1f + 0.5f * combo)).roundToInt()
+            gained += (BlockBlast.lineScore(lines) * (1f + 0.5f * combo).coerceAtMost(BlockBlast.COMBO_MULT_CAP)).roundToInt()
             combo += 1
             bestCombo = maxOf(bestCombo, combo)
             dry = 0
@@ -386,7 +356,6 @@ class BlockBlastEngine(private val random: Random = Random) {
         pickWeighted(candidates) { op ->
             var w = 12f + op.bestLines * 32f + op.clearSpots * 10f + op.clearQuality / 250f
             if (op.piece.size <= 3) w *= 1.15f
-            if (op.piece.weird) w *= 0.75f
             w
         }
 
@@ -394,7 +363,6 @@ class BlockBlastEngine(private val random: Random = Random) {
         pickWeighted(candidates) { op ->
             var w = 6f + op.setupQuality + op.fits * 0.55f
             if (op.piece.solid) w *= if (fill < 0.50f) 1.18f else 1.05f
-            if (op.piece.weird) w *= if (fill > BlockBlast.CRAMPED_FILL) 0.35f else 0.70f
             if (fill < BlockBlast.EARLY_FILL) {
                 if (op.piece.size >= 4) w *= 1.35f
                 if (op.piece.size == 1) w *= 0.55f
@@ -407,11 +375,7 @@ class BlockBlastEngine(private val random: Random = Random) {
 
     private fun ensureFittingPieces(fitting: List<PieceOption>, fill: Float) {
         if (fitting.isEmpty()) return
-        val target = when {
-            fill > BlockBlast.CRAMPED_FILL -> 2
-            fill > 0.45f || clearlessMoves >= 3 -> 1
-            else -> 0
-        }
+        val target = if (fill > 0.45f || clearlessMoves >= 3) 1 else 0
         var guard = 0
         while (tray.count { it != null && anyPlacement(it.piece) } < target && guard++ < 8) {
             val replaceable = (0 until BlockBlast.TRAY_SIZE).filter {
@@ -424,7 +388,6 @@ class BlockBlastEngine(private val random: Random = Random) {
     }
 
     private fun drawPiece(fill: Float, options: Map<BlockBlast.Piece, PieceOption>): TrayPiece {
-        val weirdBoost = (0.65f + score / 7000f).coerceAtMost(1.80f)
         val ws = FloatArray(BlockBlast.PIECES.size)
         var total = 0f
         for (i in BlockBlast.PIECES.indices) {
@@ -435,12 +398,11 @@ class BlockBlastEngine(private val random: Random = Random) {
                 if (p.solid) w *= 1.12f
             } else if (fill > BlockBlast.CRAMPED_FILL) {
                 if (p.size <= 3) w *= 2.8f else if (p.size >= 5) w *= 0.35f
-                if (p.weird) w *= 0.60f
             }
             val op = options[p]
             if (op != null) {
                 if (op.fits == 0) {
-                    w *= if (fill > 0.45f) 0.04f else 0.15f
+                    w *= if (fill > 0.45f) 0.15f else 0.25f
                 } else {
                     w *= 0.80f + (op.fits.coerceAtMost(20) / 20f) * 0.40f
                     if (op.bestLines > 0) {
@@ -448,7 +410,6 @@ class BlockBlastEngine(private val random: Random = Random) {
                     }
                 }
             }
-            if (p.weird) w *= weirdBoost
             ws[i] = w
             total += w
         }

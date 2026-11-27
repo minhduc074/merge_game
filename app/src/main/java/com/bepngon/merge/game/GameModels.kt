@@ -166,6 +166,7 @@ data class GameState(
     val nextOrderId: Long,
     val nextOrderAtMs: Long,
     val energy: Int,
+    val nextEnergyAtMs: Long = 0,
     val coins: Int,
     val score: Int,
     val xp: Int,

@@ -73,7 +73,7 @@ import kotlin.random.Random
 
 /**
  * Block Blast!-style minigame — dark navy board, glossy neon pieces.
- * Drag a tray piece onto the 8x8 grid; full rows/columns pop in a wave.
+ * Drag a tray piece onto the 6x6 grid; full rows/columns pop in a wave.
  */
 
 private val ScreenBg = Color(0xFF0E1526)
@@ -236,9 +236,11 @@ fun BlockBlastGame(
         val cell = cellPx
         pop = PopFx((res.placedCells - res.clearedCells.keys).toSet(), now)
         // floater anchor = piece bounding-box center, clamped inside the board
-        val ax = ((res.col + res.pieceW / 2f) * cell).coerceIn(cell * 1.4f, cellPx * 8 - cell * 1.4f)
-        val ay = ((res.row + res.pieceH / 2f) * cell).coerceIn(cell, cellPx * 8 - cell)
-        floaters += Floater("+${res.gained}", PieceColors[res.color], ax, ay, big = false, start = now)
+        val ax = ((res.col + res.pieceW / 2f) * cell).coerceIn(cell * 1.4f, cellPx * BlockBlast.SIZE - cell * 1.4f)
+        val ay = ((res.row + res.pieceH / 2f) * cell).coerceIn(cell, cellPx * BlockBlast.SIZE - cell)
+        if (res.gained > 0) {
+            floaters += Floater("+${res.gained}", PieceColors[res.color], ax, ay, big = false, start = now)
+        }
 
         if (res.clearedCells.isNotEmpty()) {
             // wave radiates from the piece center
@@ -246,7 +248,7 @@ fun BlockBlastGame(
             val oc = res.col + res.pieceW / 2f - 0.5f
             clears += ClearFx(
                 res.clearedCells.map { (i, c) ->
-                    val d = abs(i / 8 - or) + abs(i % 8 - oc)
+                    val d = abs(i / BlockBlast.SIZE - or) + abs(i % BlockBlast.SIZE - oc)
                     ClearCell(i, c, (d * WAVE_STEP_MS).toLong())
                 },
                 now,
@@ -255,8 +257,8 @@ fun BlockBlastGame(
             if (cell > 0f) {
                 res.clearedCells.forEach { (i, ci) ->
                     if (particles.size > 220) return@forEach
-                    val cx = (i % 8 + 0.5f) * cell
-                    val cy = (i / 8 + 0.5f) * cell
+                    val cx = (i % BlockBlast.SIZE + 0.5f) * cell
+                    val cy = (i / BlockBlast.SIZE + 0.5f) * cell
                     repeat(3) {
                         particles += Particle(
                             x = cx,
