@@ -37,7 +37,7 @@ describe("validateGameConfigPayload", () => {
 
   it("rejects invalid order count weights and brackets", () => {
     const payload = structuredClone(DEFAULT_GAME_CONFIG);
-    payload.orders.countWeights.one = 40;
+    payload.orders.countWeights.one = 50;
     payload.rewards.miniEnergyBrackets = [[100, 10], [50, 10]];
     const errors = validateGameConfigPayload(payload);
     expect(errors).toContain("orders.countWeights must sum to 100");

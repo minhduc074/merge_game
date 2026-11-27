@@ -28,7 +28,7 @@ object GameEngine {
     const val GEN_COOLDOWN_MS = 30_000L
     /** Partially-used generators regain +1 charge per interval; draining to
      *  zero triggers the full [GEN_COOLDOWN_MS] reset instead. */
-    const val GEN_REGEN_MS = 60_000L
+    const val GEN_REGEN_MS = 30_000L
     const val DAILY_COINS = 50
     const val DAILY_ENERGY = 10
     const val DAILY_COOLDOWN_MS = 24 * 3_600_000L
@@ -55,7 +55,7 @@ object GameEngine {
     const val QTE_WILD_WHEN_COOLING = 0.5f
 
     // Cafe room and mini-game (Suika fruit drop).
-    const val ENERGY_REGEN_BASE_MS = 60_000L
+    const val ENERGY_REGEN_BASE_MS = 20_000L
     const val GEN_UPGRADE_PRICE_MULT = 10
     const val MINI_MAX_PLAYS = 3
     const val MINI_REFILL_MS = 4 * 3_600_000L
@@ -448,8 +448,14 @@ object GameEngine {
         var cellsChanged = false
         cells.forEachIndexed { i, it ->
             if (it == null || !ItemCatalog[it.defId].isGenerator) return@forEachIndexed
-            val max = ItemCatalog[it.defId].maxCharges
+            val def = ItemCatalog[it.defId]
+            val max = def.maxCharges
+            val legacyMax = def.tier * 6
             val cur = when {
+                // Saves from the 6/12/18 era: a gen exactly at its old cap is
+                // treated as full and topped up once when the cap increases.
+                it.cooldownUntilMs <= 0 && it.rechargeAtMs <= 0 && it.charges == legacyMax && max > legacyMax ->
+                    it.copy(charges = max)
                 // Depleted gen finished cooling -> back to full (unchanged).
                 it.cooldownUntilMs in 1..nowMs ->
                     it.copy(charges = max, cooldownUntilMs = 0, rechargeAtMs = 0)
@@ -475,6 +481,24 @@ object GameEngine {
             }
         }
         if (cellsChanged) next = next.copy(cells = cells)
+
+        // Inventory generators do not regen while stored, but still migrate if
+        // they were full under the old 6/12/18 capacity table.
+        var inventoryChanged = false
+        val inventory = next.inventory.map { item ->
+            if (item == null || item.charges < 0) return@map item
+            val def = ItemCatalog[item.defId]
+            val legacyMax = def.tier * 6
+            if (def.isGenerator && item.cooldownUntilMs <= 0 && item.rechargeAtMs <= 0 &&
+                item.charges == legacyMax && def.maxCharges > legacyMax
+            ) {
+                inventoryChanged = true
+                item.copy(charges = def.maxCharges)
+            } else {
+                item
+            }
+        }
+        if (inventoryChanged) next = next.copy(inventory = inventory)
 
         val (afterOrders, orderEvents) = maybeSpawnOrder(next, nowMs, random)
         val (afterQte, qteEvents) = qteStep(afterOrders, nowMs, random)

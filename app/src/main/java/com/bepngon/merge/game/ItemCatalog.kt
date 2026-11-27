@@ -65,7 +65,7 @@ object ItemCatalog {
                 tier = tier, mergeResult = next, sellPrice = sellPrice, score = 0,
                 isGenerator = true,
                 spawnTable = table.map { SpawnEntry(it.first, it.second) },
-                maxCharges = 6 * tier,
+                maxCharges = 8 * tier,
             )
         )
     }

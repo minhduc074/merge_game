@@ -238,7 +238,7 @@ function normalizeConfigShape(payload){
  payload.rewards=payload.rewards||{};
  payload.rewards.miniEnergyBrackets=payload.rewards.miniEnergyBrackets||[];
  payload.rewards.blockEnergyBrackets=payload.rewards.blockEnergyBrackets||[];
- GEN_IDS.forEach(function(id){if(!payload.generators[id])payload.generators[id]={maxCharges:6,spawnTable:[{itemId:familyOfGen(id)+'_1',weight:100}]};payload.generators[id].spawnTable=payload.generators[id].spawnTable||[]});
+ GEN_IDS.forEach(function(id){var tier=Number(id.split('_').pop())||1;if(!payload.generators[id])payload.generators[id]={maxCharges:8*tier,spawnTable:[{itemId:familyOfGen(id)+'_1',weight:100}]};payload.generators[id].spawnTable=payload.generators[id].spawnTable||[]});
  return payload;
 }
 function isEditable(){return state.config&&state.config.status==='DRAFT'}
@@ -317,7 +317,7 @@ function generatorsSectionHtml(){
  var canRare=ITEMS[rareId]?'data-add-rare="'+rareId+'"':'disabled';
  return '<div class="config-section"><div class="section-head"><div><h3>Generator spawn tables</h3><p class="muted">Chọn generator, chỉnh số lượt sạc và tỉ lệ spawn. Tổng weight của mỗi generator bắt buộc bằng 100.</p></div></div>'+
  '<div class="gen-picker">'+picker+'</div><div class="gen-editor"><div class="gen-editor-head"><h4>'+esc(generatorLabel(state.activeGen))+'</h4><span class="sum-badge" data-sum-badge>—</span></div><div class="form-grid">'+
- field('Số lượt sạc tối đa','generators.'+state.activeGen+'.maxCharges',gen.maxCharges,{min:1,max:60,hint:'Mặc định bundle là 6/12/18 theo tier gen; app sẽ dùng giá trị đã publish'})+
+ field('Số lượt sạc tối đa','generators.'+state.activeGen+'.maxCharges',gen.maxCharges,{min:1,max:60,hint:'Mặc định bundle là 8/16/24 theo tier gen; app sẽ dùng giá trị đã publish'})+
  '</div><div class="subsection"><div class="row" style="justify-content:space-between"><h4 style="margin:0">Bảng spawn</h4><div class="row"><button class="small secondary" data-add-row '+disabledAttr()+'>+ Thêm item</button><button class="small ghost" '+canRare+' '+disabledAttr()+'>+ Rare phù hợp</button></div></div><div class="spawn-table" style="margin-top:10px">'+rows+'</div><div class="hint" style="margin-top:8px">Convention hiện tại: tier 1 weight cao nhất, gen tier N chỉ nên spawn tới tier N+1, rare thường weight 2.</div></div></div></div>';
 }
 function economySectionHtml(){

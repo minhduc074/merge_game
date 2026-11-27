@@ -103,15 +103,15 @@ class GameEngineTest {
         } finally {
             ItemCatalog.clearGeneratorTunings()
         }
-        assertEquals(6, ItemCatalog["gen_fruit_1"].maxCharges)
+        assertEquals(8, ItemCatalog["gen_fruit_1"].maxCharges)
     }
 
     @Test
     fun `energy regen catches up multiple intervals and caps at the natural cap`() {
         val s = stateWith(energy = 8).copy(nextEnergyAtMs = 1_000)
         val next = GameEngine.applyEnergyRegen(s, 121_000)
-        assertEquals(11, next.energy)
-        assertEquals(181_000, next.nextEnergyAtMs)
+        assertEquals(15, next.energy)
+        assertEquals(141_000, next.nextEnergyAtMs)
 
         val capped = GameEngine.applyEnergyRegen(
             stateWith(energy = 99).copy(nextEnergyAtMs = 1_000),
@@ -124,7 +124,7 @@ class GameEngineTest {
     fun `energy regen accepts overdue offline timestamps`() {
         val s = stateWith(energy = 10).copy(nextEnergyAtMs = -119_000)
         val next = GameEngine.applyEnergyRegen(s, 0)
-        assertEquals(12, next.energy)
+        assertEquals(16, next.energy)
         assertEquals(1_000, next.nextEnergyAtMs)
     }
 
@@ -186,7 +186,7 @@ class GameEngineTest {
         val s = stateWith(0 to "gen_fruit_1")
         val (next, events) = GameEngine.tapGenerator(s, 0, 1000, Random(42))
         assertEquals(9, next.energy)
-        assertEquals(5, next.cells[0]?.charges) // maxCharges 6 - 1
+        assertEquals(7, next.cells[0]?.charges) // maxCharges 8 - 1
         assertEquals(1, next.cells.count { it != null && it.defId.startsWith("fruit_") })
         assertTrue(events.single() is GameEvent.Spawned)
     }
@@ -194,8 +194,8 @@ class GameEngineTest {
     @Test
     fun `generator enters cooldown after last charge then recharges on tick`() {
         var s = stateWith(0 to "gen_fruit_1")
-        // drain all 6 charges
-        repeat(6) {
+        // drain all 8 charges
+        repeat(8) {
             s = GameEngine.tapGenerator(s, 0, 1000).first
             // free spawned items so board never fills
             val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
@@ -211,7 +211,7 @@ class GameEngineTest {
 
         // tick after cooldown → recharged + event
         val (recharged, ev2) = GameEngine.tick(s, 1000 + GameEngine.GEN_COOLDOWN_MS + 1)
-        assertEquals(6, recharged.cells[0]?.charges)
+        assertEquals(8, recharged.cells[0]?.charges)
         assertEquals(0L, recharged.cells[0]?.cooldownUntilMs)
         assertTrue(ev2.any { it is GameEvent.GeneratorReady })
     }
@@ -226,18 +226,18 @@ class GameEngineTest {
             s = s.copy(cells = cells)
         }
         val gen = s.cells[0]!!
-        assertEquals(4, gen.charges)
+        assertEquals(6, gen.charges)
         assertEquals(1000 + GameEngine.GEN_REGEN_MS, gen.rechargeAtMs)
 
         // first interval -> +1, next interval armed, not full yet
         val (t1, ev1) = GameEngine.tick(s, 1000 + GameEngine.GEN_REGEN_MS)
-        assertEquals(5, t1.cells[0]?.charges)
+        assertEquals(7, t1.cells[0]?.charges)
         assertEquals(1000 + 2 * GameEngine.GEN_REGEN_MS, t1.cells[0]?.rechargeAtMs)
         assertTrue(ev1.none { it is GameEvent.GeneratorReady })
 
         // second interval -> full, timer cleared, ready event
         val (t2, ev2) = GameEngine.tick(t1, 1000 + 2 * GameEngine.GEN_REGEN_MS)
-        assertEquals(6, t2.cells[0]?.charges)
+        assertEquals(8, t2.cells[0]?.charges)
         assertEquals(0L, t2.cells[0]?.rechargeAtMs)
         assertTrue(ev2.any { it is GameEvent.GeneratorReady })
     }
@@ -250,16 +250,16 @@ class GameEngineTest {
             val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
             s = s.copy(cells = cells)
         }
-        // 3/6 charged, deadline long past -> +3 to full in a single tick
+        // 5/8 charged, deadline long past -> +3 to full in a single tick
         val (t, _) = GameEngine.tick(s, 1000 + 4 * GameEngine.GEN_REGEN_MS)
-        assertEquals(6, t.cells[0]?.charges)
+        assertEquals(8, t.cells[0]?.charges)
         assertEquals(0L, t.cells[0]?.rechargeAtMs)
     }
 
     @Test
     fun `drained generator clears regen timer in favor of cooldown`() {
         var s = stateWith(0 to "gen_fruit_1")
-        repeat(6) {
+        repeat(8) {
             s = GameEngine.tapGenerator(s, 0, 1000).first
             val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
             s = s.copy(cells = cells)
@@ -268,6 +268,23 @@ class GameEngineTest {
         assertEquals(0, gen.charges)
         assertEquals(0L, gen.rechargeAtMs)
         assertEquals(1000 + GameEngine.GEN_COOLDOWN_MS, gen.cooldownUntilMs)
+    }
+
+    @Test
+    fun `generator exactly at legacy cap is topped up after capacity increase`() {
+        var s = stateWith(0 to "gen_fruit_1")
+        s = s.copy(cells = s.cells.map { it?.copy(charges = 6, rechargeAtMs = 0, cooldownUntilMs = 0) })
+        val (t, ev) = GameEngine.tick(s, 50_000)
+        assertEquals(8, t.cells[0]?.charges)
+        assertTrue(ev.any { it is GameEvent.GeneratorReady })
+    }
+
+    @Test
+    fun `stored generator exactly at legacy cap is topped up after capacity increase`() {
+        var s = stateWith(inventory = listOf("gen_fruit_1"))
+        s = s.copy(inventory = s.inventory.map { it?.copy(charges = 6) })
+        val (t, _) = GameEngine.tick(s, 50_000)
+        assertEquals(8, t.inventory[0]?.charges)
     }
 
     @Test
@@ -1125,7 +1142,7 @@ class GameEngineTest {
     fun `merge resets generator charges`() {
         // drain a gen to 3 charges, then merge with fresh one
         var s = stateWith(0 to "gen_fruit_1", 1 to "gen_fruit_1")
-        repeat(3) {
+        repeat(5) {
             s = GameEngine.tapGenerator(s, 0, 1000, Random(1)).first
             val cells = s.cells.map { it?.takeIf { i -> i.defId.startsWith("gen_") } }
             s = s.copy(cells = cells)
@@ -1133,7 +1150,7 @@ class GameEngineTest {
         assertEquals(3, s.cells[0]?.charges)
         val (merged, _) = GameEngine.moveOrMerge(s, 0, 1)
         assertEquals("gen_fruit_2", merged.cells[1]?.defId)
-        assertEquals(12, merged.cells[1]?.charges) // fresh maxCharges for tier-2 gen
+        assertEquals(16, merged.cells[1]?.charges) // fresh maxCharges for tier-2 gen
     }
 
     @Test
