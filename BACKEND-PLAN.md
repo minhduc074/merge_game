@@ -81,7 +81,7 @@ Mục tiêu: chỉnh balance trong admin → app áp dụng không cần release
 - [ ] UI đang đọc trực tiếp constants (`ENERGY_CAP`, `GEN_REGEN_MS`...) → chuyển sang active config
 - [x] `ConfigRepository`: fetch không blocking, cache DataStore, fallback bundled default khi offline/invalid — hiện mới apply generator section
 - [ ] Validate phía client trước khi apply (cùng rules server)
-- [ ] Gửi `configVersion` kèm score submit + analytics
+- [x] Gửi `configVersion` kèm score submit + analytics
 - [ ] Unit test: default balance ≡ behavior hiện tại; override spawn table deterministic bằng seed
 - [x] Verify trên emulator: publish config thử → app nhận config mới (generator maxCharges)
 

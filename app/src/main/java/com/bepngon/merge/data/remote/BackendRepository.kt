@@ -166,13 +166,14 @@ class BackendRepository(private val context: Context) {
     suspend fun aroundMe(board: String, range: Int = 10): LeaderboardResponse =
         withAuthRetry { auth -> api.aroundMe(board, auth, range) }
 
-    suspend fun submitScore(board: String, score: Int): SubmitScoreResponse =
+    suspend fun submitScore(board: String, score: Int, configVersion: Int? = null): SubmitScoreResponse =
         withAuthRetry { auth ->
             api.submitScore(
                 board = board,
                 authorization = auth,
                 body = SubmitScoreRequest(
                     score = score,
+                    configVersion = configVersion,
                     appVersion = BuildConfig.VERSION_NAME,
                     debug = BuildConfig.DEBUG,
                 ),

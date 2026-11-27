@@ -469,7 +469,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 while (pendingScoreSubmissions.isNotEmpty()) {
                     val (board, score) = pendingScoreSubmissions.entries.first()
-                    val submitted = runCatching { backend.submitScore(board, score) }.isSuccess
+                    val submitted = runCatching { backend.submitScore(board, score, activeConfigVersion) }.isSuccess
                     if (!submitted) break
                     pendingScoreSubmissions.remove(board)
                     lastSubmittedScores[board] = maxOf(lastSubmittedScores[board] ?: -1, score)
